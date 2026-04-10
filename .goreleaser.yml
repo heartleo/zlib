@@ -1,0 +1,62 @@
+version: 2
+
+project_name: zlib
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: zlib
+    main: ./cmd/zlib
+    binary: zlib
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/heartleo/zlib.Version={{.Version}} -X github.com/heartleo/zlib.Commit={{.Commit}} -X github.com/heartleo/zlib.Date={{.Date}}
+
+archives:
+  - id: zlib
+    ids:
+      - zlib
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - '^refactor:'
+      - '^style:'
+      - '^Merge '
+
+release:
+  draft: true
+  replace_existing_draft: true
+

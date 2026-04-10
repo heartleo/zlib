@@ -1,0 +1,45 @@
+# Reference https://github.com/github/gitignore/blob/master/Go.gitignore
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.dylib
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+
+# OS General
+Thumbs.db
+.DS_Store
+
+# Project
+*.cert
+*.key
+*.log
+bin/
+*.env
+*.yaml
+!.goreleaser.yaml
+CLAUDE.md
+zlib
+
+# Develop Tools
+.vscode/
+.idea/
+.claude/
+*.swp
+.playwright-mcp/
+*.png
