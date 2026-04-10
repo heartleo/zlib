@@ -6,7 +6,7 @@ A CLI for Z-Library.
 [![Go Report Card](https://goreportcard.com/badge/github.com/heartleo/zlib)](https://goreportcard.com/report/github.com/heartleo/zlib)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-<!-- English | [中文](README.zh.md) -->
+English | [中文](README.zh.md)
 
 ![search demo](docs/demo-search.gif)
 
@@ -16,7 +16,7 @@ A CLI for Z-Library.
 - 📥 **Book download** — by book ID, from search results, with live progress
 - 📚 **Download history** — paginated history browser with download support
 - 📖 **Send to Kindle** — deliver files to your Kindle address
-- 👤 **Usage profile** — view daily download quota
+- 🕒 **Usage profile** — view daily download quota
 - 🎨 **Themes** — mocha, dracula, tokyo, nord, gruvbox
 - 🌐 **Proxy & custom domain** support for restricted networks
 
