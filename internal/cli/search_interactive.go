@@ -25,6 +25,7 @@ const (
 type searchSelectModel struct {
 	client     *zlib.Client
 	query      string
+	opts       *zlib.SearchOptions
 	books      []zlib.Book
 	page       int
 	totalPages int
@@ -43,13 +44,14 @@ type searchResultMsg struct {
 	totalPages int
 }
 
-func newSearchSelectModel(query string, c *zlib.Client) searchSelectModel {
+func newSearchSelectModel(query string, c *zlib.Client, opts *zlib.SearchOptions) searchSelectModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(currentTheme.Accent)
 	return searchSelectModel{
 		client:  c,
 		query:   query,
+		opts:    opts,
 		page:    1,
 		state:   searchStateLoading,
 		spinner: s,
@@ -62,7 +64,7 @@ func (m searchSelectModel) Init() tea.Cmd {
 
 func (m searchSelectModel) fetchPage(page int) tea.Cmd {
 	return func() tea.Msg {
-		result, err := m.client.Search(m.query, page, 25, nil)
+		result, err := m.client.Search(m.query, page, 25, m.opts)
 		if err != nil {
 			return errMsg{err}
 		}
@@ -174,18 +176,19 @@ func (m searchSelectModel) View() string {
 		colAuthor = 15
 		colFmt    = 4
 		colSize   = 10
+		colRating = 6
 	)
 
 	// Table header
 	hdrStyle := lipgloss.NewStyle().Foreground(currentTheme.Accent).Bold(true)
 	sepStyle := lipgloss.NewStyle().Foreground(currentTheme.Surface)
 
-	header := fmt.Sprintf("    %-*s  %-*s  %-*s  %-*s  %-*s  %*s",
-		colNum, "#", colID, "ID", colTitle, "Title", colAuthor, "Author", colFmt, "Fmt", colSize, "Size")
+	header := fmt.Sprintf("    %-*s  %-*s  %-*s  %-*s  %-*s  %*s  %*s",
+		colNum, "#", colID, "ID", colTitle, "Title", colAuthor, "Author", colFmt, "Fmt", colSize, "Size", colRating, "Rating")
 	b.WriteString(hdrStyle.Render(header))
 	b.WriteString("\n")
 
-	sepLen := 4 + colNum + 2 + colID + 2 + colTitle + 2 + colAuthor + 2 + colFmt + 2 + colSize
+	sepLen := 4 + colNum + 2 + colID + 2 + colTitle + 2 + colAuthor + 2 + colFmt + 2 + colSize + 2 + colRating
 	b.WriteString(sepStyle.Render("  " + strings.Repeat("─", sepLen)))
 	b.WriteString("\n")
 
@@ -207,6 +210,10 @@ func (m searchSelectModel) View() string {
 		if size == "" {
 			size = "-"
 		}
+		rating := book.Rating
+		if rating == "" {
+			rating = "-"
+		}
 
 		selected := i == m.cursor
 		cursor := "  "
@@ -220,6 +227,7 @@ func (m searchSelectModel) View() string {
 		authorStyle := lipgloss.NewStyle().Foreground(currentTheme.Muted)
 		extStyle := lipgloss.NewStyle().Foreground(extLipglossColor(ext))
 		sizeStyle := lipgloss.NewStyle().Foreground(currentTheme.Muted)
+		ratingStyle := lipgloss.NewStyle().Foreground(currentTheme.Success)
 		if selected {
 			numStyle = numStyle.Background(currentTheme.Surface)
 			idStyle = idStyle.Background(currentTheme.Surface)
@@ -227,15 +235,17 @@ func (m searchSelectModel) View() string {
 			authorStyle = authorStyle.Background(currentTheme.Surface)
 			extStyle = extStyle.Background(currentTheme.Surface)
 			sizeStyle = sizeStyle.Background(currentTheme.Surface)
+			ratingStyle = ratingStyle.Background(currentTheme.Surface)
 		}
 
-		content := fmt.Sprintf("%s  %s  %s  %s  %s  %s",
+		content := fmt.Sprintf("%s  %s  %s  %s  %s  %s  %s",
 			numStyle.Render(fmt.Sprintf("%-*d", colNum, i+1)),
 			idStyle.Render(runewidth.FillRight(runewidth.Truncate(id, colID, ""), colID)),
 			titleStyle.Render(runewidth.FillRight(runewidth.Truncate(book.Name, colTitle, ""), colTitle)),
 			authorStyle.Render(runewidth.FillRight(runewidth.Truncate(authors, colAuthor, ""), colAuthor)),
 			extStyle.Render(runewidth.FillRight(runewidth.Truncate(ext, colFmt, ""), colFmt)),
 			sizeStyle.Render(fmt.Sprintf("%*s", colSize, runewidth.Truncate(size, colSize, ""))),
+			ratingStyle.Render(fmt.Sprintf("%*s", colRating, runewidth.Truncate(rating, colRating, ""))),
 		)
 		if selected {
 			// Pad trailing space with background color for full-row highlight
@@ -259,14 +269,36 @@ func (m searchSelectModel) View() string {
 
 // interactiveSearch prompts for a query then runs the interactive search model.
 // Returns the selected book ID or "" if cancelled.
-func interactiveSearch(c *zlib.Client) (string, error) {
+func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions) (string, error) {
 	var query string
+	var selectedExts []string
+
+	// Pre-select extensions from CLI --ext flags
+	if opts != nil {
+		for _, e := range opts.Extensions {
+			selectedExts = append(selectedExts, string(e))
+		}
+	}
+
 	inputForm := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Search books").
 				Placeholder("enter title, author, or ISBN...").
 				Value(&query),
+			huh.NewMultiSelect[string]().
+				Title("Filter extensions").
+				Description("(skip to search all formats)").
+				Options(
+					huh.NewOption("EPUB", "EPUB"),
+					huh.NewOption("AZW", "AZW"),
+					huh.NewOption("AZW3", "AZW3"),
+					huh.NewOption("MOBI", "MOBI"),
+					huh.NewOption("PDF", "PDF"),
+					huh.NewOption("RTF", "RTF"),
+					huh.NewOption("TXT", "TXT"),
+				).
+				Value(&selectedExts),
 		),
 	).WithTheme(huhTheme())
 	if err := inputForm.Run(); err != nil {
@@ -276,7 +308,18 @@ func interactiveSearch(c *zlib.Client) (string, error) {
 		return "", nil
 	}
 
-	p := tea.NewProgram(newSearchSelectModel(query, c))
+	// Merge selected extensions into opts
+	if len(selectedExts) > 0 {
+		if opts == nil {
+			opts = &zlib.SearchOptions{}
+		}
+		opts.Extensions = nil
+		for _, e := range selectedExts {
+			opts.Extensions = append(opts.Extensions, zlib.Extension(e))
+		}
+	}
+
+	p := tea.NewProgram(newSearchSelectModel(query, c, opts))
 	result, err := p.Run()
 	if err != nil {
 		return "", err
