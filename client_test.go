@@ -27,7 +27,7 @@ func TestLogin_Success(t *testing.T) {
 	c.domain = server.URL
 	c.loginDomain = buildLoginURL(server.URL)
 
-	err := c.Login("heartleo@outlook.com", "TN7re@xJGcZTp8f")
+	err := c.Login("test@example.com", "testpassword")
 	if err != nil {
 		t.Fatalf("Login() error = %v", err)
 	}
