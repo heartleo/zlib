@@ -3,6 +3,7 @@
 A CLI for Z-Library.
 
 ![Go version](https://img.shields.io/badge/go-1.25%2B-blue)
+[![Go Report Card](https://goreportcard.com/badge/github.com/heartleo/zlib)](https://goreportcard.com/report/github.com/heartleo/zlib)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 <!-- English | [中文](README.zh.md) -->
