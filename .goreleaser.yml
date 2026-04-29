@@ -44,6 +44,46 @@ archives:
 checksum:
   name_template: checksums.txt
 
+brews:
+  - name: zlib
+    ids:
+      - zlib
+    repository:
+      owner: heartleo
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/heartleo/zlib"
+    description: "A CLI for Z-Library"
+    license: "MIT"
+    install: |
+      bin.install "zlib"
+    test: |
+      system "#{bin}/zlib", "--version"
+
+winget:
+  - name: zlib
+    package_identifier: heartleo.zlib
+    publisher: heartleo
+    publisher_url: "https://github.com/heartleo"
+    homepage: "https://github.com/heartleo/zlib"
+    short_description: "A CLI for Z-Library"
+    license: MIT
+    tags:
+      - z-library
+      - ebook
+      - terminal
+      - cli
+    repository:
+      owner: heartleo
+      name: winget-pkgs
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
+
 changelog:
   sort: asc
   filters:
