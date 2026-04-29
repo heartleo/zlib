@@ -4,6 +4,9 @@ A CLI for Z-Library.
 
 ![Go version](https://img.shields.io/badge/go-1.25%2B-blue)
 [![Go Report Card](https://goreportcard.com/badge/github.com/heartleo/zlib)](https://goreportcard.com/report/github.com/heartleo/zlib)
+[![CI](https://img.shields.io/github/actions/workflow/status/heartleo/zlib/release.yml)](https://github.com/heartleo/zlib/actions)
+[![Release](https://img.shields.io/github/v/release/heartleo/zlib)](https://github.com/heartleo/zlib/releases)
+[![Downloads](https://img.shields.io/github/downloads/heartleo/zlib/total)](https://github.com/heartleo/zlib/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 English | [中文](README.zh.md)
@@ -174,3 +177,7 @@ Create a `.env` file in the working directory, or set environment variables dire
 | `ZLIB_PROXY`    | Proxy URL, e.g. `http://127.0.0.1:7890` |
 | `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery       |
 | `ZLIB_THEME`    | Override theme without changing config  |
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=heartleo/zlib&type=Date)](https://star-history.com/#heartleo/zlib&Date)

@@ -4,6 +4,9 @@ Z-Library 命令行客户端。
 
 ![Go version](https://img.shields.io/badge/go-1.25%2B-blue)
 [![Go Report Card](https://goreportcard.com/badge/github.com/heartleo/zlib)](https://goreportcard.com/report/github.com/heartleo/zlib)
+[![CI](https://img.shields.io/github/actions/workflow/status/heartleo/zlib/release.yml)](https://github.com/heartleo/zlib/actions)
+[![Release](https://img.shields.io/github/v/release/heartleo/zlib)](https://github.com/heartleo/zlib/releases)
+[![Downloads](https://img.shields.io/github/downloads/heartleo/zlib/total)](https://github.com/heartleo/zlib/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 [English](README.md) | 中文
@@ -173,3 +176,7 @@ $ zlib theme nord      # 设置主题
 | `ZLIB_PROXY`    | 代理地址，如 `http://127.0.0.1:7890` |
 | `ZLIB_SMTP_PWD` | Kindle 投递的 SMTP 密码              |
 | `ZLIB_THEME`    | 覆盖主题，无需修改配置文件           |
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=heartleo/zlib&type=Date)](https://star-history.com/#heartleo/zlib&Date)
