@@ -17,12 +17,12 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:           "zlib",
-	Short:         "A terminal client for Z-Library.",
-	Long:          "A terminal client for Z-Library.",
-	Version:       zlib.Version,
-	SilenceUsage:  true,
-	SilenceErrors: true,
+	Use:               "zlib",
+	Short:             "A terminal client for Z-Library.",
+	Version:           zlib.Version,
+	SilenceUsage:      true,
+	SilenceErrors:     true,
+	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 }
 
 var versionCmd = &cobra.Command{
