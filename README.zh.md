@@ -22,6 +22,18 @@ Z-Library 命令行客户端。
 
 ## 安装
 
+**Homebrew**（macOS / Linux）：
+
+```bash
+$ brew install heartleo/tap/zlib
+```
+
+**curl**（macOS / Linux）：
+
+```bash
+$ curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
+```
+
 **预编译二进制** — 从 [GitHub Releases](https://github.com/heartleo/zlib/releases) 下载：
 
 | 平台            | 文件                                  |

@@ -22,6 +22,18 @@ English | [中文](README.zh.md)
 
 ## Install
 
+**Homebrew** (macOS / Linux):
+
+```bash
+$ brew install heartleo/tap/zlib
+```
+
+**curl** (macOS / Linux):
+
+```bash
+$ curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
+```
+
 **Prebuilt binaries** — download from [GitHub Releases](https://github.com/heartleo/zlib/releases):
 
 | Platform        | Archive                               |
