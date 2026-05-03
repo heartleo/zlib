@@ -31,6 +31,12 @@ English | [中文](README.zh.md)
 $ brew install heartleo/tap/zlib
 ```
 
+**winget** (Windows):
+
+```powershell
+$ winget install heartleo.zlib
+```
+
 **curl** (macOS / Linux):
 
 ```bash

@@ -31,6 +31,12 @@ Z-Library 命令行客户端。
 $ brew install heartleo/tap/zlib
 ```
 
+**winget**（Windows）：
+
+```powershell
+$ winget install heartleo.zlib
+```
+
 **curl**（macOS / Linux）：
 
 ```bash
