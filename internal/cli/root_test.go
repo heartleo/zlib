@@ -29,3 +29,25 @@ func TestFormatCLIErrorLeavesNonNetworkErrorsUntouched(t *testing.T) {
 		t.Fatalf("expected %q, got %q", want, got)
 	}
 }
+
+func TestShouldUseSessionDomainSkipsLegacyDefault(t *testing.T) {
+	for _, domain := range []string{"https://z-lib.id", "https://z-lib.sk"} {
+		if shouldUseSessionDomain(domain) {
+			t.Fatalf("expected legacy default session domain %q to be ignored", domain)
+		}
+	}
+}
+
+func TestShouldUseSessionDomainAllowsCustomMirror(t *testing.T) {
+	if !shouldUseSessionDomain("https://example.invalid") {
+		t.Fatal("expected custom session domain to be used")
+	}
+}
+
+func TestShouldUseSessionDomainRespectsEnvOverride(t *testing.T) {
+	t.Setenv("ZLIB_DOMAIN", "https://zlib.li")
+
+	if shouldUseSessionDomain("https://example.invalid") {
+		t.Fatal("expected ZLIB_DOMAIN to override session domain")
+	}
+}

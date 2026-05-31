@@ -33,6 +33,11 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+var legacyDefaultDomains = map[string]struct{}{
+	"https://z-lib.id": {},
+	"https://z-lib.sk": {},
+}
+
 // newClient loads session and returns an authenticated client.
 func newClient() *zlib.Client {
 	session, err := config.LoadSession()
@@ -41,11 +46,20 @@ func newClient() *zlib.Client {
 		os.Exit(1)
 	}
 	c := zlib.NewClient()
-	if session.Domain != "" {
+	if shouldUseSessionDomain(session.Domain) {
 		c.SetDomain(session.Domain)
 	}
 	c.SetCookies(session.Cookies)
 	return c
+}
+
+func shouldUseSessionDomain(domain string) bool {
+	domain = strings.TrimSpace(domain)
+	if domain == "" || os.Getenv(zlib.EnvDomain) != "" {
+		return false
+	}
+	_, isLegacyDefault := legacyDefaultDomains[strings.TrimRight(domain, "/")]
+	return !isLegacyDefault
 }
 
 func Execute() {

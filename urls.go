@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	DefaultDomain = "https://z-lib.sk"
+	DefaultDomain = "https://zlib.li"
 	TorDomain     = "http://bookszlibb74ugqojhzhg2a63w5i2atv5bqarulgczawnbmsb6s6qead.onion"
 	EnvDomain     = "ZLIB_DOMAIN"
 	EnvProxy      = "ZLIB_PROXY"
