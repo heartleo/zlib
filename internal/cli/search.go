@@ -19,7 +19,8 @@ var searchCmd = &cobra.Command{
 		c := newClient()
 
 		if len(args) == 0 {
-			selectedID, err := interactiveSearch(c, searchOptsFromFlags(cmd))
+			fullTitle, _ := cmd.Flags().GetBool("full-title")
+			selectedID, err := interactiveSearch(c, searchOptsFromFlags(cmd), fullTitle)
 			if err != nil {
 				return err
 			}
@@ -58,6 +59,7 @@ var searchCmd = &cobra.Command{
 		query := strings.Join(args, " ")
 		page, _ := cmd.Flags().GetInt("page")
 		count, _ := cmd.Flags().GetInt("count")
+		fullTitle, _ := cmd.Flags().GetBool("full-title")
 		opts := searchOptsFromFlags(cmd)
 
 		result, err := c.Search(query, page, count, opts)
@@ -83,6 +85,10 @@ var searchCmd = &cobra.Command{
 				id = "-"
 			}
 			authors := strings.Join(b.Authors, ", ")
+			title := b.Name
+			if !fullTitle {
+				title = runewidth.Truncate(title, 40, "")
+			}
 			ext := strings.ToUpper(b.Extension)
 			if ext == "" {
 				ext = "-"
@@ -101,7 +107,7 @@ var searchCmd = &cobra.Command{
 			}
 			rows = append(rows, []string{
 				fmt.Sprintf("%d", i+1), id,
-				runewidth.Truncate(b.Name, 40, ""),
+				title,
 				runewidth.Truncate(authors, 20, ""),
 				year, ext, size, rating,
 			})
@@ -176,4 +182,5 @@ func init() {
 	searchCmd.Flags().Bool("send-to-kindle", false, "Send the downloaded file to Kindle.")
 	searchCmd.Flags().StringArray("ext", nil, "Filter by file extension (repeatable): epub, pdf, mobi, …")
 	searchCmd.Flags().StringArray("format", nil, "Alias for --ext: filter by file format (repeatable)")
+	searchCmd.Flags().Bool("full-title", false, "Do not truncate book titles in the results table")
 }

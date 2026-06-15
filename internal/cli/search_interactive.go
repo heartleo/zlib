@@ -35,6 +35,7 @@ type searchSelectModel struct {
 	selectedID string // set when user presses Enter
 	err        error
 	quitting   bool
+	fullTitle  bool // do not truncate titles
 }
 
 // messages
@@ -44,17 +45,18 @@ type searchResultMsg struct {
 	totalPages int
 }
 
-func newSearchSelectModel(query string, c *zlib.Client, opts *zlib.SearchOptions) searchSelectModel {
+func newSearchSelectModel(query string, c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool) searchSelectModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(currentTheme.Accent)
 	return searchSelectModel{
-		client:  c,
-		query:   query,
-		opts:    opts,
-		page:    1,
-		state:   searchStateLoading,
-		spinner: s,
+		client:    c,
+		query:     query,
+		opts:      opts,
+		page:      1,
+		state:     searchStateLoading,
+		spinner:   s,
+		fullTitle: fullTitle,
 	}
 }
 
@@ -179,16 +181,27 @@ func (m searchSelectModel) View() string {
 		colRating = 6
 	)
 
+	// Title column width: fixed by default, widened to the longest
+	// title when --full-title is set so nothing gets truncated.
+	titleWidth := colTitle
+	if m.fullTitle {
+		for _, book := range m.books {
+			if w := runewidth.StringWidth(book.Name); w > titleWidth {
+				titleWidth = w
+			}
+		}
+	}
+
 	// Table header
 	hdrStyle := lipgloss.NewStyle().Foreground(currentTheme.Accent).Bold(true)
 	sepStyle := lipgloss.NewStyle().Foreground(currentTheme.Surface)
 
 	header := fmt.Sprintf("    %-*s  %-*s  %-*s  %-*s  %-*s  %*s  %*s",
-		colNum, "#", colID, "ID", colTitle, "Title", colAuthor, "Author", colFmt, "Fmt", colSize, "Size", colRating, "Rating")
+		colNum, "#", colID, "ID", titleWidth, "Title", colAuthor, "Author", colFmt, "Fmt", colSize, "Size", colRating, "Rating")
 	b.WriteString(hdrStyle.Render(header))
 	b.WriteString("\n")
 
-	sepLen := 4 + colNum + 2 + colID + 2 + colTitle + 2 + colAuthor + 2 + colFmt + 2 + colSize + 2 + colRating
+	sepLen := 4 + colNum + 2 + colID + 2 + titleWidth + 2 + colAuthor + 2 + colFmt + 2 + colSize + 2 + colRating
 	b.WriteString(sepStyle.Render("  " + strings.Repeat("─", sepLen)))
 	b.WriteString("\n")
 
@@ -241,7 +254,7 @@ func (m searchSelectModel) View() string {
 		content := fmt.Sprintf("%s  %s  %s  %s  %s  %s  %s",
 			numStyle.Render(fmt.Sprintf("%-*d", colNum, i+1)),
 			idStyle.Render(runewidth.FillRight(runewidth.Truncate(id, colID, ""), colID)),
-			titleStyle.Render(runewidth.FillRight(runewidth.Truncate(book.Name, colTitle, ""), colTitle)),
+			titleStyle.Render(runewidth.FillRight(runewidth.Truncate(book.Name, titleWidth, ""), titleWidth)),
 			authorStyle.Render(runewidth.FillRight(runewidth.Truncate(authors, colAuthor, ""), colAuthor)),
 			extStyle.Render(runewidth.FillRight(runewidth.Truncate(ext, colFmt, ""), colFmt)),
 			sizeStyle.Render(fmt.Sprintf("%*s", colSize, runewidth.Truncate(size, colSize, ""))),
@@ -269,7 +282,7 @@ func (m searchSelectModel) View() string {
 
 // interactiveSearch prompts for a query then runs the interactive search model.
 // Returns the selected book ID or "" if cancelled.
-func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions) (string, error) {
+func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool) (string, error) {
 	var query string
 	var selectedExts []string
 
@@ -319,7 +332,7 @@ func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions) (string, error)
 		}
 	}
 
-	p := tea.NewProgram(newSearchSelectModel(query, c, opts))
+	p := tea.NewProgram(newSearchSelectModel(query, c, opts, fullTitle))
 	result, err := p.Run()
 	if err != nil {
 		return "", err
