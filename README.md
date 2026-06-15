@@ -28,19 +28,19 @@ English | [中文](README.zh.md)
 **Homebrew** (macOS / Linux):
 
 ```bash
-$ brew install heartleo/tap/zlib
+brew install heartleo/tap/zlib
 ```
 
 **winget** (Windows):
 
 ```powershell
-$ winget install heartleo.zlib
+winget install heartleo.zlib
 ```
 
 **curl** (macOS / Linux):
 
 ```bash
-$ curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
 ```
 
 **Prebuilt binaries** — download from [GitHub Releases](https://github.com/heartleo/zlib/releases):
@@ -57,23 +57,23 @@ $ curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | s
 **Go install** (requires Go 1.25+):
 
 ```bash
-$ go install github.com/heartleo/zlib/cmd/zlib@latest
+go install github.com/heartleo/zlib/cmd/zlib@latest
 ```
 
 **Build from source:**
 
 ```bash
-$ git clone https://github.com/heartleo/zlib
-$ cd zlib
-$ go build -o zlib ./cmd/zlib
+git clone https://github.com/heartleo/zlib
+cd zlib
+go build -o zlib ./cmd/zlib
 ```
 
 ## Quick Start
 
 ```bash
-$ zlib login
-$ zlib search        # interactive mode
-$ zlib search "dune" # static table
+zlib login
+zlib search        # interactive mode
+zlib search "dune" # static table
 ```
 
 ## Commands
@@ -83,8 +83,8 @@ $ zlib search "dune" # static table
 ![login demo](docs/demo-login.gif)
 
 ```bash
-$ zlib login
-$ zlib login --email you@example.com --password secret
+zlib login
+zlib login --email you@example.com --password secret
 ```
 
 Saves session to `~/.config/zlib/session.json`.
@@ -92,7 +92,7 @@ Saves session to `~/.config/zlib/session.json`.
 ### logout
 
 ```bash
-$ zlib logout
+zlib logout
 ```
 
 ### search
@@ -107,27 +107,27 @@ Without arguments, opens an interactive picker:
 - press `Enter` to download
 
 ```bash
-$ zlib search # interactive mode
-$ zlib search "dune" --page 2 # static table
+zlib search # interactive mode
+zlib search "dune" --page 2 # static table
 ```
 
 Filter by file format with `--ext` (or its alias `--format`), repeatable.
 
 ```bash
-$ zlib search "python crash course" --ext epub --ext pdf
+zlib search "python crash course" --ext epub --ext pdf
 ```
 
 Use `--full-title` to disable title truncation
 
 ```bash
-$ zlib search "civilized to death" --full-title
+zlib search "civilized to death" --full-title
 ```
 
 ### download
 
 ```bash
-$ zlib download Gz31nyAV5E
-$ zlib download Gz31nyAV5E --dir ./books --send-to-kindle
+zlib download Gz31nyAV5E
+zlib download Gz31nyAV5E --dir ./books --send-to-kindle
 ```
 
 Press `Ctrl+C` to cancel.
@@ -143,9 +143,9 @@ Without flags, opens an interactive history browser:
 - press `Enter` to re-download
 
 ```bash
-$ zlib history
-$ zlib history --download Gz31nyAV5E --dir ./books
-$ zlib history --format epub
+zlib history
+zlib history --download Gz31nyAV5E --dir ./books
+zlib history --format epub
 ```
 
 ### profile
@@ -153,7 +153,7 @@ $ zlib history --format epub
 ![profile demo](docs/demo-profile.gif)
 
 ```bash
-$ zlib profile
+zlib profile
 ```
 
 ### kindle
@@ -169,9 +169,9 @@ Configure Kindle delivery settings:
 SMTP password is never stored on disk — set `ZLIB_SMTP_PWD` instead.
 
 ```bash
-$ zlib kindle                  # configure
-$ zlib kindle send             # pick a file interactively
-$ zlib kindle send ./dune.epub # send a local file
+zlib kindle                  # configure
+zlib kindle send             # pick a file interactively
+zlib kindle send ./dune.epub # send a local file
 ```
 
 Supported formats: `EPUB` `PDF` `MOBI` `TXT` `DOC` `DOCX` `RTF` `HTML`
@@ -179,8 +179,8 @@ Supported formats: `EPUB` `PDF` `MOBI` `TXT` `DOC` `DOCX` `RTF` `HTML`
 ### theme
 
 ```bash
-$ zlib theme           # show current
-$ zlib theme nord      # set globally
+zlib theme           # show current
+zlib theme nord      # set globally
 ```
 
 Available: `mocha` · `dracula` · `tokyo` · `nord` · `gruvbox`

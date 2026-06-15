@@ -28,19 +28,19 @@ Z-Library 命令行客户端。
 **Homebrew**（macOS / Linux）：
 
 ```bash
-$ brew install heartleo/tap/zlib
+brew install heartleo/tap/zlib
 ```
 
 **winget**（Windows）：
 
 ```powershell
-$ winget install heartleo.zlib
+winget install heartleo.zlib
 ```
 
 **curl**（macOS / Linux）：
 
 ```bash
-$ curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
 ```
 
 **预编译二进制** — 从 [GitHub Releases](https://github.com/heartleo/zlib/releases) 下载：
@@ -57,23 +57,23 @@ $ curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | s
 **Go install**（需要 Go 1.25+）：
 
 ```bash
-$ go install github.com/heartleo/zlib/cmd/zlib@latest
+go install github.com/heartleo/zlib/cmd/zlib@latest
 ```
 
 **从源码构建：**
 
 ```bash
-$ git clone https://github.com/heartleo/zlib
-$ cd zlib
-$ go build -o zlib ./cmd/zlib
+git clone https://github.com/heartleo/zlib
+cd zlib
+go build -o zlib ./cmd/zlib
 ```
 
 ## 快速开始
 
 ```bash
-$ zlib login
-$ zlib search        # 交互模式
-$ zlib search "dune" # 静态表格
+zlib login
+zlib search        # 交互模式
+zlib search "dune" # 静态表格
 ```
 
 ## 命令
@@ -83,8 +83,8 @@ $ zlib search "dune" # 静态表格
 ![login demo](docs/demo-login.gif)
 
 ```bash
-$ zlib login
-$ zlib login --email you@example.com --password secret
+zlib login
+zlib login --email you@example.com --password secret
 ```
 
 会话保存至 `~/.config/zlib/session.json`。
@@ -92,7 +92,7 @@ $ zlib login --email you@example.com --password secret
 ### logout
 
 ```bash
-$ zlib logout
+zlib logout
 ```
 
 ### search
@@ -107,27 +107,27 @@ $ zlib logout
 - `Enter` 下载
 
 ```bash
-$ zlib search # 交互模式
-$ zlib search "dune" --page 2 # 静态表格
+zlib search # 交互模式
+zlib search "dune" --page 2 # 静态表格
 ```
 
 用 `--ext`(别名 `--format`)按文件格式过滤,可重复指定。
 
 ```bash
-$ zlib search "python crash course" --ext epub --ext pdf
+zlib search "python crash course" --ext epub --ext pdf
 ```
 
 使用 `--full-title` 关闭标题字符截断:
 
 ```bash
-$ zlib search "civilized to death" --full-title
+zlib search "civilized to death" --full-title
 ```
 
 ### download
 
 ```bash
-$ zlib download Gz31nyAV5E
-$ zlib download Gz31nyAV5E --dir ./books --send-to-kindle
+zlib download Gz31nyAV5E
+zlib download Gz31nyAV5E --dir ./books --send-to-kindle
 ```
 
 按 `Ctrl+C` 取消下载，未完成的文件会自动删除。
@@ -142,9 +142,9 @@ $ zlib download Gz31nyAV5E --dir ./books --send-to-kindle
 - `Enter` 重新下载
 
 ```bash
-$ zlib history
-$ zlib history --download Gz31nyAV5E --dir ./books
-$ zlib history --format epub
+zlib history
+zlib history --download Gz31nyAV5E --dir ./books
+zlib history --format epub
 ```
 
 ### profile
@@ -152,7 +152,7 @@ $ zlib history --format epub
 ![profile demo](docs/demo-profile.gif)
 
 ```bash
-$ zlib profile
+zlib profile
 ```
 
 ### kindle
@@ -168,9 +168,9 @@ $ zlib profile
 SMTP 密码不会存储在磁盘上，请通过 `ZLIB_SMTP_PWD` 环境变量设置。
 
 ```bash
-$ zlib kindle                  # 配置
-$ zlib kindle send             # 交互式选择文件
-$ zlib kindle send ./dune.epub # 发送指定文件
+zlib kindle                  # 配置
+zlib kindle send             # 交互式选择文件
+zlib kindle send ./dune.epub # 发送指定文件
 ```
 
 支持的格式：`EPUB` `PDF` `MOBI` `TXT` `DOC` `DOCX` `RTF` `HTML`
@@ -178,8 +178,8 @@ $ zlib kindle send ./dune.epub # 发送指定文件
 ### theme
 
 ```bash
-$ zlib theme           # 查看当前主题
-$ zlib theme nord      # 设置主题
+zlib theme           # 查看当前主题
+zlib theme nord      # 设置主题
 ```
 
 可选：`mocha` · `dracula` · `tokyo` · `nord` · `gruvbox`
