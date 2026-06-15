@@ -180,6 +180,13 @@ func isChallengePage(html string) bool {
 	return len(html) < 20000 && challengeRe.MatchString(html)
 }
 
+// isLoginPage reports whether html is Z-Library's login page, which the server
+// returns (with status 200) for authenticated requests once the session has
+// expired. The login form carries a stable id we can match on.
+func isLoginPage(html string) bool {
+	return strings.Contains(html, `id="loginForm"`)
+}
+
 func (c *Client) get(rawURL string) (string, error) {
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
@@ -228,6 +235,12 @@ func (c *Client) get(rawURL string) (string, error) {
 		}
 		c.cookies["c_token"] = token
 		return c.get(rawURL)
+	}
+
+	// Once the session expires, the server serves the login page (HTTP 200)
+	// in place of the requested authenticated page.
+	if isLoginPage(html) {
+		return "", ErrSessionExpired
 	}
 
 	return html, nil
