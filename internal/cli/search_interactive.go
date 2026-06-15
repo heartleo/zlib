@@ -36,6 +36,7 @@ type searchSelectModel struct {
 	err        error
 	quitting   bool
 	fullTitle  bool // do not truncate titles
+	width      int  // terminal width, from tea.WindowSizeMsg
 }
 
 // messages
@@ -80,6 +81,10 @@ func (m searchSelectModel) fetchPage(page int) tea.Cmd {
 
 func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
 
 	case errMsg:
 		m.err = msg.err
@@ -189,6 +194,12 @@ func (m searchSelectModel) View() string {
 			if w := runewidth.StringWidth(book.Name); w > titleWidth {
 				titleWidth = w
 			}
+		}
+		// Cap to the terminal width so the table doesn't wrap and break
+		// alignment. fixedCols is the width of everything except the title.
+		const fixedCols = 61
+		if maxTitle := m.width - fixedCols; m.width > 0 && titleWidth > maxTitle && maxTitle >= colTitle {
+			titleWidth = maxTitle
 		}
 	}
 
