@@ -111,6 +111,18 @@ $ zlib search # 交互模式
 $ zlib search "dune" --page 2 # 静态表格
 ```
 
+用 `--ext`(别名 `--format`)按文件格式过滤,可重复指定。
+
+```bash
+$ zlib search "python crash course" --ext epub --ext pdf
+```
+
+使用 `--full-title` 关闭标题字符截断:
+
+```bash
+$ zlib search "civilized to death" --full-title
+```
+
 ### download
 
 ```bash

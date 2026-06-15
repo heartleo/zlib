@@ -111,6 +111,18 @@ $ zlib search # interactive mode
 $ zlib search "dune" --page 2 # static table
 ```
 
+Filter by file format with `--ext` (or its alias `--format`), repeatable.
+
+```bash
+$ zlib search "python crash course" --ext epub --ext pdf
+```
+
+Use `--full-title` to disable title truncation
+
+```bash
+$ zlib search "civilized to death" --full-title
+```
+
 ### download
 
 ```bash
