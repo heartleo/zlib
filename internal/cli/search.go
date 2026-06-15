@@ -151,12 +151,20 @@ func bookIDFromURL(u string) string {
 
 func searchOptsFromFlags(cmd *cobra.Command) *zlib.SearchOptions {
 	exts, _ := cmd.Flags().GetStringArray("ext")
+	formats, _ := cmd.Flags().GetStringArray("format")
+	exts = append(exts, formats...)
 	if len(exts) == 0 {
 		return nil
 	}
+	seen := make(map[zlib.Extension]bool)
 	var extensions []zlib.Extension
 	for _, e := range exts {
-		extensions = append(extensions, zlib.Extension(strings.ToUpper(e)))
+		ext := zlib.Extension(strings.ToUpper(e))
+		if seen[ext] {
+			continue
+		}
+		seen[ext] = true
+		extensions = append(extensions, ext)
 	}
 	return &zlib.SearchOptions{Extensions: extensions}
 }
@@ -167,4 +175,5 @@ func init() {
 	searchCmd.Flags().StringP("dir", "d", ".", "Destination directory.")
 	searchCmd.Flags().Bool("send-to-kindle", false, "Send the downloaded file to Kindle.")
 	searchCmd.Flags().StringArray("ext", nil, "Filter by file extension (repeatable): epub, pdf, mobi, …")
+	searchCmd.Flags().StringArray("format", nil, "Alias for --ext: filter by file format (repeatable)")
 }
