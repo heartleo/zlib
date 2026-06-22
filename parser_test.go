@@ -122,6 +122,34 @@ func TestParseBookDetail(t *testing.T) {
 	}
 }
 
+// testDetailDecoyDownloadHTML mimics Z-Library's anti-scraping page: the
+// visible anchor href is a decoy hash, while the real /dl/ hash is assembled
+// by an inline script from an obfuscated char array on click.
+const testDetailDecoyDownloadHTML = `<html><body>
+<z-cover id="12047606" title="Biology Today">
+  <img class="image" src="https://covers.z-library.sk/full.jpg">
+</z-cover>
+<a class="btn btn-default addDownloadedBook" href="/dl/DEC0Ydecoy" data-book_id="11033158">PDF, 25.19 MB</a>
+<script>
+    document.querySelector('a.addDownloadedBook').addEventListener('click', function(event) {
+        event.preventDefault();
+        const location = ["\/","d","l","\/","r","e","a","l","H","4","s","h"], split='';
+        window.location.href = location.join(split);
+    })
+</script>
+</body></html>`
+
+func TestParseBookDetailDecoyDownloadLink(t *testing.T) {
+	mirror := "https://zh.z-library.sk"
+	b, err := parseBookDetail(testDetailDecoyDownloadHTML, mirror)
+	if err != nil {
+		t.Fatalf("parseBookDetail() error = %v", err)
+	}
+	if b.DownloadURL != mirror+"/dl/realH4sh" {
+		t.Errorf("DownloadURL = %q, want JS-assembled real URL %q", b.DownloadURL, mirror+"/dl/realH4sh")
+	}
+}
+
 const testDetailFallbackDownloadHTML = `<html><body>
 <z-cover id="12047606" title="Biology Today">
   <img class="image" src="https://covers.z-library.sk/full.jpg">

@@ -168,7 +168,48 @@ func parseBookDetail(html, mirror string) (Book, error) {
 		}
 	}
 
+	// Anti-scraping: the visible anchor href is a decoy that returns HTTP 204.
+	// The real /dl/ hash is assembled by an inline script from an obfuscated
+	// char array on click. Prefer it when present, falling back to the anchor
+	// href for pages that don't carry the script.
+	if b.DownloadURL != "" {
+		if real := extractScriptDownloadURL(doc, mirror); real != "" {
+			b.DownloadURL = real
+		}
+	}
+
 	return b, nil
+}
+
+var jsLocationArrayRe = regexp.MustCompile(`const location\s*=\s*\[([^\]]*)\]`)
+var jsStringLiteralRe = regexp.MustCompile(`"([^"]*)"`)
+
+// extractScriptDownloadURL reads the real download path from the inline
+// addDownloadedBook click handler, which joins an array of single-character
+// string literals (e.g. ["\/","d","l",...]) into the path.
+func extractScriptDownloadURL(doc *goquery.Document, mirror string) string {
+	var result string
+	doc.Find("script").EachWithBreak(func(_ int, s *goquery.Selection) bool {
+		text := s.Text()
+		if !strings.Contains(text, "addDownloadedBook") || !strings.Contains(text, "location.join") {
+			return true
+		}
+		m := jsLocationArrayRe.FindStringSubmatch(text)
+		if m == nil {
+			return true
+		}
+		var sb strings.Builder
+		for _, lit := range jsStringLiteralRe.FindAllStringSubmatch(m[1], -1) {
+			// The only escape used is \/ for forward slashes in JS strings.
+			sb.WriteString(strings.ReplaceAll(lit[1], `\/`, "/"))
+		}
+		if path := sb.String(); path != "" {
+			result = absolutizeURL(mirror, path)
+			return false
+		}
+		return true
+	})
+	return result
 }
 
 func parseDownloadHistory(html, mirror string) ([]DownloadHistoryItem, int, error) {
