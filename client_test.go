@@ -2,6 +2,7 @@ package zlib
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -66,6 +67,30 @@ func TestFetchBook(t *testing.T) {
 	}
 	if book.DownloadURL != server.URL+"/dl/abc" {
 		t.Errorf("DownloadURL = %q", book.DownloadURL)
+	}
+}
+
+func TestFetchBookRejectsRedirectToHome(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/book/123":
+			http.Redirect(w, r, "/", http.StatusFound)
+		case "/":
+			fmt.Fprint(w, `<html>
+			<z-cover id="999" title="Homepage Recommendation"></z-cover>
+			</html>`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	c := NewClient()
+	c.domain = server.URL
+	c.loggedIn = true
+
+	if _, err := c.FetchBook("123"); !errors.Is(err, ErrParseFailed) {
+		t.Fatalf("FetchBook() error = %v, want ErrParseFailed", err)
 	}
 }
 
