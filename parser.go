@@ -181,35 +181,56 @@ func parseBookDetail(html, mirror string) (Book, error) {
 	return b, nil
 }
 
-var jsLocationArrayRe = regexp.MustCompile(`const location\s*=\s*\[([^\]]*)\]`)
-var jsStringLiteralRe = regexp.MustCompile(`"([^"]*)"`)
+var jsArrayAssignmentRe = regexp.MustCompile(`(?s)\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*\[([^\]]*)\]`)
+var jsStringLiteralRe = regexp.MustCompile(`"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'`)
 
 // extractScriptDownloadURL reads the real download path from the inline
 // addDownloadedBook click handler, which joins an array of single-character
-// string literals (e.g. ["\/","d","l",...]) into the path.
+// string literals (e.g. ["\/","d","l",...]) into the path. Z-Library has
+// changed variable names and quote styles over time, so this looks for any
+// joined string array that assembles a download path.
 func extractScriptDownloadURL(doc *goquery.Document, mirror string) string {
 	var result string
 	doc.Find("script").EachWithBreak(func(_ int, s *goquery.Selection) bool {
 		text := s.Text()
-		if !strings.Contains(text, "addDownloadedBook") || !strings.Contains(text, "location.join") {
+		if !strings.Contains(text, "addDownloadedBook") || !strings.Contains(text, ".join") {
 			return true
 		}
-		m := jsLocationArrayRe.FindStringSubmatch(text)
-		if m == nil {
-			return true
-		}
-		var sb strings.Builder
-		for _, lit := range jsStringLiteralRe.FindAllStringSubmatch(m[1], -1) {
-			// The only escape used is \/ for forward slashes in JS strings.
-			sb.WriteString(strings.ReplaceAll(lit[1], `\/`, "/"))
-		}
-		if path := sb.String(); path != "" {
-			result = absolutizeURL(mirror, path)
-			return false
+		for _, m := range jsArrayAssignmentRe.FindAllStringSubmatch(text, -1) {
+			name := m[1]
+			if !regexp.MustCompile(regexp.QuoteMeta(name) + `\s*\.\s*join`).MatchString(text) {
+				continue
+			}
+			var sb strings.Builder
+			for _, lit := range jsStringLiteralRe.FindAllStringSubmatch(m[2], -1) {
+				sb.WriteString(unescapeJSLiteral(lit))
+			}
+			path := sb.String()
+			if strings.HasPrefix(path, downloadPathPrefix) || strings.HasPrefix(path, filePathPrefix) {
+				result = absolutizeURL(mirror, path)
+				return false
+			}
 		}
 		return true
 	})
 	return result
+}
+
+func unescapeJSLiteral(match []string) string {
+	raw := ""
+	for _, candidate := range match[1:] {
+		if candidate != "" {
+			raw = candidate
+			break
+		}
+	}
+	replacer := strings.NewReplacer(
+		`\/`, "/",
+		`\\`, `\`,
+		`\"`, `"`,
+		`\'`, `'`,
+	)
+	return replacer.Replace(raw)
 }
 
 func parseDownloadHistory(html, mirror string) ([]DownloadHistoryItem, int, error) {

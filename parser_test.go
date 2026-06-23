@@ -150,6 +150,31 @@ func TestParseBookDetailDecoyDownloadLink(t *testing.T) {
 	}
 }
 
+const testDetailDecoyDownloadVariantHTML = `<html><body>
+<z-cover id="12047606" title="Biology Today">
+  <img class="image" src="https://covers.z-library.sk/full.jpg">
+</z-cover>
+<a class="btn btn-default addDownloadedBook" href="/dl/DEC0Ydecoy" data-book_id="11033158">PDF, 25.19 MB</a>
+<script>
+    document.querySelector('a.addDownloadedBook').addEventListener('click', function(event) {
+        event.preventDefault();
+        let dlPath = ['\/','d','l','\/','v','a','r','i','a','n','t'], split = '';
+        window.location.href = dlPath.join(split);
+    })
+</script>
+</body></html>`
+
+func TestParseBookDetailDecoyDownloadLinkVariant(t *testing.T) {
+	mirror := "https://zh.z-library.sk"
+	b, err := parseBookDetail(testDetailDecoyDownloadVariantHTML, mirror)
+	if err != nil {
+		t.Fatalf("parseBookDetail() error = %v", err)
+	}
+	if b.DownloadURL != mirror+"/dl/variant" {
+		t.Errorf("DownloadURL = %q, want JS-assembled real URL %q", b.DownloadURL, mirror+"/dl/variant")
+	}
+}
+
 const testDetailFallbackDownloadHTML = `<html><body>
 <z-cover id="12047606" title="Biology Today">
   <img class="image" src="https://covers.z-library.sk/full.jpg">

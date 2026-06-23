@@ -211,6 +211,10 @@ func (c *Client) get(rawURL string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	if isUnexpectedBookRedirect(req.URL, resp.Request.URL) {
+		return "", fmt.Errorf("%w: requested %s but received %s", ErrParseFailed, req.URL.Path, resp.Request.URL.Path)
+	}
+
 	var reader io.Reader = resp.Body
 	if resp.Header.Get("Content-Encoding") == "gzip" {
 		gz, err := gzip.NewReader(resp.Body)
@@ -244,4 +248,14 @@ func (c *Client) get(rawURL string) (string, error) {
 	}
 
 	return html, nil
+}
+
+func isUnexpectedBookRedirect(requested, received *url.URL) bool {
+	if requested == nil || received == nil {
+		return false
+	}
+	if !strings.HasPrefix(requested.Path, bookPathPrefix) {
+		return false
+	}
+	return !strings.HasPrefix(received.Path, bookPathPrefix)
 }
