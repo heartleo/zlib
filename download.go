@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -62,7 +63,7 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 		return DownloadResult{}, fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
 	}
 
-	filename := filenameFromResponse(resp, downloadURL)
+	filename := sanitizeFilename(filenameFromResponse(resp, downloadURL))
 	destPath := filepath.Join(destDir, filename)
 
 	f, err := os.Create(destPath)
@@ -119,6 +120,21 @@ func filenameFromResponse(resp *http.Response, fallbackURL string) string {
 		return parts[len(parts)-1]
 	}
 	return "download"
+}
+
+// sanitizeFilename strips any directory components from a download filename.
+// The name can originate from a server-controlled Content-Disposition header,
+// so without this a malicious mirror could use ../ (or a leading slash) to
+// escape destDir and overwrite arbitrary files via filepath.Join.
+func sanitizeFilename(name string) string {
+	// Normalize Windows separators so path.Base splits on them too, regardless
+	// of the host OS.
+	name = strings.ReplaceAll(name, `\`, "/")
+	name = path.Base(name)
+	if name == "" || name == "." || name == ".." || name == "/" {
+		return "download"
+	}
+	return name
 }
 
 func cleanFilename(name string) string {
