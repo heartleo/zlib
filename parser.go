@@ -183,6 +183,16 @@ func parseBookDetail(html, mirror string) (Book, error) {
 
 var jsArrayAssignmentRe = regexp.MustCompile(`(?s)\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*\[([^\]]*)\]`)
 var jsStringLiteralRe = regexp.MustCompile(`"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'`)
+var jsJoinCallRe = regexp.MustCompile(`([A-Za-z_$][\w$]*)\s*\.\s*join`)
+
+// jsLiteralUnescaper reverses the only escapes Z-Library emits in the
+// char-array download path literals.
+var jsLiteralUnescaper = strings.NewReplacer(
+	`\/`, "/",
+	`\\`, `\`,
+	`\"`, `"`,
+	`\'`, `'`,
+)
 
 // extractScriptDownloadURL reads the real download path from the inline
 // addDownloadedBook click handler, which joins an array of single-character
@@ -196,9 +206,9 @@ func extractScriptDownloadURL(doc *goquery.Document, mirror string) string {
 		if !strings.Contains(text, "addDownloadedBook") || !strings.Contains(text, ".join") {
 			return true
 		}
+		joined := joinedArrayNames(text)
 		for _, m := range jsArrayAssignmentRe.FindAllStringSubmatch(text, -1) {
-			name := m[1]
-			if !regexp.MustCompile(regexp.QuoteMeta(name) + `\s*\.\s*join`).MatchString(text) {
+			if !joined[m[1]] {
 				continue
 			}
 			var sb strings.Builder
@@ -216,6 +226,16 @@ func extractScriptDownloadURL(doc *goquery.Document, mirror string) string {
 	return result
 }
 
+// joinedArrayNames returns the set of identifiers that the script calls
+// `.join` on, so only the array actually assembled into the path is used.
+func joinedArrayNames(text string) map[string]bool {
+	names := make(map[string]bool)
+	for _, m := range jsJoinCallRe.FindAllStringSubmatch(text, -1) {
+		names[m[1]] = true
+	}
+	return names
+}
+
 func unescapeJSLiteral(match []string) string {
 	raw := ""
 	for _, candidate := range match[1:] {
@@ -224,13 +244,7 @@ func unescapeJSLiteral(match []string) string {
 			break
 		}
 	}
-	replacer := strings.NewReplacer(
-		`\/`, "/",
-		`\\`, `\`,
-		`\"`, `"`,
-		`\'`, `'`,
-	)
-	return replacer.Replace(raw)
+	return jsLiteralUnescaper.Replace(raw)
 }
 
 func parseDownloadHistory(html, mirror string) ([]DownloadHistoryItem, int, error) {
