@@ -194,25 +194,36 @@ func huhTheme() *huh.Theme {
 	return t
 }
 
+// configuredThemeName picks the configured theme name: env > config.json >
+// default ("auto").
+func configuredThemeName() string {
+	if env, ok := os.LookupEnv(themeEnvVar); ok && env != "" {
+		return env
+	}
+	if cfg, err := config.LoadConfig(); err == nil && cfg.Theme != "" {
+		return cfg.Theme
+	}
+	return themeAuto
+}
+
+func resolvedThemeName(name string) string {
+	if name == themeAuto {
+		return detectAutoTheme()
+	}
+	return name
+}
+
+func themeDisplayLabel(name string) string {
+	if name == themeAuto {
+		return fmt.Sprintf("%s (%s)", themeAuto, detectAutoTheme())
+	}
+	return name
+}
+
 // resolveTheme picks theme: env > config.json > default ("auto").
 // "auto" selects a light or dark palette from the terminal background.
 func resolveTheme() {
-	var name string
-	if env, ok := os.LookupEnv(themeEnvVar); ok && env != "" {
-		name = env
-	}
-	if name == "" {
-		if cfg, err := config.LoadConfig(); err == nil && cfg.Theme != "" {
-			name = cfg.Theme
-		}
-	}
-	if name == "" {
-		name = themeAuto
-	}
-	if name == themeAuto {
-		name = detectAutoTheme()
-	}
-	if t, ok := themes[name]; ok {
+	if t, ok := themes[resolvedThemeName(configuredThemeName())]; ok {
 		currentTheme = t
 	}
 }
@@ -245,21 +256,12 @@ func isSelectableTheme(name string) bool {
 var themeCmd = &cobra.Command{
 	Use:   "theme [name]",
 	Short: "Show or set color theme",
-	Long:  "Show current theme or set it globally. Available: " + strings.Join(selectableThemes(), ", "),
+	Long:  fmt.Sprintf("Show current theme or set it globally.\n\nAvailable: %s\n", strings.Join(selectableThemes(), ", ")),
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			// Show current theme
-			cfg, _ := config.LoadConfig()
-			current := cfg.Theme
-			if current == "" {
-				current = themeAuto
-			}
-			label := current
-			if current == themeAuto {
-				label = fmt.Sprintf("%s (%s)", themeAuto, detectAutoTheme())
-			}
-			fmt.Printf("Current theme: %s\n", colorBold(label))
+			current := configuredThemeName()
+			fmt.Printf("Current theme: %s\n", colorBold(themeDisplayLabel(current)))
 			fmt.Printf("Available: %s\n", strings.Join(selectableThemes(), ", "))
 			return nil
 		}
@@ -275,10 +277,7 @@ var themeCmd = &cobra.Command{
 			return fmt.Errorf("failed to save theme: %w", err)
 		}
 
-		resolved := name
-		if name == themeAuto {
-			resolved = detectAutoTheme()
-		}
+		resolved := resolvedThemeName(name)
 		currentTheme = themes[resolved]
 		msg := colorBold(name)
 		if name == themeAuto {
