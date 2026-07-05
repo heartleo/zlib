@@ -19,7 +19,7 @@ Z-Library 命令行客户端。
 - 📚 **下载历史** — 分页浏览历史记录，支持重新下载
 - 📖 **发送到 Kindle** — 通过 SMTP 投递文件到 Kindle
 - 🕒 **用量查看** — 查看每日下载配额
-- 🎨 **主题** — mocha、dracula、tokyo、nord、gruvbox
+- 🎨 **主题** — auto、mocha、latte、dracula、tokyo、nord、gruvbox
 - 🌐 **代理和自定义域名** — 支持受限网络环境
 
 ## 安装
@@ -178,10 +178,11 @@ zlib kindle send ./dune.epub # 发送指定文件
 
 ```bash
 zlib theme           # 查看当前主题
+zlib theme auto      # 跟随终端背景
 zlib theme nord      # 设置主题
 ```
 
-可选：`mocha` · `dracula` · `tokyo` · `nord` · `gruvbox`
+可选：`auto` · `mocha` · `latte` · `dracula` · `tokyo` · `nord` · `gruvbox`
 
 ## 配置
 
