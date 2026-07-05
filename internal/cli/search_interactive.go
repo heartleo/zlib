@@ -37,8 +37,8 @@ type searchSelectModel struct {
 	selectedID string // set when user presses Enter
 	err        error
 	quitting   bool
-	fullTitle  bool // do not truncate titles
-	width      int  // terminal width, from tea.WindowSizeMsg
+	fullTitle  bool            // do not truncate titles
+	width      int             // terminal width, from tea.WindowSizeMsg
 	input      textinput.Model // inline query editor, shown in searchStateFilter
 }
 
@@ -154,20 +154,27 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case searchStateFilter:
 			switch msg.String() {
 			case "enter":
-				q := strings.TrimSpace(m.input.Value())
+				q := m.input.Value()
 				m.input.Blur()
-				if q == "" || q == m.query {
+				if strings.TrimSpace(q) == "" || q == m.query {
 					// Nothing to re-run; return to the current results.
 					m.state = searchStateResults
 					return m, nil
 				}
 				m.query = q
+				m.page = 1
+				m.totalPages = 0
+				m.cursor = 0
 				m.state = searchStateLoading
 				return m, tea.Batch(m.spinner.Tick, m.fetchPage(1))
-			case "esc", "ctrl+c":
+			case "esc":
 				m.input.Blur()
 				m.state = searchStateResults
 				return m, nil
+			case "ctrl+c":
+				m.input.Blur()
+				m.quitting = true
+				return m, tea.Quit
 			}
 			// Any other key edits the query; fall through to input.Update below.
 		case searchStateLoading:
