@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
@@ -20,6 +21,7 @@ const (
 	searchStateInput   searchState = iota // waiting for query input (handled outside model)
 	searchStateLoading                    // fetching a page
 	searchStateResults                    // showing results
+	searchStateFilter                     // editing the query inline (/)
 )
 
 type searchSelectModel struct {
@@ -37,6 +39,7 @@ type searchSelectModel struct {
 	quitting   bool
 	fullTitle  bool // do not truncate titles
 	width      int  // terminal width, from tea.WindowSizeMsg
+	input      textinput.Model // inline query editor, shown in searchStateFilter
 }
 
 // messages
@@ -50,6 +53,14 @@ func newSearchSelectModel(query string, c *zlib.Client, opts *zlib.SearchOptions
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(currentTheme.Accent)
+
+	ti := textinput.New()
+	ti.Prompt = "/ "
+	ti.Placeholder = "refine search…"
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(currentTheme.Accent)
+	ti.TextStyle = lipgloss.NewStyle().Foreground(currentTheme.Title)
+	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(currentTheme.Muted)
+
 	return searchSelectModel{
 		client:    c,
 		query:     query,
@@ -58,6 +69,7 @@ func newSearchSelectModel(query string, c *zlib.Client, opts *zlib.SearchOptions
 		state:     searchStateLoading,
 		spinner:   s,
 		fullTitle: fullTitle,
+		input:     ti,
 	}
 }
 
@@ -128,10 +140,36 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, tea.Quit
 					}
 				}
+			case "/":
+				// Enter inline query editing, pre-filled with the current
+				// query so it can be tweaked rather than retyped.
+				m.state = searchStateFilter
+				m.input.SetValue(m.query)
+				m.input.CursorEnd()
+				return m, m.input.Focus()
 			case "q", "esc", "ctrl+c":
 				m.quitting = true
 				return m, tea.Quit
 			}
+		case searchStateFilter:
+			switch msg.String() {
+			case "enter":
+				q := strings.TrimSpace(m.input.Value())
+				m.input.Blur()
+				if q == "" || q == m.query {
+					// Nothing to re-run; return to the current results.
+					m.state = searchStateResults
+					return m, nil
+				}
+				m.query = q
+				m.state = searchStateLoading
+				return m, tea.Batch(m.spinner.Tick, m.fetchPage(1))
+			case "esc", "ctrl+c":
+				m.input.Blur()
+				m.state = searchStateResults
+				return m, nil
+			}
+			// Any other key edits the query; fall through to input.Update below.
 		case searchStateLoading:
 			if msg.String() == "q" || msg.String() == "esc" || msg.String() == "ctrl+c" {
 				m.quitting = true
@@ -145,6 +183,14 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
 		}
+	}
+
+	// While editing, route remaining messages (typed keys, cursor blink) to
+	// the text input so it updates and keeps blinking.
+	if m.state == searchStateFilter {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }
@@ -163,7 +209,12 @@ func (m searchSelectModel) View() string {
 	if m.totalPages > 0 {
 		b.WriteString(fmt.Sprintf("  %s", pageStyle.Render(fmt.Sprintf("Page %d / %d", m.page, m.totalPages))))
 	}
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+	if m.state == searchStateFilter {
+		// Show the inline editor above the current (stale) results.
+		b.WriteString("  " + m.input.View() + "\n")
+	}
+	b.WriteString("\n")
 
 	if m.state == searchStateLoading {
 		b.WriteString(fmt.Sprintf("  %s Searching...\n", m.spinner.View()))
@@ -283,8 +334,15 @@ func (m searchSelectModel) View() string {
 	b.WriteString("\n")
 	helpStyle := lipgloss.NewStyle().Foreground(currentTheme.Muted)
 	helpKeys := lipgloss.NewStyle().Foreground(currentTheme.Accent)
-	help := fmt.Sprintf("  %s select  %s page  %s download  %s quit",
-		helpKeys.Render("↑/↓"), helpKeys.Render("←/→"), helpKeys.Render("enter"), helpKeys.Render("q"))
+	var help string
+	if m.state == searchStateFilter {
+		help = fmt.Sprintf("  %s search  %s cancel",
+			helpKeys.Render("enter"), helpKeys.Render("esc"))
+	} else {
+		help = fmt.Sprintf("  %s select  %s page  %s search  %s download  %s quit",
+			helpKeys.Render("↑/↓"), helpKeys.Render("←/→"), helpKeys.Render("/"),
+			helpKeys.Render("enter"), helpKeys.Render("q"))
+	}
 	b.WriteString(helpStyle.Render(help))
 	b.WriteString("\n")
 
