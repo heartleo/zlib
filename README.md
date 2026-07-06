@@ -19,7 +19,7 @@ English | [中文](README.zh.md)
 - 📚 **Download history** — paginated history browser with download support
 - 📖 **Send to Kindle** — deliver files to your Kindle address
 - 🕒 **Usage profile** — view daily download quota
-- 🎨 **Themes** — mocha, dracula, tokyo, nord, gruvbox
+- 🎨 **Themes** — auto, mocha, latte, dracula, tokyo, nord, gruvbox
 - 🌐 **Proxy & custom domain** support for restricted networks
 
 ## Install
@@ -179,10 +179,11 @@ Supported formats: `EPUB` `PDF` `MOBI` `TXT` `DOC` `DOCX` `RTF` `HTML`
 
 ```bash
 zlib theme           # show current
+zlib theme auto      # follow terminal background
 zlib theme nord      # set globally
 ```
 
-Available: `mocha` · `dracula` · `tokyo` · `nord` · `gruvbox`
+Available: `auto` · `mocha` · `latte` · `dracula` · `tokyo` · `nord` · `gruvbox`
 
 ## Configuration
 
