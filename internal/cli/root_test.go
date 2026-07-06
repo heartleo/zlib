@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"io"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -27,5 +30,45 @@ func TestFormatCLIErrorLeavesNonNetworkErrorsUntouched(t *testing.T) {
 	want := "✗ Error: search query is empty"
 	if got != want {
 		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func executeRootForTest(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+
+	var out, errOut bytes.Buffer
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&errOut)
+	rootCmd.SetArgs(args)
+	t.Cleanup(func() {
+		rootCmd.SetOut(os.Stdout)
+		rootCmd.SetErr(os.Stderr)
+		rootCmd.SetArgs(nil)
+	})
+
+	_, err := rootCmd.ExecuteC()
+	if errOut.Len() > 0 {
+		t.Logf("stderr: %s", errOut.String())
+	}
+	return out.String(), err
+}
+
+func TestHiddenCompletionCommandGeneratesZshScript(t *testing.T) {
+	out, err := executeRootForTest(t, "completion", "zsh")
+	if err != nil {
+		t.Fatalf("completion zsh error = %v", err)
+	}
+	if !strings.Contains(out, "#compdef zlib") {
+		t.Fatalf("completion zsh output missing #compdef zlib header")
+	}
+}
+
+func TestHiddenCompletionCommandDoesNotAppearInHelp(t *testing.T) {
+	out, err := executeRootForTest(t, "--help")
+	if err != nil {
+		t.Fatalf("--help error = %v", err)
+	}
+	if strings.Contains(out, "completion") {
+		t.Fatalf("hidden completion command should not appear in help:\n%s", out)
 	}
 }

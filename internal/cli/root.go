@@ -22,7 +22,7 @@ var rootCmd = &cobra.Command{
 	Version:           zlib.Version,
 	SilenceUsage:      true,
 	SilenceErrors:     true,
-	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	CompletionOptions: cobra.CompletionOptions{HiddenDefaultCmd: true},
 }
 
 var versionCmd = &cobra.Command{
