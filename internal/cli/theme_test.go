@@ -37,8 +37,18 @@ func TestIsSelectableTheme(t *testing.T) {
 	}
 }
 
+// isolateConfigHome points config-file lookups (os.UserHomeDir) at a temp dir
+// so tests don't read or clobber the real ~/.config/zlib. It covers both the
+// Unix ($HOME) and Windows (%USERPROFILE%) home-resolution paths.
+func isolateConfigHome(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+}
+
 func TestConfiguredThemeNamePrefersEnvOverConfig(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateConfigHome(t)
 	t.Setenv(themeEnvVar, "dracula")
 	if err := config.SaveConfig(config.Config{Theme: "latte"}); err != nil {
 		t.Fatalf("SaveConfig() error = %v", err)
@@ -50,7 +60,7 @@ func TestConfiguredThemeNamePrefersEnvOverConfig(t *testing.T) {
 }
 
 func TestConfiguredThemeNameDefaultsToAuto(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateConfigHome(t)
 	t.Setenv(themeEnvVar, "")
 
 	if got := configuredThemeName(); got != themeAuto {

@@ -67,12 +67,24 @@ cd zlib
 go build -o zlib ./cmd/zlib
 ```
 
+### Claude Code 插件
+
+zlib 提供 [Claude Code](https://claude.com/claude-code) 插件，让 Claude 帮你搜书、下书、传书到Kindle。
+
+```
+/plugin marketplace add heartleo/zlib
+/plugin install zlib@zlib-plugin-cc
+```
+
+`/zlib "the pragmatic programmer"` 搜索并下载。  
+`/zlib:kindle` 把书发送到你的 Kindle。
+
 ## 快速开始
 
 ```bash
 zlib login
-zlib search        # 交互模式
-zlib search "dune" # 静态表格
+zlib search
+zlib search "dune"
 ```
 
 ## 命令
@@ -108,6 +120,7 @@ zlib logout
 ```bash
 zlib search # 交互模式
 zlib search "dune" --page 2 # 静态表格
+zlib search "dune" --json   # 机器可读输出，供脚本和插件使用
 ```
 
 用 `--ext`(别名 `--format`)按文件格式过滤,可重复指定。
@@ -144,6 +157,7 @@ zlib download Gz31nyAV5E --dir ./books --send-to-kindle
 zlib history
 zlib history --download Gz31nyAV5E --dir ./books
 zlib history --format epub
+zlib history --json   # 机器可读，始终非交互
 ```
 
 ### profile
@@ -152,6 +166,7 @@ zlib history --format epub
 
 ```bash
 zlib profile
+zlib profile --json
 ```
 
 ### kindle
@@ -186,7 +201,7 @@ zlib theme nord      # 设置主题
 
 ## 配置
 
-创建 `.env` 文件，或直接设置环境变量：
+敏感值（如 `ZLIB_SMTP_PWD`）请写入 `.env` 文件，别用 `export` 内联以免留在 shell 历史里。zlib 读取环境变量的优先级：**真实环境变量 > 工作目录 `.env` > `~/.config/zlib/.env`**。全局文件是机器级配置的推荐存放处。
 
 | 变量            | 说明                                 |
 | --------------- | ------------------------------------ |
@@ -194,6 +209,16 @@ zlib theme nord      # 设置主题
 | `ZLIB_PROXY`    | 代理地址，如 `http://127.0.0.1:7890` |
 | `ZLIB_SMTP_PWD` | Kindle 投递的 SMTP 密码              |
 | `ZLIB_THEME`    | 覆盖主题，无需修改配置文件           |
+
+**编辑全局 env 文件**（`~/.config/zlib/.env`，每行一个 `KEY=value`）：
+
+```bash
+mkdir -p ~/.config/zlib && touch ~/.config/zlib/.env && chmod 600 ~/.config/zlib/.env
+# 用编辑器打开：
+notepad "$env:USERPROFILE\.config\zlib\.env"   # Windows (PowerShell)
+open -t ~/.config/zlib/.env                       # macOS
+${EDITOR:-nano} ~/.config/zlib/.env               # Linux
+```
 
 ## Star History
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	zlib "github.com/heartleo/zlib"
@@ -18,7 +17,12 @@ var searchCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := newClient()
 
+		jsonOut, _ := cmd.Flags().GetBool("json")
+
 		if len(args) == 0 {
+			if jsonOut {
+				return fmt.Errorf("--json requires a search query (interactive mode has no JSON output)")
+			}
 			fullTitle, _ := cmd.Flags().GetBool("full-title")
 			selectedID, err := interactiveSearch(c, searchOptsFromFlags(cmd), fullTitle)
 			if err != nil {
@@ -30,30 +34,7 @@ var searchCmd = &cobra.Command{
 			dir, _ := cmd.Flags().GetString("dir")
 			sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 
-			p := tea.NewProgram(newDownloadModel(selectedID, dir, c))
-			result, err := p.Run()
-			if err != nil {
-				return err
-			}
-			dm := result.(downloadModel)
-			if dm.state == stateCancelled {
-				return nil
-			}
-			if dm.err != nil {
-				return dm.err
-			}
-			fmt.Println()
-			fmt.Printf("%s Saved to: %s (%d bytes)\n",
-				colorGreen(symbolSuccess),
-				colorGreen(tildePath(dm.savedPath)),
-				dm.savedSize,
-			)
-			if sendToKindle {
-				if err := sendDownloadedFileToKindle(dm.savedPath); err != nil {
-					return fmt.Errorf("send to kindle failed: %w", err)
-				}
-			}
-			return nil
+			return runDownload(newDownloadModel(selectedID, dir, c), sendToKindle)
 		}
 
 		query := strings.Join(args, " ")
@@ -65,6 +46,18 @@ var searchCmd = &cobra.Command{
 		result, err := c.Search(query, page, count, opts)
 		if err != nil {
 			return err
+		}
+
+		if jsonOut {
+			// The parser's Book.ID is the site's numeric card id; overwrite it
+			// with the alphanumeric URL id, which is what `zlib download`
+			// accepts — the id consumers of --json actually need.
+			for i, b := range result.Books {
+				if id := bookIDFromURL(b.URL); id != "" && id != b.URL {
+					result.Books[i].ID = id
+				}
+			}
+			return printJSON(result)
 		}
 
 		if len(result.Books) == 0 {
@@ -183,4 +176,5 @@ func init() {
 	searchCmd.Flags().StringArray("ext", nil, "Filter by file extension (repeatable): epub, pdf, mobi, …")
 	searchCmd.Flags().StringArray("format", nil, "Alias for --ext: filter by file format (repeatable)")
 	searchCmd.Flags().Bool("full-title", false, "Do not truncate book titles in the results table")
+	searchCmd.Flags().Bool("json", false, "Output results as JSON (requires a query)")
 }

@@ -1,0 +1,7 @@
+# Install-time scanner exclusions for the zlib plugin.
+# The plugin is self-contained under this directory (the Go CLI lives outside
+# it), so only VCS/OS cruft and future non-runtime docs need excluding.
+.git/
+.DS_Store
+Thumbs.db
+CHANGELOG.md

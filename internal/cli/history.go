@@ -22,6 +22,7 @@ var historyCmd = &cobra.Command{
 		dir, _ := cmd.Flags().GetString("dir")
 		sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 		formatFilter, _ := cmd.Flags().GetString("format")
+		jsonOut, _ := cmd.Flags().GetBool("json")
 
 		c := newClient()
 
@@ -38,30 +39,11 @@ var historyCmd = &cobra.Command{
 			if bookName == "" {
 				bookName = downloadID
 			}
-			p := tea.NewProgram(newDirectDownloadModel(bookName, item.DownloadURL, dir, c))
-			res, err := p.Run()
-			if err != nil {
-				return err
-			}
-			dm := res.(downloadModel)
-			if dm.state == stateCancelled {
-				return nil
-			}
-			if dm.err != nil {
-				return dm.err
-			}
-			fmt.Println()
-			fmt.Printf("%s Saved to: %s (%d bytes)\n", colorGreen(symbolSuccess), colorGreen(tildePath(dm.savedPath)), dm.savedSize)
-			if sendToKindle {
-				if err := sendDownloadedFileToKindle(dm.savedPath); err != nil {
-					return fmt.Errorf("send to kindle failed: %w", err)
-				}
-			}
-			return nil
+			return runDownload(newDirectDownloadModel(bookName, item.DownloadURL, dir, c), sendToKindle)
 		}
 
-		// No flags: interactive mode
-		if !cmd.Flags().Changed("page") && formatFilter == "" {
+		// No flags: interactive mode (--json always forces the static path)
+		if !cmd.Flags().Changed("page") && formatFilter == "" && !jsonOut {
 			p := tea.NewProgram(newHistorySelectModel(c))
 			result, err := p.Run()
 			if err != nil {
@@ -79,26 +61,7 @@ var historyCmd = &cobra.Command{
 			if bookName == "" {
 				bookName = bookIDFromURL(item.URL)
 			}
-			dp := tea.NewProgram(newDirectDownloadModel(bookName, item.DownloadURL, dir, c))
-			res, err := dp.Run()
-			if err != nil {
-				return err
-			}
-			dm := res.(downloadModel)
-			if dm.state == stateCancelled {
-				return nil
-			}
-			if dm.err != nil {
-				return dm.err
-			}
-			fmt.Println()
-			fmt.Printf("%s Saved to: %s (%d bytes)\n", colorGreen(symbolSuccess), colorGreen(tildePath(dm.savedPath)), dm.savedSize)
-			if sendToKindle {
-				if err := sendDownloadedFileToKindle(dm.savedPath); err != nil {
-					return fmt.Errorf("send to kindle failed: %w", err)
-				}
-			}
-			return nil
+			return runDownload(newDirectDownloadModel(bookName, item.DownloadURL, dir, c), sendToKindle)
 		}
 
 		result, err := c.DownloadHistory(page)
@@ -131,6 +94,23 @@ var historyCmd = &cobra.Command{
 					}
 				}
 			}
+		}
+
+		if jsonOut {
+			// Apply the same format filter as the table, and fill in the
+			// alphanumeric ID that `zlib history --download` accepts.
+			items := make([]zlib.DownloadHistoryItem, 0, len(result.Items))
+			for _, item := range result.Items {
+				if formatFilter != "" && !strings.EqualFold(item.Extension, formatFilter) {
+					continue
+				}
+				if id := bookIDFromURL(item.URL); id != "" && id != item.URL {
+					item.ID = id
+				}
+				items = append(items, item)
+			}
+			result.Items = items
+			return printJSON(result)
 		}
 
 		fmt.Printf("%s %s\n\n", colorBold("Download history page"), colorBold(fmt.Sprintf("%d", result.Page)))
@@ -197,6 +177,7 @@ func init() {
 	historyCmd.Flags().StringP("dir", "d", ".", "Destination directory.")
 	historyCmd.Flags().Bool("send-to-kindle", false, "Send the downloaded file to Kindle.")
 	historyCmd.Flags().StringP("format", "f", "", "Filter by file format (e.g. epub, pdf)")
+	historyCmd.Flags().Bool("json", false, "Output history as JSON (implies non-interactive)")
 	rootCmd.AddCommand(historyCmd)
 }
 

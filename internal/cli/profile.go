@@ -18,6 +18,10 @@ var profileCmd = &cobra.Command{
 			return err
 		}
 
+		if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+			return printJSON(limits)
+		}
+
 		// Progress bar
 		barWidth := 30
 		var filled int
@@ -65,4 +69,8 @@ var profileCmd = &cobra.Command{
 		fmt.Println(card)
 		return nil
 	},
+}
+
+func init() {
+	profileCmd.Flags().Bool("json", false, "Output limits as JSON")
 }

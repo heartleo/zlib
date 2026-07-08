@@ -20,35 +20,78 @@ var downloadCmd = &cobra.Command{
 		dir, _ := cmd.Flags().GetString("dir")
 		sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 		c := newClient()
-		id := args[0]
-
-		p := tea.NewProgram(newDownloadModel(id, dir, c))
-		result, err := p.Run()
-		if err != nil {
-			return err
-		}
-
-		dm := result.(downloadModel)
-		if dm.state == stateCancelled {
-			return nil
-		}
-		if dm.err != nil {
-			return dm.err
-		}
-
-		fmt.Println()
-		fmt.Printf("%s Saved to: %s (%d bytes)\n",
-			colorGreen(symbolSuccess),
-			colorGreen(tildePath(dm.savedPath)),
-			dm.savedSize,
-		)
-		if sendToKindle {
-			if err := sendDownloadedFileToKindle(dm.savedPath); err != nil {
-				return fmt.Errorf("send to kindle failed: %w", err)
-			}
-		}
-		return nil
+		return runDownload(newDownloadModel(args[0], dir, c), sendToKindle)
 	},
+}
+
+// runDownload executes the download described by m — through the bubbletea
+// progress UI on an interactive terminal, or a plain text path otherwise (see
+// isInteractive) — then prints the saved path and optionally delivers to
+// Kindle. Shared by the download, search, and history commands.
+func runDownload(m downloadModel, sendToKindle bool) error {
+	dm, err := runDownloadModel(m)
+	if err != nil {
+		return err
+	}
+	if dm.state == stateCancelled {
+		return nil
+	}
+	if dm.err != nil {
+		return dm.err
+	}
+
+	fmt.Println()
+	fmt.Printf("%s Saved to: %s (%d bytes)\n",
+		colorGreen(symbolSuccess),
+		colorGreen(tildePath(dm.savedPath)),
+		dm.savedSize,
+	)
+	if sendToKindle {
+		if err := sendDownloadedFileToKindle(dm.savedPath); err != nil {
+			return fmt.Errorf("send to kindle failed: %w", err)
+		}
+	}
+	return nil
+}
+
+// runDownloadModel runs the download, choosing the bubbletea UI or the plain
+// path based on whether the process is attached to a terminal.
+func runDownloadModel(m downloadModel) (downloadModel, error) {
+	if !isInteractive() {
+		return m.runPlain()
+	}
+	result, err := tea.NewProgram(m).Run()
+	if err != nil {
+		return downloadModel{}, err
+	}
+	return result.(downloadModel), nil
+}
+
+// runPlain performs the download without the bubbletea UI, for non-terminal
+// output. It mirrors the fetch-then-download flow of the UI model and records
+// the result on the returned model.
+func (m downloadModel) runPlain() (downloadModel, error) {
+	downloadURL, name := m.directURL, m.bookName
+	if downloadURL == "" {
+		book, err := m.client.FetchBook(m.id)
+		if err != nil {
+			return m, fmt.Errorf("failed to fetch book: %w", err)
+		}
+		if book.DownloadURL == "" {
+			return m, fmt.Errorf("no download URL available for book %s", m.id)
+		}
+		downloadURL, name = book.DownloadURL, book.Name
+	}
+
+	fmt.Printf("  Downloading: %s\n", name)
+	result, err := m.client.Download(downloadURL, m.dir, nil)
+	if err != nil {
+		return m, fmt.Errorf("download failed: %w", err)
+	}
+	m.savedPath = result.FilePath
+	m.savedSize = result.Size
+	m.state = stateComplete
+	return m, nil
 }
 
 func init() {

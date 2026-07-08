@@ -1,0 +1,17 @@
+{
+  "name": "zlib-plugin-cc",
+  "metadata": {
+    "description": "Give Claude a Z-Library client. /zlib searches, downloads, and send to Kindle."
+  },
+  "owner": {
+    "name": "heartleo"
+  },
+  "plugins": [
+    {
+      "name": "zlib",
+      "source": "./plugins/zlib",
+      "description": "Search and download books from Z-Library through the zlib CLI.",
+      "category": "productivity"
+    }
+  ]
+}

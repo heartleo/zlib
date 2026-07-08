@@ -34,6 +34,10 @@ type DownloadLimit struct {
 }
 
 type DownloadHistoryItem struct {
+	// ID is the alphanumeric book ID extracted from URL. The parser leaves it
+	// empty; consumers that need it (e.g. the CLI's --json output) derive it
+	// from URL.
+	ID          string `json:"id,omitempty"`
 	Name        string `json:"name"`
 	URL         string `json:"url"`
 	DownloadURL string `json:"download_url,omitempty"`

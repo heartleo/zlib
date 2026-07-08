@@ -42,16 +42,7 @@ winget install heartleo.zlib
 curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
 ```
 
-**Prebuilt binaries** — download from [GitHub Releases](https://github.com/heartleo/zlib/releases):
-
-| Platform        | Archive                               |
-| --------------- | ------------------------------------- |
-| Linux x86\_64   | `zlib_<version>_linux_x86_64.tar.gz`  |
-| Linux arm64     | `zlib_<version>_linux_arm64.tar.gz`   |
-| macOS x86\_64   | `zlib_<version>_darwin_x86_64.tar.gz` |
-| macOS arm64     | `zlib_<version>_darwin_arm64.tar.gz`  |
-| Windows x86\_64 | `zlib_<version>_windows_x86_64.zip`   |
-| Windows arm64   | `zlib_<version>_windows_arm64.zip`    |
+**Prebuilt binaries** — download from [GitHub Releases](https://github.com/heartleo/zlib/releases)
 
 **Go install** (requires Go 1.25+):
 
@@ -66,6 +57,18 @@ git clone https://github.com/heartleo/zlib
 cd zlib
 go build -o zlib ./cmd/zlib
 ```
+
+### Claude Code plugin
+
+zlib ships a [Claude Code](https://claude.com/claude-code) plugin, so Claude can search and download books for you.
+
+```
+/plugin marketplace add heartleo/zlib
+/plugin install zlib@zlib-plugin-cc
+```
+
+`/zlib "the pragmatic programmer"` to search and download.
+`/zlib:kindle` sends a book to your Kindle.
 
 ## Quick Start
 
@@ -108,6 +111,7 @@ Without arguments, opens an interactive picker:
 ```bash
 zlib search # interactive mode
 zlib search "dune" --page 2 # static table
+zlib search "dune" --json   # machine-readable output for scripts and plugins
 ```
 
 Filter by file format with `--ext` (or its alias `--format`), repeatable.
@@ -145,6 +149,7 @@ Without flags, opens an interactive history browser:
 zlib history
 zlib history --download Gz31nyAV5E --dir ./books
 zlib history --format epub
+zlib history --json   # machine-readable, always non-interactive
 ```
 
 ### profile
@@ -153,6 +158,7 @@ zlib history --format epub
 
 ```bash
 zlib profile
+zlib profile --json
 ```
 
 ### kindle
@@ -187,7 +193,7 @@ Available: `auto` · `mocha` · `latte` · `dracula` · `tokyo` · `nord` · `gr
 
 ## Configuration
 
-Create a `.env` file in the working directory, or set environment variables directly:
+Keep secrets like `ZLIB_SMTP_PWD` out of your shell history — put them in an `.env` file instead of exporting them inline. zlib reads env vars with this precedence: **real environment > working-directory `.env` > `~/.config/zlib/.env`**. The global file is the recommended home for machine-wide values.
 
 | Variable        | Description                             |
 | --------------- | --------------------------------------- |
@@ -195,6 +201,16 @@ Create a `.env` file in the working directory, or set environment variables dire
 | `ZLIB_PROXY`    | Proxy URL, e.g. `http://127.0.0.1:7890` |
 | `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery       |
 | `ZLIB_THEME`    | Override theme without changing config  |
+
+**Edit the global env file** (`~/.config/zlib/.env`, one `KEY=value` per line):
+
+```bash
+mkdir -p ~/.config/zlib && touch ~/.config/zlib/.env && chmod 600 ~/.config/zlib/.env
+# open it in your editor:
+notepad "$env:USERPROFILE\.config\zlib\.env"   # Windows (PowerShell)
+open -t ~/.config/zlib/.env                       # macOS
+${EDITOR:-nano} ~/.config/zlib/.env               # Linux
+```
 
 ## Star History
 

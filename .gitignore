@@ -26,15 +26,20 @@ Thumbs.db
 .DS_Store
 
 # Project
+# Secrets — never commit credentials
 *.cert
 *.key
+*.pem
+*.p12
+*.pfx
+credentials*.json
 *.log
 bin/
 *.env
 *.yaml
 !.goreleaser.yaml
 CLAUDE.md
-zlib
+/zlib
 
 # Develop Tools
 .vscode/

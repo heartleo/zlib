@@ -70,3 +70,51 @@ func TestLoadDotEnvFromIgnoresMissingFile(t *testing.T) {
 		t.Fatalf("expected missing .env to be ignored: %v", err)
 	}
 }
+
+// writeConfigDotEnv creates ~/.config/zlib/.env under an isolated temp home.
+func writeConfigDotEnv(t *testing.T, content string) {
+	t.Helper()
+	isolateConfigHome(t)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir() error = %v", err)
+	}
+	dir := filepath.Join(home, ".config", "zlib")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte(content), 0600); err != nil {
+		t.Fatalf("failed to write config .env: %v", err)
+	}
+}
+
+func TestLoadDotEnvReadsConfigDirWhenCwdHasNone(t *testing.T) {
+	writeConfigDotEnv(t, "ZLIB_SMTP_PWD=from-config-dir\n")
+	t.Chdir(t.TempDir()) // empty cwd, no .env
+	unsetEnvForTest(t, "ZLIB_SMTP_PWD")
+
+	if err := loadDotEnv(); err != nil {
+		t.Fatalf("loadDotEnv() error = %v", err)
+	}
+	if got := os.Getenv("ZLIB_SMTP_PWD"); got != "from-config-dir" {
+		t.Fatalf("expected config-dir .env value, got %q", got)
+	}
+}
+
+func TestLoadDotEnvPrefersWorkingDirOverConfigDir(t *testing.T) {
+	writeConfigDotEnv(t, "ZLIB_SMTP_PWD=from-config-dir\n")
+
+	cwd := t.TempDir()
+	if err := os.WriteFile(filepath.Join(cwd, ".env"), []byte("ZLIB_SMTP_PWD=from-cwd\n"), 0600); err != nil {
+		t.Fatalf("failed to write cwd .env: %v", err)
+	}
+	t.Chdir(cwd)
+	unsetEnvForTest(t, "ZLIB_SMTP_PWD")
+
+	if err := loadDotEnv(); err != nil {
+		t.Fatalf("loadDotEnv() error = %v", err)
+	}
+	if got := os.Getenv("ZLIB_SMTP_PWD"); got != "from-cwd" {
+		t.Fatalf("expected cwd .env to win, got %q", got)
+	}
+}

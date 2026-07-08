@@ -1,0 +1,22 @@
+{
+  "name": "zlib",
+  "displayName": "Z-Library",
+  "version": "0.1.0",
+  "description": "Let Claude drive Z-Library. Searches, downloads, and send books to kindle.",
+  "author": {
+    "name": "heartleo"
+  },
+  "homepage": "https://github.com/heartleo/zlib",
+  "repository": "https://github.com/heartleo/zlib",
+  "license": "MIT",
+  "keywords": [
+    "zlibrary",
+    "z-library",
+    "books",
+    "ebook",
+    "download",
+    "search",
+    "kindle",
+    "cli"
+  ]
+}

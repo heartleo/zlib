@@ -9,12 +9,24 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// loadDotEnv loads .env from the working directory, then from the global
+// config dir (~/.config/zlib). godotenv never overrides variables that are
+// already set, so precedence is: real environment > working-dir .env >
+// config-dir .env.
 func loadDotEnv() error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to determine current directory for .env loading: %w", err)
 	}
-	return loadDotEnvFrom(wd)
+	if err := loadDotEnvFrom(wd); err != nil {
+		return err
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// No home dir (rare); skip the global .env rather than fail startup.
+		return nil
+	}
+	return loadDotEnvFrom(filepath.Join(home, ".config", "zlib"))
 }
 
 func loadDotEnvFrom(dir string) error {

@@ -130,15 +130,21 @@ func sendDownloadedFileToKindle(filePath string) error {
 		return fmt.Errorf("kindle smtp password not set; export %s", kindleSMTPPasswordEnv)
 	}
 
-	// Run spinner during send
-	p := tea.NewProgram(newKindleSendModel(filePath, cfg, password))
-	result, err := p.Run()
-	if err != nil {
-		return err
-	}
-	sm := result.(kindleSendModel)
-	if sm.err != nil {
-		return sm.err
+	// Run the spinner UI on a terminal; send directly otherwise so the
+	// command still works (and exits) when driven by a script or pipe.
+	if isInteractive() {
+		result, err := tea.NewProgram(newKindleSendModel(filePath, cfg, password)).Run()
+		if err != nil {
+			return err
+		}
+		if sm := result.(kindleSendModel); sm.err != nil {
+			return sm.err
+		}
+	} else {
+		fmt.Println("  Sending to Kindle...")
+		if err := zlib.SendToKindle(filePath, cfg, password); err != nil {
+			return err
+		}
 	}
 
 	fmt.Println()
