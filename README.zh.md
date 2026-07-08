@@ -219,7 +219,3 @@ notepad "$env:USERPROFILE\.config\zlib\.env"   # Windows (PowerShell)
 open -t ~/.config/zlib/.env                       # macOS
 ${EDITOR:-nano} ~/.config/zlib/.env               # Linux
 ```
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=heartleo/zlib&type=Date)](https://star-history.com/#heartleo/zlib&Date)
