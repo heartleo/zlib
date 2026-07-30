@@ -136,6 +136,9 @@ type downloadDoneMsg struct {
 }
 type errMsg struct{ err error }
 
+// newDownloadModel builds the download model. It is the one place where the
+// --dir flag becomes a filesystem path, so it expands a leading ~ on behalf of
+// every caller (download, search, history).
 func newDownloadModel(id, dir string, c *zlib.Client) downloadModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -148,7 +151,7 @@ func newDownloadModel(id, dir string, c *zlib.Client) downloadModel {
 
 	return downloadModel{
 		id:       id,
-		dir:      dir,
+		dir:      expandTilde(dir),
 		client:   c,
 		spinner:  s,
 		progress: p,

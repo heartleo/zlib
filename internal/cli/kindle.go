@@ -85,7 +85,7 @@ var kindleSendCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var filePath string
 		if len(args) > 0 {
-			filePath = args[0]
+			filePath = expandTilde(args[0])
 		} else {
 			cwd, _ := os.Getwd()
 			form := huh.NewForm(
