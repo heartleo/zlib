@@ -140,7 +140,10 @@ zlib search "civilized to death" --full-title
 ```bash
 zlib download Gz31nyAV5E
 zlib download Gz31nyAV5E --dir ./books --send-to-kindle
+zlib download Gz31nyAV5E --dir "~/Downloads"
 ```
+
+`--dir` 会自行展开开头的 `~`，加不加引号效果一致。
 
 按 `Ctrl+C` 取消下载，未完成的文件会自动删除。
 

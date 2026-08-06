@@ -1,23 +1,10 @@
 package cli
 
 import (
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
-
-// tildePath replaces the home directory prefix in path with ~.
-func tildePath(path string) string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return path
-	}
-	if strings.HasPrefix(path, home) {
-		return "~" + path[len(home):]
-	}
-	return path
-}
 
 const (
 	symbolSuccess = "✓"

@@ -31,7 +31,10 @@ var searchCmd = &cobra.Command{
 			if selectedID == "" {
 				return nil
 			}
-			dir, _ := cmd.Flags().GetString("dir")
+			dir, err := destDirFlag(cmd)
+			if err != nil {
+				return err
+			}
 			sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 
 			return runDownload(newDownloadModel(selectedID, dir, c), sendToKindle)

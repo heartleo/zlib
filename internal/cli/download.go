@@ -17,7 +17,10 @@ var downloadCmd = &cobra.Command{
 	Short: "Download book",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		dir, _ := cmd.Flags().GetString("dir")
+		dir, err := destDirFlag(cmd)
+		if err != nil {
+			return err
+		}
 		sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 		c := newClient()
 		return runDownload(newDownloadModel(args[0], dir, c), sendToKindle)

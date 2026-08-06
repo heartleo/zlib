@@ -93,7 +93,7 @@ To go from a search result straight to a file, take the ID from the table and ca
 
 Notes:
 - Detect the platform first (`uname -s` in bash: `Linux` / `Darwin` / `MSYS`/`MINGW` = Windows Git Bash).
-- Expand `~`/`%USERPROFILE%` yourself; never pass an unexpanded `~` inside quotes to `--dir`. Create the folder if needed (`mkdir -p`).
+- `--dir` expands a leading `~` itself, so `--dir "~/Downloads"` is safe; expand `%USERPROFILE%` yourself. `--dir` does not create the folder — `mkdir -p` it first.
 - On headless Linux (no Desktop dir, SSH session), drop the Desktop option rather than offering a path that doesn't exist.
 - Remember the chosen folder for the rest of the session — don't re-ask on every download; re-confirm only if the user switches context.
 

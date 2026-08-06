@@ -131,7 +131,10 @@ zlib search "civilized to death" --full-title
 ```bash
 zlib download Gz31nyAV5E
 zlib download Gz31nyAV5E --dir ./books --send-to-kindle
+zlib download Gz31nyAV5E --dir "~/Downloads"
 ```
+
+`--dir` expands a leading `~` itself, so it works whether or not the shell expanded it.
 
 Press `Ctrl+C` to cancel.
 Incomplete files are removed automatically.

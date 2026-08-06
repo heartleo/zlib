@@ -19,7 +19,10 @@ var historyCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		page, _ := cmd.Flags().GetInt("page")
 		downloadID, _ := cmd.Flags().GetString("download")
-		dir, _ := cmd.Flags().GetString("dir")
+		dir, err := destDirFlag(cmd)
+		if err != nil {
+			return err
+		}
 		sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 		formatFilter, _ := cmd.Flags().GetString("format")
 		jsonOut, _ := cmd.Flags().GetBool("json")
