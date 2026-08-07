@@ -9,7 +9,23 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
+
+const maxDownloadAttempts = 3
+
+// downloadRetrySleep is the pause between retryable download failures.
+// Tests replace it so they do not wait on real wall-clock backoff.
+var downloadRetrySleep = func(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
 
 type DownloadResult struct {
 	FilePath string
@@ -25,6 +41,28 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 		return DownloadResult{}, ErrNotLoggedIn
 	}
 
+	var lastStatus int
+	for attempt := 1; attempt <= maxDownloadAttempts; attempt++ {
+		result, status, err := c.downloadOnce(ctx, downloadURL, destDir, progressFn)
+		if err == nil {
+			return result, nil
+		}
+		lastStatus = status
+		if !isRetryableDownloadStatus(status) || attempt == maxDownloadAttempts {
+			return DownloadResult{}, err
+		}
+		// 200ms, 400ms — short enough to feel snappy, long enough to clear a blip.
+		if sleepErr := downloadRetrySleep(ctx, time.Duration(attempt)*200*time.Millisecond); sleepErr != nil {
+			return DownloadResult{}, sleepErr
+		}
+	}
+	// Unreachable, but keeps the compiler happy if the loop shape changes.
+	return DownloadResult{}, fmt.Errorf("HTTP %d", lastStatus)
+}
+
+// downloadOnce performs a single GET of downloadURL. status is the HTTP status
+// when the failure came from a response; it is 0 for transport / local errors.
+func (c *Client) downloadOnce(ctx context.Context, downloadURL, destDir string, progressFn func(written, total int64)) (DownloadResult, int, error) {
 	// Use a separate client with no timeout for downloads (CDN can be slow)
 	dlClient := &http.Client{
 		Jar:       c.httpClient.Jar,
@@ -34,7 +72,7 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 
 	req, err := http.NewRequestWithContext(ctx, "GET", downloadURL, nil)
 	if err != nil {
-		return DownloadResult{}, err
+		return DownloadResult{}, 0, err
 	}
 	req.Header.Set("User-Agent", defaultUserAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
@@ -46,21 +84,19 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 
 	resp, err := dlClient.Do(req)
 	if err != nil {
-		return DownloadResult{}, err
+		return DownloadResult{}, 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusFound || resp.StatusCode == http.StatusMovedPermanently {
 		loc := resp.Header.Get("Location")
-		resp.Body.Close()
 		if loc != "" {
-			return c.DownloadWithContext(ctx, loc, destDir, progressFn)
+			return c.downloadOnce(ctx, loc, destDir, progressFn)
 		}
 	}
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		_ = body
-		return DownloadResult{}, fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return DownloadResult{}, resp.StatusCode, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
 	filename := sanitizeFilename(filenameFromResponse(resp, downloadURL))
@@ -68,7 +104,7 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 
 	f, err := os.Create(destPath)
 	if err != nil {
-		return DownloadResult{}, err
+		return DownloadResult{}, 0, err
 	}
 	defer f.Close()
 
@@ -81,7 +117,7 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 		if n > 0 {
 			nw, writeErr := f.Write(buf[:n])
 			if writeErr != nil {
-				return DownloadResult{}, writeErr
+				return DownloadResult{}, 0, writeErr
 			}
 			written += int64(nw)
 			if progressFn != nil {
@@ -95,11 +131,20 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 			// Remove incomplete file on error (e.g. context cancellation)
 			f.Close()
 			os.Remove(destPath)
-			return DownloadResult{}, readErr
+			return DownloadResult{}, 0, readErr
 		}
 	}
 
-	return DownloadResult{FilePath: destPath, Size: written}, nil
+	return DownloadResult{FilePath: destPath, Size: written}, resp.StatusCode, nil
+}
+
+func isRetryableDownloadStatus(code int) bool {
+	switch code {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	default:
+		return false
+	}
 }
 
 func filenameFromResponse(resp *http.Response, fallbackURL string) string {
