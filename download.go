@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-const maxDownloadAttempts = 3
+const (
+	maxDownloadAttempts      = 3
+	maxErrorResponseBodySize = 64 << 10
+)
 
 // downloadRetrySleep is the pause between retryable download failures.
 // Tests replace it so they do not wait on real wall-clock backoff.
@@ -25,6 +28,15 @@ var downloadRetrySleep = func(ctx context.Context, d time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+type downloadFile interface {
+	io.Writer
+	io.Closer
+}
+
+var createDownloadFile = func(name string) (downloadFile, error) {
+	return os.Create(name)
 }
 
 type DownloadResult struct {
@@ -95,14 +107,14 @@ func (c *Client) downloadOnce(ctx context.Context, downloadURL, destDir string, 
 		}
 	}
 	if resp.StatusCode != http.StatusOK {
-		_, _ = io.Copy(io.Discard, resp.Body)
+		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorResponseBodySize)
 		return DownloadResult{}, resp.StatusCode, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
 	filename := sanitizeFilename(filenameFromResponse(resp, downloadURL))
 	destPath := filepath.Join(destDir, filename)
 
-	f, err := os.Create(destPath)
+	f, err := createDownloadFile(destPath)
 	if err != nil {
 		return DownloadResult{}, 0, err
 	}
@@ -117,6 +129,8 @@ func (c *Client) downloadOnce(ctx context.Context, downloadURL, destDir string, 
 		if n > 0 {
 			nw, writeErr := f.Write(buf[:n])
 			if writeErr != nil {
+				f.Close()
+				os.Remove(destPath)
 				return DownloadResult{}, 0, writeErr
 			}
 			written += int64(nw)

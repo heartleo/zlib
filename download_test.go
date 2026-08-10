@@ -103,6 +103,99 @@ func TestDownloadRetriesTransient502ThenSucceeds(t *testing.T) {
 	}
 }
 
+func TestDownloadBoundsRetryableErrorBodyDrain(t *testing.T) {
+	origSleep := downloadRetrySleep
+	downloadRetrySleep = func(context.Context, time.Duration) error { return nil }
+	t.Cleanup(func() { downloadRetrySleep = origSleep })
+
+	var bytesRead atomic.Int64
+	c := NewClient()
+	c.httpClient.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadGateway,
+			Body:       &countingEndlessBody{bytesRead: &bytesRead},
+			Header:     make(http.Header),
+		}, nil
+	})
+	c.domain = "https://example.test"
+	c.loggedIn = true
+
+	_, err := c.Download(c.domain+"/dl/streaming-error", t.TempDir(), nil)
+	if err == nil || !strings.Contains(err.Error(), "HTTP 502") {
+		t.Fatalf("error = %v, want HTTP 502", err)
+	}
+	if got, want := bytesRead.Load(), int64(maxDownloadAttempts*maxErrorResponseBodySize); got != want {
+		t.Fatalf("read %d error-body bytes, want bounded total %d", got, want)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type countingEndlessBody struct {
+	bytesRead *atomic.Int64
+}
+
+func (b *countingEndlessBody) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 'x'
+	}
+	b.bytesRead.Add(int64(len(p)))
+	return len(p), nil
+}
+
+func (*countingEndlessBody) Close() error { return nil }
+
+type failingDownloadFile struct {
+	file *os.File
+}
+
+func (f *failingDownloadFile) Write(p []byte) (int, error) {
+	n := len(p) / 2
+	if _, err := f.file.Write(p[:n]); err != nil {
+		return 0, err
+	}
+	return n, errors.New("injected write failure")
+}
+
+func (f *failingDownloadFile) Close() error {
+	return f.file.Close()
+}
+
+func TestDownloadRemovesPartialFileOnWriteFailure(t *testing.T) {
+	origCreate := createDownloadFile
+	createDownloadFile = func(name string) (downloadFile, error) {
+		f, err := os.Create(name)
+		if err != nil {
+			return nil, err
+		}
+		return &failingDownloadFile{file: f}, nil
+	}
+	t.Cleanup(func() { createDownloadFile = origCreate })
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Disposition", `filename="partial.epub"`)
+		_, _ = io.WriteString(w, "download contents")
+	}))
+	t.Cleanup(server.Close)
+
+	c := NewClient()
+	c.domain = server.URL
+	c.loggedIn = true
+	dir := t.TempDir()
+
+	_, err := c.Download(server.URL+"/dl/partial", dir, nil)
+	if err == nil || !strings.Contains(err.Error(), "injected write failure") {
+		t.Fatalf("error = %v, want injected write failure", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "partial.epub")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("partial destination still exists; stat error = %v", statErr)
+	}
+}
+
 func TestDownloadGivesUpAfterRetryableExhaustion(t *testing.T) {
 	origSleep := downloadRetrySleep
 	downloadRetrySleep = func(context.Context, time.Duration) error { return nil }
