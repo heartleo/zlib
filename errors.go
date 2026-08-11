@@ -12,4 +12,5 @@ var (
 	ErrParseFailed    = errors.New("zlibrary: failed to parse page")
 	ErrSessionExpired = errors.New("zlibrary: session expired, run `zlib login` to re-authenticate")
 	ErrPhraseMinWords = errors.New("zlibrary: phrase search requires at least 2 words")
+	ErrDownloadFailed = errors.New("zlibrary: download failed")
 )

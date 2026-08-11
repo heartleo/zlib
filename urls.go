@@ -12,6 +12,7 @@ const (
 	TorDomain     = "http://bookszlibb74ugqojhzhg2a63w5i2atv5bqarulgczawnbmsb6s6qead.onion"
 	EnvDomain     = "ZLIB_DOMAIN"
 	EnvProxy      = "ZLIB_PROXY"
+	EnvRetries    = "ZLIB_DOWNLOAD_RETRIES"
 
 	loginRPCPath        = "/rpc.php"
 	searchPathFormat    = "/s/%s?"

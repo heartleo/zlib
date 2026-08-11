@@ -89,7 +89,7 @@ func (m downloadModel) runPlain() (downloadModel, error) {
 	fmt.Printf("  Downloading: %s\n", name)
 	result, err := m.client.Download(downloadURL, m.dir, nil)
 	if err != nil {
-		return m, fmt.Errorf("download failed: %w", err)
+		return m, err
 	}
 	m.savedPath = result.FilePath
 	m.savedSize = result.Size
@@ -214,7 +214,7 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				ch <- progressMsg{w, t}
 			})
 			if err != nil {
-				ch <- errMsg{fmt.Errorf("download failed: %w", err)}
+				ch <- errMsg{err}
 			} else {
 				ch <- downloadDoneMsg{result.FilePath, result.Size}
 			}

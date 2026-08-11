@@ -206,12 +206,15 @@ zlib theme nord      # 设置主题
 
 敏感值（如 `ZLIB_SMTP_PWD`）请写入 `.env` 文件，别用 `export` 内联以免留在 shell 历史里。zlib 读取环境变量的优先级：**真实环境变量 > 工作目录 `.env` > `~/.config/zlib/.env`**。全局文件是机器级配置的推荐存放处。
 
-| 变量            | 说明                                 |
-| --------------- | ------------------------------------ |
-| `ZLIB_DOMAIN`   | 覆盖默认的 Z-Library 域名            |
-| `ZLIB_PROXY`    | 代理地址，如 `http://127.0.0.1:7890` |
-| `ZLIB_SMTP_PWD` | Kindle 投递的 SMTP 密码              |
-| `ZLIB_THEME`    | 覆盖主题，无需修改配置文件           |
+| 变量                    | 说明                                    |
+| ----------------------- | --------------------------------------- |
+| `ZLIB_DOMAIN`           | 覆盖默认的 Z-Library 域名               |
+| `ZLIB_PROXY`            | 代理地址，如 `http://127.0.0.1:7890`    |
+| `ZLIB_SMTP_PWD`         | Kindle 投递的 SMTP 密码                 |
+| `ZLIB_THEME`            | 覆盖主题，无需修改配置文件              |
+| `ZLIB_DOWNLOAD_RETRIES` | 连接中断与 `502`/`503`/`504` 的重试次数 |
+
+`ZLIB_DOWNLOAD_RETRIES` 默认 `3`。
 
 **编辑全局 env 文件**（`~/.config/zlib/.env`，每行一个 `KEY=value`）：
 

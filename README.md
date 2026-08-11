@@ -198,12 +198,15 @@ Available: `auto` · `mocha` · `latte` · `dracula` · `tokyo` · `nord` · `gr
 
 Keep secrets like `ZLIB_SMTP_PWD` out of your shell history — put them in an `.env` file instead of exporting them inline. zlib reads env vars with this precedence: **real environment > working-directory `.env` > `~/.config/zlib/.env`**. The global file is the recommended home for machine-wide values.
 
-| Variable        | Description                             |
-| --------------- | --------------------------------------- |
-| `ZLIB_DOMAIN`   | Override the default Z-Library domain   |
-| `ZLIB_PROXY`    | Proxy URL, e.g. `http://127.0.0.1:7890` |
-| `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery       |
-| `ZLIB_THEME`    | Override theme without changing config  |
+| Variable                | Description                                                     |
+| ----------------------- | --------------------------------------------------------------- |
+| `ZLIB_DOMAIN`           | Override the default Z-Library domain                           |
+| `ZLIB_PROXY`            | Proxy URL, e.g. `http://127.0.0.1:7890`                         |
+| `ZLIB_SMTP_PWD`         | SMTP password for Kindle delivery                               |
+| `ZLIB_THEME`            | Override theme without changing config                          |
+| `ZLIB_DOWNLOAD_RETRIES` | Retries for dropped connections and `502`/`503`/`504` responses |
+
+`ZLIB_DOWNLOAD_RETRIES` defaults to `3`.
 
 **Edit the global env file** (`~/.config/zlib/.env`, one `KEY=value` per line):
 

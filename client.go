@@ -24,6 +24,9 @@ type Client struct {
 	loginDomain string
 	cookies     map[string]string
 	loggedIn    bool
+	// downloadRetries is how many times a download request is reissued after
+	// a transient failure.
+	downloadRetries int
 }
 
 func NewClient(opts ...ClientOption) *Client {
@@ -36,6 +39,9 @@ func NewClient(opts ...ClientOption) *Client {
 		domain:      CurrentDefaultDomain(),
 		loginDomain: buildLoginURL(CurrentDefaultDomain()),
 		cookies:     make(map[string]string),
+		// Read at construction, not package init: the CLI loads .env after
+		// all init functions have run.
+		downloadRetries: resolveDownloadRetries(os.Getenv(EnvRetries)),
 	}
 	for _, opt := range opts {
 		opt(c)
