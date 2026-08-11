@@ -24,11 +24,11 @@ var searchCmd = &cobra.Command{
 				return fmt.Errorf("--json requires a search query (interactive mode has no JSON output)")
 			}
 			fullTitle, _ := cmd.Flags().GetBool("full-title")
-			selectedID, err := interactiveSearch(c, searchOptsFromFlags(cmd), fullTitle)
+			selected, err := interactiveSearch(c, searchOptsFromFlags(cmd), fullTitle)
 			if err != nil {
 				return err
 			}
-			if selectedID == "" {
+			if selected.ID == "" {
 				return nil
 			}
 			dir, err := destDirFlag(cmd)
@@ -37,7 +37,12 @@ var searchCmd = &cobra.Command{
 			}
 			sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 
-			return runDownload(newDownloadModel(selectedID, dir, c), sendToKindle)
+			// The search card already carries the /dl/ path, so skip the extra
+			// book-page round-trip whenever it is present.
+			if selected.DownloadURL != "" {
+				return runDownload(newDirectDownloadModel(selected.Name, selected.DownloadURL, dir, c), sendToKindle)
+			}
+			return runDownload(newDownloadModel(selected.ID, dir, c), sendToKindle)
 		}
 
 		query := strings.Join(args, " ")

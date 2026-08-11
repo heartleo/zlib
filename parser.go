@@ -32,6 +32,9 @@ func parseSearchResults(html, mirror string) ([]Book, int, error) {
 
 	var books []Book
 	box.Find(".book-item z-bookcard").Each(func(_ int, s *goquery.Selection) {
+		if isDecoyCard(s) {
+			return
+		}
 		b := Book{}
 		b.ID, _ = s.Attr("id")
 		b.ISBN, _ = s.Attr("isbn")
@@ -45,6 +48,12 @@ func parseSearchResults(html, mirror string) ([]Book, int, error) {
 		b.Size, _ = s.Attr("filesize")
 		b.Rating, _ = s.Attr("rating")
 		b.Quality, _ = s.Attr("quality")
+		// The card already carries the real /dl/ path, so a download started
+		// from search results does not need a second round-trip to the book
+		// page to discover it.
+		if dl, ok := s.Attr("download"); ok {
+			b.DownloadURL = absolutizeURL(mirror, strings.TrimSpace(dl))
+		}
 
 		if img := s.Find("img"); img.Length() > 0 {
 			b.Cover, _ = img.Attr("data-src")
@@ -77,7 +86,37 @@ func parseSearchResults(html, mirror string) ([]Book, int, error) {
 	return books, totalPages, nil
 }
 
+// isDecoyCard reports whether a search result card is one of the anti-scraping
+// decoys Z-Library injects — one per search page, observed on every query.
+// Its container carries `hidden` and `aria-hidden="true"` so no browser ever
+// renders it, and the card itself is marked `nofollow`. Unlike a real result
+// it has no `termshash`, its title and author echo the query, and both its
+// book id and /dl/ hash are minted per request: following either answers
+// HTTP 204. So surfacing one costs a user a result they cannot download, and
+// acting on it identifies the client as a scraper.
+func isDecoyCard(s *goquery.Selection) bool {
+	if _, ok := s.Attr("nofollow"); ok {
+		return true
+	}
+	item := s.Closest(".book-item")
+	if _, ok := item.Attr("hidden"); ok {
+		return true
+	}
+	if v, ok := item.Attr("aria-hidden"); ok && v == "true" {
+		return true
+	}
+	return false
+}
+
 func parseBookDetail(html, mirror string) (Book, error) {
+	// Ghost records left in the search index answer the detail page with
+	// HTTP 204 and an empty body. Parsing that yields a blank Book, which the
+	// CLI used to report as "no download URL available" — accurate but
+	// misleading, since the book itself is gone rather than merely unlinked.
+	if strings.TrimSpace(html) == "" {
+		return Book{}, ErrBookUnavailable
+	}
+
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return Book{}, fmt.Errorf("%w: %v", ErrParseFailed, err)

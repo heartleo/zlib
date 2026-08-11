@@ -67,6 +67,11 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 			return c.DownloadWithContext(ctx, loc, destDir, progressFn)
 		}
 	}
+	// A ghost record — still listed in search results, no longer served —
+	// answers /dl/ with 204 and no redirect instead of an error status.
+	if resp.StatusCode == http.StatusNoContent {
+		return DownloadResult{}, ErrBookUnavailable
+	}
 	if resp.StatusCode != http.StatusOK {
 		return DownloadResult{}, fmt.Errorf("%w: HTTP %d", ErrDownloadFailed, resp.StatusCode)
 	}
