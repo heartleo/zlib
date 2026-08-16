@@ -198,6 +198,8 @@ Available: `auto` · `mocha` · `latte` · `dracula` · `tokyo` · `nord` · `gr
 
 Keep secrets like `ZLIB_SMTP_PWD` out of your shell history — put them in an `.env` file instead of exporting them inline. zlib reads env vars with this precedence: **real environment > working-directory `.env` > `~/.config/zlib/.env`**. The global file is the recommended home for machine-wide values.
 
+`ZLIB_DOMAIN` also outranks the domain cached in `~/.config/zlib/session.json` when you logged in, so switching mirrors takes effect immediately — no logout required. Clearing `ZLIB_DOMAIN` falls back to the saved session domain, then to the built-in default.
+
 | Variable                | Description                                                     |
 | ----------------------- | --------------------------------------------------------------- |
 | `ZLIB_DOMAIN`           | Override the default Z-Library domain                           |

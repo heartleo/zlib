@@ -152,4 +152,5 @@ Sending a downloaded file to Kindle (and the SMTP/Amazon setup it needs) lives i
   ```
 
   Open helpers: Windows `! notepad "$USERPROFILE\.config\zlib\.env"` · macOS `! open -t ~/.config/zlib/.env` · Linux `! ${EDITOR:-nano} ~/.config/zlib/.env`. Then retry.
+  Older zlib builds read `ZLIB_DOMAIN` only from a real exported environment variable, never from an env file, and let the domain saved in `session.json` override it — if a configured mirror appears to be ignored, have the user upgrade, or `export ZLIB_DOMAIN=…` for the current shell as a stopgap.
 - Respect the user's daily download limit shown by `zlib profile`; don't loop downloads past it.

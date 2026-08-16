@@ -33,6 +33,17 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+// resolveClientDomain picks the domain an authenticated client should use.
+// ZLIB_DOMAIN is current, explicit user intent, so it outranks the domain
+// session.json cached back when the user logged in. An empty result means the
+// client should keep the default it already resolved.
+func resolveClientDomain(envDomain, sessionDomain string) string {
+	if domain := strings.TrimSpace(envDomain); domain != "" {
+		return domain
+	}
+	return strings.TrimSpace(sessionDomain)
+}
+
 // newClient loads session and returns an authenticated client.
 func newClient() *zlib.Client {
 	session, err := config.LoadSession()
@@ -41,8 +52,9 @@ func newClient() *zlib.Client {
 		os.Exit(1)
 	}
 	c := zlib.NewClient()
-	if session.Domain != "" {
-		c.SetDomain(session.Domain)
+	// SetDomain before SetCookies: SetCookies seats the jar against c.domain.
+	if domain := resolveClientDomain(os.Getenv(zlib.EnvDomain), session.Domain); domain != "" {
+		c.SetDomain(domain)
 	}
 	c.SetCookies(session.Cookies)
 	return c

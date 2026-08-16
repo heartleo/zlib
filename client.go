@@ -31,23 +31,26 @@ type Client struct {
 
 func NewClient(opts ...ClientOption) *Client {
 	jar, _ := cookiejar.New(nil)
+	domain := CurrentDefaultDomain()
 	c := &Client{
 		httpClient: &http.Client{
 			Jar:     jar,
 			Timeout: defaultTimeout,
 		},
-		domain:      CurrentDefaultDomain(),
-		loginDomain: buildLoginURL(CurrentDefaultDomain()),
+		domain:      domain,
+		loginDomain: buildLoginURL(domain),
 		cookies:     make(map[string]string),
 		// Read at construction, not package init: the CLI loads .env after
 		// all init functions have run.
 		downloadRetries: resolveDownloadRetries(os.Getenv(EnvRetries)),
 	}
-	for _, opt := range opts {
-		opt(c)
-	}
+	// Environment first, explicit options second: a caller-supplied option is
+	// more specific than ZLIB_PROXY and must win.
 	if proxyURL := strings.TrimSpace(os.Getenv(EnvProxy)); proxyURL != "" {
 		WithProxy(proxyURL)(c)
+	}
+	for _, opt := range opts {
+		opt(c)
 	}
 	return c
 }
@@ -60,10 +63,23 @@ func WithDomain(domain string) ClientOption {
 	}
 }
 
+// WithProxy routes requests through proxyURL. It clones http.DefaultTransport
+// so the connection pooling, HTTP/2 negotiation, and dial timeouts the stdlib
+// tunes for us survive; only the proxy function is replaced.
 func WithProxy(proxyURL string) ClientOption {
 	return func(c *Client) {
+		proxyURL = strings.TrimSpace(proxyURL)
+		if proxyURL == "" {
+			return
+		}
 		u, err := url.Parse(proxyURL)
 		if err != nil {
+			return
+		}
+		if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+			transport := defaultTransport.Clone()
+			transport.Proxy = http.ProxyURL(u)
+			c.httpClient.Transport = transport
 			return
 		}
 		c.httpClient.Transport = &http.Transport{Proxy: http.ProxyURL(u)}

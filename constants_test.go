@@ -39,10 +39,9 @@ func TestOrderOptionString(t *testing.T) {
 }
 
 func TestSetDefaultDomain(t *testing.T) {
-	original := CurrentDefaultDomain()
-	t.Cleanup(func() {
-		SetDefaultDomain(original)
-	})
+	t.Setenv(EnvDomain, "")
+	SetDefaultDomain("")
+	t.Cleanup(func() { SetDefaultDomain("") })
 
 	SetDefaultDomain("https://example.com")
 	if got := CurrentDefaultDomain(); got != "https://example.com" {
@@ -56,14 +55,47 @@ func TestSetDefaultDomain(t *testing.T) {
 }
 
 func TestSetDefaultDomainTrimsTrailingSlash(t *testing.T) {
-	original := CurrentDefaultDomain()
-	t.Cleanup(func() {
-		SetDefaultDomain(original)
-	})
+	t.Setenv(EnvDomain, "")
+	SetDefaultDomain("")
+	t.Cleanup(func() { SetDefaultDomain("") })
 
 	SetDefaultDomain("https://z-lib.sk/")
 	if got := CurrentDefaultDomain(); got != "https://z-lib.sk" {
 		t.Fatalf("CurrentDefaultDomain() = %q, want %q", got, "https://z-lib.sk")
+	}
+}
+
+func TestCurrentDefaultDomainReadsEnvAtCallTime(t *testing.T) {
+	SetDefaultDomain("")
+	t.Cleanup(func() { SetDefaultDomain("") })
+
+	// The CLI loads .env after every package init() has run, so the value must
+	// be picked up here and not snapshotted at init time.
+	t.Setenv(EnvDomain, "https://mirror.invalid/")
+
+	if got := CurrentDefaultDomain(); got != "https://mirror.invalid" {
+		t.Fatalf("CurrentDefaultDomain() = %q, want %q", got, "https://mirror.invalid")
+	}
+	if got := NewClient().Domain(); got != "https://mirror.invalid" {
+		t.Fatalf("NewClient().Domain() = %q, want %q", got, "https://mirror.invalid")
+	}
+}
+
+func TestSetDefaultDomainOutranksEnv(t *testing.T) {
+	SetDefaultDomain("")
+	t.Cleanup(func() { SetDefaultDomain("") })
+
+	t.Setenv(EnvDomain, "https://from-env.invalid")
+	SetDefaultDomain("https://explicit.invalid")
+
+	if got := CurrentDefaultDomain(); got != "https://explicit.invalid" {
+		t.Fatalf("CurrentDefaultDomain() = %q, want %q", got, "https://explicit.invalid")
+	}
+
+	// Clearing the override falls back to the environment, not the built-in default.
+	SetDefaultDomain("")
+	if got := CurrentDefaultDomain(); got != "https://from-env.invalid" {
+		t.Fatalf("CurrentDefaultDomain() = %q, want %q", got, "https://from-env.invalid")
 	}
 }
 

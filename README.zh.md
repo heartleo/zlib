@@ -206,6 +206,8 @@ zlib theme nord      # 设置主题
 
 敏感值（如 `ZLIB_SMTP_PWD`）请写入 `.env` 文件，别用 `export` 内联以免留在 shell 历史里。zlib 读取环境变量的优先级：**真实环境变量 > 工作目录 `.env` > `~/.config/zlib/.env`**。全局文件是机器级配置的推荐存放处。
 
+`ZLIB_DOMAIN` 的优先级也高于登录时写入 `~/.config/zlib/session.json` 的域名，因此切换镜像会立刻生效，无需重新登录。清空 `ZLIB_DOMAIN` 后会退回到 session 中保存的域名，再退回到内置默认值。
+
 | 变量                    | 说明                                    |
 | ----------------------- | --------------------------------------- |
 | `ZLIB_DOMAIN`           | 覆盖默认的 Z-Library 域名               |

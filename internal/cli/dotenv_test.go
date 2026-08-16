@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/heartleo/zlib"
 )
 
 func unsetEnvForTest(t *testing.T, key string) {
@@ -116,5 +118,28 @@ func TestLoadDotEnvPrefersWorkingDirOverConfigDir(t *testing.T) {
 	}
 	if got := os.Getenv("ZLIB_SMTP_PWD"); got != "from-cwd" {
 		t.Fatalf("expected cwd .env to win, got %q", got)
+	}
+}
+
+// Regression guard for #15: ZLIB_DOMAIN used to be read in a package init(),
+// which runs before Execute() loads .env, so a .env-configured mirror was
+// silently ignored and every request went to the built-in default domain.
+func TestDotEnvDomainReachesNewClient(t *testing.T) {
+	zlib.SetDefaultDomain("")
+	t.Cleanup(func() { zlib.SetDefaultDomain("") })
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".env")
+	if err := os.WriteFile(path, []byte("ZLIB_DOMAIN=https://mirror.invalid\n"), 0600); err != nil {
+		t.Fatalf("failed to write .env: %v", err)
+	}
+	unsetEnvForTest(t, "ZLIB_DOMAIN")
+
+	if err := loadDotEnvFrom(dir); err != nil {
+		t.Fatalf("loadDotEnvFrom() error = %v", err)
+	}
+
+	if got := zlib.NewClient().Domain(); got != "https://mirror.invalid" {
+		t.Fatalf("NewClient().Domain() = %q, want %q", got, "https://mirror.invalid")
 	}
 }

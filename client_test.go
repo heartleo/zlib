@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
@@ -123,5 +124,74 @@ func TestWithDomain(t *testing.T) {
 	}
 	if c.loginDomain != buildLoginURL("https://example.com") {
 		t.Fatalf("loginDomain = %q, want %q", c.loginDomain, buildLoginURL("https://example.com"))
+	}
+}
+
+func TestNewClientPrefersExplicitProxyOverEnv(t *testing.T) {
+	t.Setenv(EnvProxy, "http://127.0.0.1:7890")
+
+	client := NewClient(WithProxy("http://127.0.0.1:1080"))
+
+	transport, ok := client.httpClient.Transport.(*http.Transport)
+	if !ok || transport == nil {
+		t.Fatal("expected http transport to be configured")
+	}
+
+	reqURL, err := url.Parse("https://example.com")
+	if err != nil {
+		t.Fatalf("failed to parse request url: %v", err)
+	}
+	proxyURL, err := transport.Proxy(&http.Request{URL: reqURL})
+	if err != nil {
+		t.Fatalf("proxy func returned error: %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://127.0.0.1:1080" {
+		t.Fatalf("proxy url = %v, want %q", proxyURL, "http://127.0.0.1:1080")
+	}
+}
+
+func TestNewClientIgnoresEmptyExplicitProxy(t *testing.T) {
+	t.Setenv(EnvProxy, "http://127.0.0.1:7890")
+
+	client := NewClient(WithProxy(""))
+
+	transport, ok := client.httpClient.Transport.(*http.Transport)
+	if !ok || transport == nil {
+		t.Fatal("expected http transport to be configured")
+	}
+
+	reqURL, err := url.Parse("https://example.com")
+	if err != nil {
+		t.Fatalf("failed to parse request url: %v", err)
+	}
+	proxyURL, err := transport.Proxy(&http.Request{URL: reqURL})
+	if err != nil {
+		t.Fatalf("proxy func returned error: %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://127.0.0.1:7890" {
+		t.Fatalf("proxy url = %v, want %q", proxyURL, "http://127.0.0.1:7890")
+	}
+}
+
+func TestWithProxyPreservesDefaultTransportSettings(t *testing.T) {
+	client := NewClient(WithProxy("http://127.0.0.1:7890"))
+
+	transport, ok := client.httpClient.Transport.(*http.Transport)
+	if !ok || transport == nil {
+		t.Fatal("expected http transport to be configured")
+	}
+
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		t.Skip("http.DefaultTransport is not an *http.Transport on this platform")
+	}
+	if transport.MaxIdleConns != defaultTransport.MaxIdleConns {
+		t.Errorf("MaxIdleConns = %d, want %d", transport.MaxIdleConns, defaultTransport.MaxIdleConns)
+	}
+	if transport.IdleConnTimeout != defaultTransport.IdleConnTimeout {
+		t.Errorf("IdleConnTimeout = %v, want %v", transport.IdleConnTimeout, defaultTransport.IdleConnTimeout)
+	}
+	if transport.ForceAttemptHTTP2 != defaultTransport.ForceAttemptHTTP2 {
+		t.Errorf("ForceAttemptHTTP2 = %v, want %v", transport.ForceAttemptHTTP2, defaultTransport.ForceAttemptHTTP2)
 	}
 }

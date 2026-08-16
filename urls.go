@@ -26,25 +26,31 @@ const (
 	filePathPrefix      = "/file/"
 )
 
-var defaultDomainValue = DefaultDomain
+// defaultDomainOverride is set only by SetDefaultDomain. Empty means "not
+// overridden", which lets CurrentDefaultDomain fall through to the environment.
+var defaultDomainOverride string
 
-func init() {
-	if domain := strings.TrimSpace(os.Getenv(EnvDomain)); domain != "" {
-		defaultDomainValue = normalizeDomain(domain)
-	}
-}
-
+// CurrentDefaultDomain resolves the domain new clients start from:
+// SetDefaultDomain > ZLIB_DOMAIN > DefaultDomain.
+//
+// ZLIB_DOMAIN is read on every call rather than in an init function: the CLI
+// loads .env after all init functions have run, so an init-time read would
+// never observe a .env-supplied value.
 func CurrentDefaultDomain() string {
-	return defaultDomainValue
+	if defaultDomainOverride != "" {
+		return defaultDomainOverride
+	}
+	if domain := normalizeDomain(os.Getenv(EnvDomain)); domain != "" {
+		return domain
+	}
+	return DefaultDomain
 }
 
+// SetDefaultDomain overrides the default domain for clients created afterwards.
+// Passing an empty string clears the override, restoring ZLIB_DOMAIN-or-default
+// resolution.
 func SetDefaultDomain(domain string) {
-	domain = normalizeDomain(domain)
-	if domain == "" {
-		defaultDomainValue = DefaultDomain
-		return
-	}
-	defaultDomainValue = domain
+	defaultDomainOverride = normalizeDomain(domain)
 }
 
 func normalizeDomain(domain string) string {
