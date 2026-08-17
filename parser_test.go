@@ -1,16 +1,32 @@
 package zlib
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+)
 
 const testSearchHTML = `<html><body>
 <div id="searchResultBox">
   <div class="book-item">
     <z-bookcard id="12047606" isbn="978-111" href="/book/2RAqApzDRL/biology.html"
+      download="/dl/aBc123XyZ"
       publisher="Bio Press" language="english" year="2021" extension="pdf"
       filesize="25.19 MB" rating="4.0" quality="5.0">
       <img data-src="https://covers.z-library.sk/cover.jpg">
       <div slot="title">Biology Today</div>
       <div slot="author">John Smith; Jane Doe</div>
+    </z-bookcard>
+  </div>
+  <div class="book-item resItemBoxBooks" hidden aria-hidden="true">
+    <div class="counter">0</div>
+    <z-bookcard id="74650710" isbn="" href="/book/TRAPID/decoy.html"
+      download="/dl/trapHash" publisher="query echo" language="english"
+      year="2015" extension="txt" filesize="8.98 MB" rating="4.9" nofollow>
+      <img data-src=""/>
+      <div slot="title">query echo</div>
+      <div slot="author">query echo</div>
     </z-bookcard>
   </div>
   <div class="book-item">
@@ -57,6 +73,80 @@ func TestParseSearchResults(t *testing.T) {
 	}
 	if b.Extension != "pdf" {
 		t.Errorf("Extension = %q", b.Extension)
+	}
+	// The card's download attribute spares the download command a second
+	// round-trip to the book page.
+	if b.DownloadURL != mirror+"/dl/aBc123XyZ" {
+		t.Errorf("DownloadURL = %q, want %q", b.DownloadURL, mirror+"/dl/aBc123XyZ")
+	}
+	if books[1].DownloadURL != "" {
+		t.Errorf("DownloadURL = %q for a card without a download attribute, want empty", books[1].DownloadURL)
+	}
+	// The decoy sits between the two real cards in the document; dropping it
+	// must not disturb the order of the results around it.
+	if books[1].Name != "Cell Biology" {
+		t.Errorf("books[1].Name = %q, want the card following the decoy", books[1].Name)
+	}
+	for _, b := range books {
+		if strings.Contains(b.URL, "TRAPID") || strings.Contains(b.DownloadURL, "trapHash") {
+			t.Errorf("decoy card leaked into results: %+v", b)
+		}
+	}
+}
+
+// Z-Library injects one anti-scraping decoy per search page. It is hidden from
+// browsers, answers 204 on both its book page and its /dl/ link, and acting on
+// it flags the client as a scraper — so it must never reach the user. Each
+// marker is tested on its own, since the site has changed the mix over time.
+func TestParseSearchResults_DropsDecoyCards(t *testing.T) {
+	const tmpl = `<html><body><div id="searchResultBox">
+  <div class="book-item"%s>
+    <z-bookcard id="1" href="/book/REAL/x.html" download="/dl/real" extension="epub"%s>
+      <div slot="title">Real</div>
+    </z-bookcard>
+  </div>
+</div></body></html>`
+
+	for _, tt := range []struct {
+		name     string
+		itemAttr string
+		cardAttr string
+	}{
+		{"hidden container", " hidden", ""},
+		{"aria-hidden container", ` aria-hidden="true"`, ""},
+		{"nofollow card", "", " nofollow"},
+		{"all markers", ` hidden aria-hidden="true"`, " nofollow"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			books, _, err := parseSearchResults(fmt.Sprintf(tmpl, tt.itemAttr, tt.cardAttr), "https://x")
+			if err != nil {
+				t.Fatalf("parseSearchResults() error = %v", err)
+			}
+			if len(books) != 0 {
+				t.Errorf("len(books) = %d, want 0 (decoy must be dropped): %+v", len(books), books)
+			}
+		})
+	}
+
+	// A card carrying none of the markers is a real result and must survive,
+	// so the filter cannot simply drop everything.
+	books, _, err := parseSearchResults(fmt.Sprintf(tmpl, "", ""), "https://x")
+	if err != nil {
+		t.Fatalf("parseSearchResults() error = %v", err)
+	}
+	if len(books) != 1 {
+		t.Fatalf("len(books) = %d, want 1 for an unmarked card", len(books))
+	}
+}
+
+// A ghost record still listed in search results answers its detail page with
+// HTTP 204 and an empty body; that must read as "gone", not as a book whose
+// download link merely failed to parse.
+func TestParseBookDetail_EmptyBody(t *testing.T) {
+	for _, html := range []string{"", "   \n\t "} {
+		if _, err := parseBookDetail(html, "https://x"); !errors.Is(err, ErrBookUnavailable) {
+			t.Errorf("parseBookDetail(%q) error = %v, want ErrBookUnavailable", html, err)
+		}
 	}
 }
 

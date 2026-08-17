@@ -186,3 +186,34 @@ func TestDownloadCancelledDuringBackoff(t *testing.T) {
 		t.Errorf("requests = %d, want 1", got)
 	}
 }
+
+// A ghost record's /dl/ link answers 204 with neither a redirect nor a body.
+// Without special-casing it that reads as a bare "HTTP 204", which says
+// nothing about why the file never arrives.
+func TestDownloadGhostRecordReports204AsUnavailable(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	c := NewClient()
+	c.domain = server.URL
+	c.loggedIn = true
+
+	dir := t.TempDir()
+	if _, err := c.Download(server.URL+"/dl/ghost", dir, nil); !errors.Is(err, ErrBookUnavailable) {
+		t.Fatalf("Download() error = %v, want ErrBookUnavailable", err)
+	}
+	if hits.Load() != 1 {
+		t.Fatalf("hits = %d, want 1", hits.Load())
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("destination has %d entries, want none", len(entries))
+	}
+}

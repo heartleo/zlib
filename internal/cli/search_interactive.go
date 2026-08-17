@@ -25,21 +25,22 @@ const (
 )
 
 type searchSelectModel struct {
-	client     *zlib.Client
-	query      string
-	opts       *zlib.SearchOptions
-	books      []zlib.Book
-	page       int
-	totalPages int
-	cursor     int
-	state      searchState
-	spinner    spinner.Model
-	selectedID string // set when user presses Enter
-	err        error
-	quitting   bool
-	fullTitle  bool            // do not truncate titles
-	width      int             // terminal width, from tea.WindowSizeMsg
-	input      textinput.Model // inline query editor, shown in searchStateFilter
+	client       *zlib.Client
+	query        string
+	opts         *zlib.SearchOptions
+	books        []zlib.Book
+	page         int
+	totalPages   int
+	cursor       int
+	state        searchState
+	spinner      spinner.Model
+	selectedID   string    // set when user presses Enter
+	selectedBook zlib.Book // the card the ID came from, carries its /dl/ URL
+	err          error
+	quitting     bool
+	fullTitle    bool            // do not truncate titles
+	width        int             // terminal width, from tea.WindowSizeMsg
+	input        textinput.Model // inline query editor, shown in searchStateFilter
 }
 
 // messages
@@ -137,6 +138,7 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					id := bookIDFromURL(m.books[m.cursor].URL)
 					if id != m.books[m.cursor].URL {
 						m.selectedID = id
+						m.selectedBook = m.books[m.cursor]
 						return m, tea.Quit
 					}
 				}
@@ -357,8 +359,9 @@ func (m searchSelectModel) View() string {
 }
 
 // interactiveSearch prompts for a query then runs the interactive search model.
-// Returns the selected book ID or "" if cancelled.
-func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool) (string, error) {
+// Returns the selected book — its ID is empty if the user cancelled. The book
+// carries the card's /dl/ URL when the search page exposed one.
+func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool) (zlib.Book, error) {
 	var query string
 	var selectedExts []string
 
@@ -391,10 +394,10 @@ func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool)
 		),
 	).WithTheme(huhTheme())
 	if err := inputForm.Run(); err != nil {
-		return "", err
+		return zlib.Book{}, err
 	}
 	if strings.TrimSpace(query) == "" {
-		return "", nil
+		return zlib.Book{}, nil
 	}
 
 	// Merge selected extensions into opts
@@ -411,12 +414,13 @@ func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool)
 	p := tea.NewProgram(newSearchSelectModel(query, c, opts, fullTitle))
 	result, err := p.Run()
 	if err != nil {
-		return "", err
+		return zlib.Book{}, err
 	}
 
 	sm := result.(searchSelectModel)
 	if sm.err != nil {
-		return "", sm.err
+		return zlib.Book{}, sm.err
 	}
-	return sm.selectedID, nil
+	sm.selectedBook.ID = sm.selectedID
+	return sm.selectedBook, nil
 }
