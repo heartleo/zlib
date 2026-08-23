@@ -134,8 +134,8 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "enter":
 				if len(m.books) > 0 && m.cursor < len(m.books) {
-					id := bookIDFromURL(m.books[m.cursor].URL)
-					if id != m.books[m.cursor].URL {
+					id := bookCommandID(m.books[m.cursor])
+					if id != "" {
 						m.selectedID = id
 						return m, tea.Quit
 					}
@@ -279,8 +279,8 @@ func (m searchSelectModel) View() string {
 	selectedBg := lipgloss.NewStyle().Background(currentTheme.Surface)
 
 	for i, book := range m.books {
-		id := bookIDFromURL(book.URL)
-		if id == book.URL {
+		id := bookCommandID(book)
+		if id == "" {
 			id = "-"
 		}
 		authors := strings.Join(book.Authors, ", ")

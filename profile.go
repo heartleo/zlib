@@ -4,6 +4,9 @@ func (c *Client) GetLimits() (DownloadLimit, error) {
 	if !c.loggedIn {
 		return DownloadLimit{}, ErrNotLoggedIn
 	}
+	if c.mode == ClientModeEAPI {
+		return c.getLimitsEAPI()
+	}
 
 	html, err := c.get(BuildDownloadsURL(c.domain))
 	if err != nil {
@@ -18,6 +21,9 @@ func (c *Client) DownloadHistory(page int) (DownloadHistoryResult, error) {
 	}
 	if page <= 0 {
 		page = 1
+	}
+	if c.mode == ClientModeEAPI {
+		return c.downloadHistoryEAPI(page)
 	}
 
 	urls := []string{

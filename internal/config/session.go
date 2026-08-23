@@ -9,6 +9,7 @@ import (
 type Session struct {
 	Cookies map[string]string `json:"cookies"`
 	Domain  string            `json:"domain"`
+	Mode    string            `json:"mode,omitempty"`
 }
 
 func SessionPath() string {

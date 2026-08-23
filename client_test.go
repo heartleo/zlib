@@ -116,6 +116,89 @@ func TestLogin_ValidationError(t *testing.T) {
 	}
 }
 
+func TestLoginReturnsBotProtectionError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(517)
+		fmt.Fprint(w, `<html><title>Access Denied | DiamWall</title></html>`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	err := c.Login("test@example.com", "testpassword")
+	if !errors.Is(err, ErrLoginFailed) {
+		t.Fatalf("Login() error = %v, want ErrLoginFailed", err)
+	}
+	if !errors.Is(err, ErrBotProtection) {
+		t.Fatalf("Login() error = %v, want ErrBotProtection", err)
+	}
+
+	var botErr *BotProtectionError
+	if !errors.As(err, &botErr) {
+		t.Fatalf("Login() error = %v, want BotProtectionError", err)
+	}
+	if botErr.StatusCode != 517 || botErr.URL != server.URL+loginRPCPath {
+		t.Errorf("BotProtectionError = %#v, want status 517 at %s", botErr, server.URL+loginRPCPath)
+	}
+}
+
+func TestGetReturnsBotProtectionErrorBeforeParsing(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(517)
+		fmt.Fprint(w, `<html><title>Access Denied | DiamWall</title></html>`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	_, err := c.get(server.URL + "/s/test")
+	if !errors.Is(err, ErrBotProtection) {
+		t.Fatalf("get() error = %v, want ErrBotProtection", err)
+	}
+}
+
+func TestGetRecognizesDiamWallBodyWithSuccessStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><title>Access Denied | DiamWall</title></html>`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	_, err := c.get(server.URL + "/s/test")
+	if !errors.Is(err, ErrBotProtection) {
+		t.Fatalf("get() error = %v, want ErrBotProtection", err)
+	}
+}
+
+func TestGetRejectsUnexpectedHTTPStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, "temporarily unavailable")
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	_, err := c.get(server.URL + "/s/test")
+	var statusErr *HTTPStatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("get() error = %v, want HTTPStatusError", err)
+	}
+	if statusErr.StatusCode != http.StatusServiceUnavailable || statusErr.URL != server.URL+"/s/test" {
+		t.Errorf("HTTPStatusError = %#v, want status 503 at %s", statusErr, server.URL+"/s/test")
+	}
+}
+
+func TestGetReportsRedirectLoop(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/loop", http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	_, err := c.get(server.URL + "/loop")
+	if !errors.Is(err, ErrRedirectLoop) {
+		t.Fatalf("get() error = %v, want ErrRedirectLoop", err)
+	}
+}
+
 func TestWithDomain(t *testing.T) {
 	c := NewClient(WithDomain("https://example.com"))
 

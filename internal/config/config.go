@@ -8,7 +8,8 @@ import (
 
 // Config stores global CLI preferences.
 type Config struct {
-	Theme string `json:"theme,omitempty"`
+	Theme          string `json:"theme,omitempty"`
+	LastLoginEmail string `json:"last_login_email,omitempty"`
 }
 
 func ConfigPath() string {

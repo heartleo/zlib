@@ -31,6 +31,9 @@ func (c *Client) FetchBook(id string) (Book, error) {
 	if id == "" {
 		return Book{}, ErrNoID
 	}
+	if c.mode == ClientModeEAPI {
+		return c.fetchBookEAPI(id)
+	}
 
 	bookURL := BuildBookURL(c.domain, id)
 	html, err := c.get(bookURL)

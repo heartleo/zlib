@@ -52,10 +52,21 @@ func newClient() *zlib.Client {
 		os.Exit(1)
 	}
 	c := zlib.NewClient()
-	// SetDomain before SetCookies: SetCookies seats the jar against c.domain.
-	if domain := resolveClientDomain(os.Getenv(zlib.EnvDomain), session.Domain); domain != "" {
-		c.SetDomain(domain)
+	if session.Mode == string(zlib.ClientModeEAPI) {
+		c.SetMode(zlib.ClientModeEAPI)
 	}
+	// SetDomain before SetCookies: SetCookies seats the jar against c.domain.
+	domain := resolveClientDomain(os.Getenv(zlib.EnvDomain), session.Domain)
+	if domain == "" {
+		fmt.Fprintf(os.Stderr, "Domain is not configured. Set %s or run zlib login --domain URL again.\n", zlib.EnvDomain)
+		os.Exit(1)
+	}
+	allowedDomain, err := zlib.ParseAllowedDomain(domain)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid Z-Library domain: %v\n", err)
+		os.Exit(1)
+	}
+	c.SetDomain(allowedDomain)
 	c.SetCookies(session.Cookies)
 	return c
 }
@@ -136,6 +147,7 @@ func init() {
 	rootCmd.AddCommand(searchCmd)
 	rootCmd.AddCommand(downloadCmd)
 	rootCmd.AddCommand(profileCmd)
+	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(kindleCmd)
 	rootCmd.AddCommand(themeCmd)
 	rootCmd.AddCommand(versionCmd)

@@ -81,11 +81,19 @@ zlib 提供 [Claude Code](https://claude.com/claude-code) 插件，让 Claude �
 
 ## 快速开始
 
+目前大多数 Z-Library 网页域名都对自动请求启用了 DiamWall，推荐使用 EAPI。
+先探测候选域名，再把 `ZLIB_DOMAIN` 设为结果为 `healthy` 的域名：
+
 ```bash
-zlib login
+zlib doctor --eapi
+export ZLIB_DOMAIN=https://z-lib.gd # 请替换为探测结果为 healthy 的域名
+zlib login --eapi
 zlib search
 zlib search "dune"
 ```
+
+输入账号前，EAPI 登录会再次检查该域名。如果没有可用域名，请参考
+[DiamWall 排障](#diamwall-排障issue-16)。
 
 ## 命令
 
@@ -96,9 +104,26 @@ zlib search "dune"
 ```bash
 zlib login
 zlib login --email you@example.com --password secret
+zlib login --cookies ~/Downloads/cookies.txt --domain https://z-lib.gd
+zlib login --eapi --domain https://z-lib.gd
+# 或先设置 ZLIB_DOMAIN=https://z-lib.gd，再执行：
+zlib login --eapi
 ```
 
 会话保存至 `~/.config/zlib/session.json`。
+交互式登录会记住并预填最近一次成功登录的邮箱，但不会保存密码。
+`--cookies` 用于导入用户主动提供的 Netscape/Mozilla 格式 Cookie 文件；
+只有与 `--domain` 匹配、未过期且作用于根路径的 Cookie 才会写入会话。
+Cookie 文件包含可复用凭据，请妥善保护导出的文件。
+
+省略 `--domain` 时，HTML 和 EAPI 登录都读取 `ZLIB_DOMAIN`。两者都没有设置，
+命令会打印设置方法并退出。EAPI 登录会先检查所选域名，再要求输入账号；检查失败
+时会提示更换域名。导入 Cookie 也遵循这套规则。
+
+`--eapi` 选择非官方移动端 API，并把选择写入会话。搜索、profile、history、
+图书详情、下载和 Kindle 投递会按需走 EAPI。图书引用格式为 `id:hash`，例如
+`zlib download 115066162:e9f13b --send-to-kindle`。端点和稳定性说明见
+[EAPI 模式](docs/eapi.md)。
 
 ### logout
 
@@ -172,6 +197,68 @@ zlib profile
 zlib profile --json
 ```
 
+### doctor
+
+在不登录、不修改当前域名的情况下检查所有已知域名。
+`--proxy` 仅对此次检查生效，并覆盖 `ZLIB_PROXY`。
+
+```bash
+zlib doctor
+zlib doctor --eapi
+zlib doctor --proxy http://127.0.0.1:7890
+zlib doctor --proxy socks5://127.0.0.1:9050 --json
+```
+
+`--eapi` 检查 `/eapi/info/domains`，不检查首页。网站和 EAPI 的结果可能不同：
+首页被 DiamWall 拦截时，EAPI 仍可能可用。
+
+### DiamWall 排障（issue #16）
+
+[Issue #16](https://github.com/heartleo/zlib/issues/16) 中，镜像返回的是
+DiamWall 挑战页，CLI 因此拿不到预期的 HTML 或 JSON。错误可能是 HTTP `307`
+重定向循环、HTTP `517` 或 `Access Denied | DiamWall`。旧版 CLI 可能只显示
+`searchResultBox not found`、`dstats-info not found`，或在解析登录 JSON 时报告
+`invalid character '<'`。
+
+1. 分别检查网页和 EAPI：
+
+   ```bash
+   zlib doctor --json
+   zlib doctor --eapi --json
+   ```
+
+2. 将 `ZLIB_DOMAIN` 设为结果为 `healthy` 的域名，再用 EAPI 登录：
+
+   ```bash
+   export ZLIB_DOMAIN=https://z-lib.gd
+   zlib login --eapi
+   zlib search "golang"
+   ```
+
+3. 网络需要代理时，先通过该代理探测，确认可用后再供其他命令使用：
+
+   ```bash
+   zlib doctor --eapi --proxy http://127.0.0.1:7890
+   export ZLIB_PROXY=http://127.0.0.1:7890
+   ```
+
+`diamwall_blocked` 表示 DiamWall 截获了请求，`redirect_loop` 表示重定向没有
+到达真实内容，`http_error` 包含 `403` 和 `503` 等响应，`network_error` 包含
+DNS、TLS、超时、连接重置和 EOF。更换 User-Agent 或导入登录 Cookie 无法解决
+DiamWall 的 JS/TLS 挑战。此时应改用健康的 EAPI 域名或更换网络出口。
+
+### 允许域名与浏览器访问
+
+CLI 只接受以下域名及其子域名：`z-library.gs`、`1lib.sk`、
+`z-lib.fm`、`z-lib.gd`、`z-lib.gl`、`zliba.ru`、`z-lib.sk`。同时允许
+`z-library.ec` 作为意大利、法国和西班牙的地区备选。配置值必须是 HTTPS 源站，
+不能包含凭据、自定义端口、路径或查询参数。`evil-z-lib.sk` 这类相似域名也会被
+拒绝。
+
+意大利、法国、西班牙、英国、德国、印度、丹麦和中国的政府或 ISP 可能屏蔽
+Z-Library 域名。浏览器显示屏蔽通知或无法加载时，法国以外的部分地区可以尝试
+更换 DNS。也可以使用 VPN，或通过 Tor Browser 访问 onion 站点。
+
 ### kindle
 
 ![kindle demo](docs/demo-kindle.gif)
@@ -206,11 +293,11 @@ zlib theme nord      # 设置主题
 
 敏感值（如 `ZLIB_SMTP_PWD`）请写入 `.env` 文件，别用 `export` 内联以免留在 shell 历史里。zlib 读取环境变量的优先级：**真实环境变量 > 工作目录 `.env` > `~/.config/zlib/.env`**。全局文件是机器级配置的推荐存放处。
 
-`ZLIB_DOMAIN` 的优先级也高于登录时写入 `~/.config/zlib/session.json` 的域名，因此切换镜像会立刻生效，无需重新登录。清空 `ZLIB_DOMAIN` 后会退回到 session 中保存的域名，再退回到内置默认值。
+HTML 和 EAPI 都读取 `ZLIB_DOMAIN`。它的优先级高于 `~/.config/zlib/session.json` 中保存的域名；清空后，CLI 使用 session 域名。新登录省略 `--domain` 时必须设置 `ZLIB_DOMAIN`。EAPI 登录会先检查该域名，再要求输入账号。
 
 | 变量                    | 说明                                    |
 | ----------------------- | --------------------------------------- |
-| `ZLIB_DOMAIN`           | 覆盖默认的 Z-Library 域名               |
+| `ZLIB_DOMAIN`           | HTML/EAPI 共用域名；省略 `--domain` 时使用 |
 | `ZLIB_PROXY`            | 代理地址，如 `http://127.0.0.1:7890`    |
 | `ZLIB_SMTP_PWD`         | Kindle 投递的 SMTP 密码                 |
 | `ZLIB_THEME`            | 覆盖主题，无需修改配置文件              |

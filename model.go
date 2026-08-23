@@ -2,6 +2,7 @@ package zlib
 
 type Book struct {
 	ID          string   `json:"id"`
+	Hash        string   `json:"hash,omitempty"`
 	ISBN        string   `json:"isbn,omitempty"`
 	URL         string   `json:"url"`
 	Cover       string   `json:"cover,omitempty"`
@@ -38,6 +39,7 @@ type DownloadHistoryItem struct {
 	// empty; consumers that need it (e.g. the CLI's --json output) derive it
 	// from URL.
 	ID          string `json:"id,omitempty"`
+	Hash        string `json:"hash,omitempty"`
 	Name        string `json:"name"`
 	URL         string `json:"url"`
 	DownloadURL string `json:"download_url,omitempty"`

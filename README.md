@@ -72,11 +72,21 @@ zlib ships a [Claude Code](https://claude.com/claude-code) plugin, so Claude can
 
 ## Quick Start
 
+Most current Z-Library web domains put automated requests behind DiamWall, so
+the recommended setup uses EAPI. Probe the candidates first, then set
+`ZLIB_DOMAIN` to one reported as `healthy`:
+
 ```bash
-zlib login
+zlib doctor --eapi
+export ZLIB_DOMAIN=https://z-lib.gd # replace with a healthy result
+zlib login --eapi
 zlib search        # interactive mode
 zlib search "dune" # static table
 ```
+
+EAPI login checks the selected domain again before asking for account
+credentials. If no candidate is healthy, see
+[Troubleshooting DiamWall](#troubleshooting-diamwall-issue-16).
 
 ## Commands
 
@@ -87,9 +97,29 @@ zlib search "dune" # static table
 ```bash
 zlib login
 zlib login --email you@example.com --password secret
+zlib login --cookies ~/Downloads/cookies.txt --domain https://z-lib.gd
+zlib login --eapi --domain https://z-lib.gd
+# or set ZLIB_DOMAIN=https://z-lib.gd, then:
+zlib login --eapi
 ```
 
 Saves session to `~/.config/zlib/session.json`.
+The interactive login remembers and prefills the last successful email address,
+but never stores the password. `--cookies` imports a user-supplied
+Netscape/Mozilla-format cookie file; only unexpired root cookies matching
+`--domain` are saved to the session. Cookie files contain reusable credentials,
+so keep the exported file private.
+
+If you omit `--domain`, both HTML and EAPI login read `ZLIB_DOMAIN`. When neither
+is set, the command prints the required setting and exits. EAPI login also checks
+the selected domain before asking for account credentials. If the check fails,
+it tells you to choose another domain. Cookie imports follow the same rule.
+
+`--eapi` selects the unofficial mobile app API and saves that choice in the
+session. Search, profile, history, book details, downloads, and Kindle delivery
+then use the EAPI path where needed. Book references use `id:hash`, for example
+`zlib download 115066162:e9f13b --send-to-kindle`. See
+[EAPI mode](docs/eapi.md) for the endpoint list and stability notes.
 
 ### logout
 
@@ -164,6 +194,72 @@ zlib profile
 zlib profile --json
 ```
 
+### doctor
+
+Checks all known domains without logging in or changing the active domain.
+`--proxy` overrides `ZLIB_PROXY` for this check only.
+
+```bash
+zlib doctor
+zlib doctor --eapi
+zlib doctor --proxy http://127.0.0.1:7890
+zlib doctor --proxy socks5://127.0.0.1:9050 --json
+```
+
+`--eapi` checks `/eapi/info/domains` instead of the home page. A domain may block
+the website while leaving EAPI reachable, so the two checks can disagree.
+
+### Troubleshooting DiamWall (issue #16)
+
+In [issue #16](https://github.com/heartleo/zlib/issues/16), the mirror serves a
+DiamWall challenge where the CLI expects Z-Library HTML or JSON. You may see an
+HTTP `307` redirect loop, HTTP `517`, or `Access Denied | DiamWall`. Older CLI
+versions may instead fail with `searchResultBox not found`, `dstats-info not
+found`, or `invalid character '<'` while decoding login JSON.
+
+1. Check both website and EAPI connectivity:
+
+   ```bash
+   zlib doctor --json
+   zlib doctor --eapi --json
+   ```
+
+2. Set `ZLIB_DOMAIN` to a domain reported as `healthy`, then log in with EAPI:
+
+   ```bash
+   export ZLIB_DOMAIN=https://z-lib.gd
+   zlib login --eapi
+   zlib search "golang"
+   ```
+
+3. If your network requires a proxy, run the check through that proxy before
+   setting it for other commands:
+
+   ```bash
+   zlib doctor --eapi --proxy http://127.0.0.1:7890
+   export ZLIB_PROXY=http://127.0.0.1:7890
+   ```
+
+`diamwall_blocked` means DiamWall intercepted the request. `redirect_loop` means
+the redirects never reached content. `http_error` covers responses such as `403`
+and `503`; `network_error` covers DNS, TLS, timeout, reset, and EOF failures.
+Changing the User-Agent or importing login cookies does not solve a DiamWall
+JS/TLS challenge. Use a healthy EAPI domain or a different network route.
+
+### Allowed domains and browser access
+
+The CLI accepts these hosts and their subdomains:
+`z-library.gs`, `1lib.sk`, `z-lib.fm`, `z-lib.gd`, `z-lib.gl`, `zliba.ru`, and
+`z-lib.sk`. `z-library.ec` is also allowed as the regional alternative for
+Italy, France, and Spain. The value must be an HTTPS origin without credentials,
+a custom port, a path, or a query. Lookalike hosts such as `evil-z-lib.sk` are
+rejected.
+
+Governments and ISPs in Italy, France, Spain, the UK, Germany, India, Denmark,
+and China may block Z-Library domains. If the browser shows a block notice or
+cannot load the site, changing DNS may help outside France. You can also use a
+VPN or open the onion service in Tor Browser.
+
 ### kindle
 
 ![kindle demo](docs/demo-kindle.gif)
@@ -198,11 +294,11 @@ Available: `auto` · `mocha` · `latte` · `dracula` · `tokyo` · `nord` · `gr
 
 Keep secrets like `ZLIB_SMTP_PWD` out of your shell history — put them in an `.env` file instead of exporting them inline. zlib reads env vars with this precedence: **real environment > working-directory `.env` > `~/.config/zlib/.env`**. The global file is the recommended home for machine-wide values.
 
-`ZLIB_DOMAIN` also outranks the domain cached in `~/.config/zlib/session.json` when you logged in, so switching mirrors takes effect immediately — no logout required. Clearing `ZLIB_DOMAIN` falls back to the saved session domain, then to the built-in default.
+HTML and EAPI both read `ZLIB_DOMAIN`. It overrides the domain saved in `~/.config/zlib/session.json`; if you unset it, the CLI uses the saved domain. A new login without `--domain` requires `ZLIB_DOMAIN`. EAPI login checks that domain before requesting account credentials.
 
 | Variable                | Description                                                     |
 | ----------------------- | --------------------------------------------------------------- |
-| `ZLIB_DOMAIN`           | Override the default Z-Library domain                           |
+| `ZLIB_DOMAIN`           | Domain for HTML and EAPI; used when login omits `--domain`      |
 | `ZLIB_PROXY`            | Proxy URL, e.g. `http://127.0.0.1:7890`                         |
 | `ZLIB_SMTP_PWD`         | SMTP password for Kindle delivery                               |
 | `ZLIB_THEME`            | Override theme without changing config                          |

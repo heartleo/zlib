@@ -56,7 +56,7 @@ var searchCmd = &cobra.Command{
 			// with the alphanumeric URL id, which is what `zlib download`
 			// accepts — the id consumers of --json actually need.
 			for i, b := range result.Books {
-				if id := bookIDFromURL(b.URL); id != "" && id != b.URL {
+				if id := bookCommandID(b); id != "" {
 					result.Books[i].ID = id
 				}
 			}
@@ -76,8 +76,8 @@ var searchCmd = &cobra.Command{
 
 		rows := make([][]string, 0, len(result.Books))
 		for i, b := range result.Books {
-			id := bookIDFromURL(b.URL)
-			if id == b.URL {
+			id := bookCommandID(b)
+			if id == "" {
 				id = "-"
 			}
 			authors := strings.Join(b.Authors, ", ")
@@ -149,6 +149,28 @@ func bookIDFromURL(u string) string {
 		}
 	}
 	return u
+}
+
+func bookCommandID(book zlib.Book) string {
+	if book.ID != "" && book.Hash != "" {
+		return book.ID + ":" + book.Hash
+	}
+	id := bookIDFromURL(book.URL)
+	if id == book.URL {
+		return ""
+	}
+	return id
+}
+
+func historyCommandID(item zlib.DownloadHistoryItem) string {
+	if item.ID != "" && item.Hash != "" {
+		return item.ID + ":" + item.Hash
+	}
+	id := bookIDFromURL(item.URL)
+	if id == item.URL {
+		return ""
+	}
+	return id
 }
 
 func searchOptsFromFlags(cmd *cobra.Command) *zlib.SearchOptions {

@@ -80,14 +80,14 @@ var historyCmd = &cobra.Command{
 		// Collect book IDs that need detail fetch for Extension/Size
 		var missingIDs []string
 		for _, item := range result.Items {
-			if id := bookIDFromURL(item.URL); id != "" && id != item.URL && item.Extension == "" {
+			if id := historyCommandID(item); id != "" && item.Extension == "" {
 				missingIDs = append(missingIDs, id)
 			}
 		}
 		if len(missingIDs) > 0 {
 			details := c.FetchBookDetails(missingIDs)
 			for i, item := range result.Items {
-				id := bookIDFromURL(item.URL)
+				id := historyCommandID(item)
 				if d, ok := details[id]; ok {
 					if result.Items[i].Extension == "" {
 						result.Items[i].Extension = d.Extension
@@ -107,7 +107,7 @@ var historyCmd = &cobra.Command{
 				if formatFilter != "" && !strings.EqualFold(item.Extension, formatFilter) {
 					continue
 				}
-				if id := bookIDFromURL(item.URL); id != "" && id != item.URL {
+				if id := historyCommandID(item); id != "" {
 					item.ID = id
 				}
 				items = append(items, item)
@@ -123,8 +123,8 @@ var historyCmd = &cobra.Command{
 			if formatFilter != "" && !strings.EqualFold(item.Extension, formatFilter) {
 				continue
 			}
-			id := bookIDFromURL(item.URL)
-			if id == item.URL {
+			id := historyCommandID(item)
+			if id == "" {
 				id = "-"
 			}
 			ext := item.Extension
@@ -197,7 +197,7 @@ func findHistoryItemByBookID(c *zlib.Client, bookID string) (zlib.DownloadHistor
 		}
 
 		for _, item := range result.Items {
-			if bookIDFromURL(item.URL) == bookID {
+			if historyCommandID(item) == bookID {
 				return item, nil
 			}
 		}

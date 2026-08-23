@@ -16,6 +16,7 @@ import (
 const (
 	defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 	defaultTimeout   = 180 * time.Second
+	maxRedirects     = 10
 )
 
 type Client struct {
@@ -24,22 +25,33 @@ type Client struct {
 	loginDomain string
 	cookies     map[string]string
 	loggedIn    bool
+	mode        ClientMode
 	// downloadRetries is how many times a download request is reissued after
 	// a transient failure.
 	downloadRetries int
 }
+
+// ClientMode selects the upstream transport used by high-level operations.
+type ClientMode string
+
+const (
+	ClientModeHTML ClientMode = "html"
+	ClientModeEAPI ClientMode = "eapi"
+)
 
 func NewClient(opts ...ClientOption) *Client {
 	jar, _ := cookiejar.New(nil)
 	domain := CurrentDefaultDomain()
 	c := &Client{
 		httpClient: &http.Client{
-			Jar:     jar,
-			Timeout: defaultTimeout,
+			Jar:           jar,
+			Timeout:       defaultTimeout,
+			CheckRedirect: checkRedirect,
 		},
 		domain:      domain,
 		loginDomain: buildLoginURL(domain),
 		cookies:     make(map[string]string),
+		mode:        ClientModeHTML,
 		// Read at construction, not package init: the CLI loads .env after
 		// all init functions have run.
 		downloadRetries: resolveDownloadRetries(os.Getenv(EnvRetries)),
@@ -122,6 +134,9 @@ func (c *Client) Login(email, password string) error {
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrLoginFailed, err)
 	}
+	if err := validateResponse(resp, body); err != nil {
+		return fmt.Errorf("%w: %w", ErrLoginFailed, err)
+	}
 
 	var result struct {
 		Response struct {
@@ -154,6 +169,18 @@ func (c *Client) Logout() {
 
 func (c *Client) Domain() string {
 	return c.domain
+}
+
+func (c *Client) Mode() ClientMode {
+	return c.mode
+}
+
+func (c *Client) SetMode(mode ClientMode) {
+	if mode == ClientModeEAPI {
+		c.mode = ClientModeEAPI
+		return
+	}
+	c.mode = ClientModeHTML
 }
 
 func (c *Client) SetDomain(domain string) {
@@ -200,6 +227,34 @@ func (c *Client) SetCookies(cookies map[string]string) {
 
 func isChallengePage(html string) bool {
 	return len(html) < 20000 && challengeRe.MatchString(html)
+}
+
+// isBotProtectionResponse detects the DiamWall response seen on domains that
+// reject programmatic requests. Its HTML may be returned with status 517, or
+// with a nominally successful status code, so inspect both status and body.
+func isBotProtectionResponse(statusCode int, body []byte) bool {
+	if statusCode == 517 {
+		return true
+	}
+	bodyText := strings.ToLower(string(body))
+	return strings.Contains(bodyText, "diamwall") || strings.Contains(bodyText, "__diamwall")
+}
+
+func validateResponse(resp *http.Response, body []byte) error {
+	if isBotProtectionResponse(resp.StatusCode, body) {
+		return &BotProtectionError{StatusCode: resp.StatusCode, URL: resp.Request.URL.String()}
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return &HTTPStatusError{StatusCode: resp.StatusCode, URL: resp.Request.URL.String()}
+	}
+	return nil
+}
+
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("%w: exceeded %d redirects while requesting %s", ErrRedirectLoop, maxRedirects, req.URL)
+	}
+	return nil
 }
 
 // isLoginPage reports whether html is Z-Library's login page, which the server
@@ -249,6 +304,9 @@ func (c *Client) get(rawURL string) (string, error) {
 
 	body, err := io.ReadAll(reader)
 	if err != nil {
+		return "", err
+	}
+	if err := validateResponse(resp, body); err != nil {
 		return "", err
 	}
 	html := string(body)

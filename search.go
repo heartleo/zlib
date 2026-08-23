@@ -22,6 +22,9 @@ func (c *Client) Search(query string, page, count int, opts *SearchOptions) (Sea
 	if page <= 0 {
 		page = 1
 	}
+	if c.mode == ClientModeEAPI {
+		return c.searchEAPI(query, page, count, opts)
+	}
 
 	u := BuildSearchURL(c.domain, query)
 	if opts != nil {

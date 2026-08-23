@@ -66,14 +66,14 @@ func (m historySelectModel) fetchPage(page int) tea.Cmd {
 		// Fetch missing extension/size details
 		var missingIDs []string
 		for _, item := range result.Items {
-			if id := bookIDFromURL(item.URL); id != "" && id != item.URL && item.Extension == "" {
+			if id := historyCommandID(item); id != "" && item.Extension == "" {
 				missingIDs = append(missingIDs, id)
 			}
 		}
 		if len(missingIDs) > 0 {
 			details := m.client.FetchBookDetails(missingIDs)
 			for i, item := range result.Items {
-				id := bookIDFromURL(item.URL)
+				id := historyCommandID(item)
 				if d, ok := details[id]; ok {
 					if result.Items[i].Extension == "" {
 						result.Items[i].Extension = d.Extension
@@ -216,8 +216,8 @@ func (m historySelectModel) View() string {
 	selectedBg := lipgloss.NewStyle().Background(currentTheme.Surface)
 
 	for i, item := range m.items {
-		id := bookIDFromURL(item.URL)
-		if id == item.URL {
+		id := historyCommandID(item)
+		if id == "" {
 			id = "-"
 		}
 		ext := strings.ToUpper(item.Extension)

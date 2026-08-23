@@ -46,6 +46,13 @@ func (c *Client) DownloadWithContext(ctx context.Context, downloadURL, destDir s
 	if !c.loggedIn {
 		return DownloadResult{}, ErrNotLoggedIn
 	}
+	if c.mode == ClientModeEAPI {
+		resolvedURL, err := c.resolveEAPIFileURL(ctx, downloadURL)
+		if err != nil {
+			return DownloadResult{}, err
+		}
+		downloadURL = resolvedURL
+	}
 
 	// Use a separate client with no timeout for downloads (CDN can be slow)
 	dlClient := &http.Client{
