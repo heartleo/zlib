@@ -42,17 +42,6 @@ winget install heartleo.zlib
 curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
 ```
 
-**预编译二进制** — 从 [GitHub Releases](https://github.com/heartleo/zlib/releases) 下载：
-
-| 平台            | 文件                                  |
-| --------------- | ------------------------------------- |
-| Linux x86\_64   | `zlib_<version>_linux_x86_64.tar.gz`  |
-| Linux arm64     | `zlib_<version>_linux_arm64.tar.gz`   |
-| macOS x86\_64   | `zlib_<version>_darwin_x86_64.tar.gz` |
-| macOS arm64     | `zlib_<version>_darwin_arm64.tar.gz`  |
-| Windows x86\_64 | `zlib_<version>_windows_x86_64.zip`   |
-| Windows arm64   | `zlib_<version>_windows_arm64.zip`    |
-
 **Go install**（需要 Go 1.25+）：
 
 ```bash
@@ -247,17 +236,20 @@ DiamWall 挑战页，CLI 因此拿不到预期的 HTML 或 JSON。错误可能�
 DNS、TLS、超时、连接重置和 EOF。更换 User-Agent 或导入登录 Cookie 无法解决
 DiamWall 的 JS/TLS 挑战。此时应改用健康的 EAPI 域名或更换网络出口。
 
-### 允许域名与浏览器访问
+### 推荐访问域名
 
-CLI 只接受以下域名及其子域名：`z-library.gs`、`1lib.sk`、
-`z-lib.fm`、`z-lib.gd`、`z-lib.gl`、`zliba.ru`、`z-lib.sk`。同时允许
-`z-library.ec` 作为意大利、法国和西班牙的地区备选。配置值必须是 HTTPS 源站，
-不能包含凭据、自定义端口、路径或查询参数。`evil-z-lib.sk` 这类相似域名也会被
-拒绝。
+来源：[r/zlibrary 访问 Wiki](https://www.reddit.com/r/zlibrary/wiki/index/access/?screen_view_count=1&ext-referrer=EXTERNAL#wiki_how_to_access_zlibrary_through_your_browser)
 
-意大利、法国、西班牙、英国、德国、印度、丹麦和中国的政府或 ISP 可能屏蔽
-Z-Library 域名。浏览器显示屏蔽通知或无法加载时，法国以外的部分地区可以尝试
-更换 DNS。也可以使用 VPN，或通过 Tor Browser 访问 onion 站点。
+| 可用域名 |
+| --- |
+| `z-library.gs` |
+| `1lib.sk` |
+| `z-lib.fm` |
+| `z-lib.gd` |
+| `z-lib.gl` |
+| `zliba.ru` |
+| `z-lib.sk` |
+| `z-library.ec` |
 
 ### kindle
 

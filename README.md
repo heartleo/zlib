@@ -42,8 +42,6 @@ winget install heartleo.zlib
 curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
 ```
 
-**Prebuilt binaries** — download from [GitHub Releases](https://github.com/heartleo/zlib/releases)
-
 **Go install** (requires Go 1.25+):
 
 ```bash
@@ -246,19 +244,20 @@ and `503`; `network_error` covers DNS, TLS, timeout, reset, and EOF failures.
 Changing the User-Agent or importing login cookies does not solve a DiamWall
 JS/TLS challenge. Use a healthy EAPI domain or a different network route.
 
-### Allowed domains and browser access
+### Recommended access domains
 
-The CLI accepts these hosts and their subdomains:
-`z-library.gs`, `1lib.sk`, `z-lib.fm`, `z-lib.gd`, `z-lib.gl`, `zliba.ru`, and
-`z-lib.sk`. `z-library.ec` is also allowed as the regional alternative for
-Italy, France, and Spain. The value must be an HTTPS origin without credentials,
-a custom port, a path, or a query. Lookalike hosts such as `evil-z-lib.sk` are
-rejected.
+Source: [r/zlibrary access wiki](https://www.reddit.com/r/zlibrary/wiki/index/access/?screen_view_count=1&ext-referrer=EXTERNAL#wiki_how_to_access_zlibrary_through_your_browser)
 
-Governments and ISPs in Italy, France, Spain, the UK, Germany, India, Denmark,
-and China may block Z-Library domains. If the browser shows a block notice or
-cannot load the site, changing DNS may help outside France. You can also use a
-VPN or open the onion service in Tor Browser.
+| Available domain |
+| --- |
+| `z-library.gs` |
+| `1lib.sk` |
+| `z-lib.fm` |
+| `z-lib.gd` |
+| `z-lib.gl` |
+| `zliba.ru` |
+| `z-lib.sk` |
+| `z-library.ec` |
 
 ### kindle
 
