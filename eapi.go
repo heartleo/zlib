@@ -139,9 +139,17 @@ func (c *Client) searchEAPI(query string, page, count int, opts *SearchOptions) 
 		books = append(books, c.mapEAPIBook(item))
 	}
 
+	// Fall back to the requested page when the server omits pagination.current.
+	// A zero Page freezes the interactive pager: "previous" is disabled by the
+	// page > 1 guard while "next" refetches page 1.
+	current := result.Pagination.Current
+	if current == 0 {
+		current = page
+	}
+
 	return SearchResult{
 		Books:      books,
-		Page:       result.Pagination.Current,
+		Page:       current,
 		TotalPages: result.Pagination.TotalPages,
 	}, nil
 }
@@ -173,13 +181,14 @@ func (c *Client) eapiRequest(ctx context.Context, method, path string, values ur
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", defaultUserAgent)
-	if userID := c.cookies["remix_userid"]; userID != "" {
+	cookies := c.cookieSnapshot()
+	if userID := cookies["remix_userid"]; userID != "" {
 		req.Header.Set("remix-userid", userID)
 	}
-	if userKey := c.cookies["remix_userkey"]; userKey != "" {
+	if userKey := cookies["remix_userkey"]; userKey != "" {
 		req.Header.Set("remix-userkey", userKey)
 	}
-	for name, value := range c.cookies {
+	for name, value := range cookies {
 		req.AddCookie(&http.Cookie{Name: name, Value: value})
 	}
 
@@ -192,10 +201,35 @@ func (c *Client) eapiRequest(ctx context.Context, method, path string, values ur
 	if err != nil {
 		return nil, err
 	}
-	if err := validateResponse(resp, responseBody); err != nil {
+
+	// EAPI answers with application/json, so isBotProtectionResponse skips the
+	// body scan entirely and only a DiamWall status can trip here. That is what
+	// keeps a search for a book whose title or query text mentions the vendor
+	// from being misreported as a block.
+	if isBotProtectionResponse(resp.StatusCode, resp.Header, responseBody) {
+		return nil, &BotProtectionError{StatusCode: resp.StatusCode, URL: resp.Request.URL.String()}
+	}
+
+	// A non-2xx EAPI response still carries {"success":0,"error":"..."}. Hand
+	// that body to the caller so the server's message ("daily limit reached",
+	// "not authorized") survives instead of being flattened into an opaque
+	// status error.
+	if err := validateStatus(resp); err != nil && !isEAPIEnvelope(responseBody) {
 		return nil, err
 	}
 	return responseBody, nil
+}
+
+// isEAPIEnvelope reports whether body is a JSON object carrying EAPI's
+// "success" field, meaning the caller can extract a real error message from it.
+func isEAPIEnvelope(body []byte) bool {
+	var envelope struct {
+		Success *int `json:"success"`
+	}
+	if err := decodeEAPIJSON(body, &envelope); err != nil {
+		return false
+	}
+	return envelope.Success != nil
 }
 
 func (c *Client) mapEAPIBook(item eapiBook) Book {

@@ -2,6 +2,7 @@ package zlib
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -54,6 +55,67 @@ func TestProbeDomainDetectsDiamWallRedirect(t *testing.T) {
 	}
 	if result.HTTPStatus != http.StatusTemporaryRedirect {
 		t.Errorf("ProbeDomain() HTTPStatus = %d, want %d", result.HTTPStatus, http.StatusTemporaryRedirect)
+	}
+}
+
+// __diamwall is DiamWall's CLEARANCE cookie: it is issued on requests that
+// pass. A mirror that answers 200 with real content while setting it is
+// healthy, not blocked. Keying on the cookie alone reported every reachable
+// mirror as diamwall_blocked.
+func TestProbeDomainHealthyDespiteDiamWallClearanceCookie(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Set-Cookie", "__diamwall=cleared; Path=/")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `<html><title>Z-Library</title><body>books</body></html>`)
+	}))
+	defer server.Close()
+
+	result := ProbeDomain(context.Background(), server.URL)
+	if result.Status != DomainStatusHealthy {
+		t.Fatalf("ProbeDomain() status = %q, want %q (%+v)", result.Status, DomainStatusHealthy, result)
+	}
+}
+
+// Z-Library's own challenge is served with HTTP 503. Reporting it as an
+// http_error told users the most usable mirrors were broken.
+func TestProbeDomainReportsChallengeAsUsable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, `<html><title>Checking your browser ...</title><body><script>`+
+			`var a=['6f1e2d3c4b5a69788796a5b4c3d2e1f009182736','c_token=','array'];</script></body></html>`)
+	}))
+	defer server.Close()
+
+	result := ProbeDomain(context.Background(), server.URL)
+	if result.Status != DomainStatusChallenged {
+		t.Fatalf("ProbeDomain() status = %q, want %q (%+v)", result.Status, DomainStatusChallenged, result)
+	}
+}
+
+// The real block terminates in 513 "Verifying your browser | DiamWall".
+func TestProbeDomainDetectsDiamWallStatus513(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(513)
+		fmt.Fprint(w, `<html><title>Verifying your browser | DiamWall</title></html>`)
+	}))
+	defer server.Close()
+
+	result := ProbeDomain(context.Background(), server.URL)
+	if result.Status != DomainStatusDiamWallBlocked {
+		t.Fatalf("ProbeDomain() status = %q, want %q (%+v)", result.Status, DomainStatusDiamWallBlocked, result)
+	}
+}
+
+// Ordinary content mentioning the vendor is not a block page.
+func TestProbeDomainHealthyWhenBodyMentionsDiamWall(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><title>Search</title><body>Defeating DiamWall, 2nd ed.</body></html>`)
+	}))
+	defer server.Close()
+
+	result := ProbeDomain(context.Background(), server.URL)
+	if result.Status != DomainStatusHealthy {
+		t.Fatalf("ProbeDomain() status = %q, want %q (%+v)", result.Status, DomainStatusHealthy, result)
 	}
 }
 

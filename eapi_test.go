@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -33,6 +34,91 @@ func TestLoginEAPISavesRemixCredentials(t *testing.T) {
 	}
 	if c.Cookies()["remix_userid"] != "123" || c.Cookies()["remix_userkey"] != "key123" {
 		t.Errorf("Cookies() = %v, want EAPI remix credentials", c.Cookies())
+	}
+}
+
+// EAPI answers with application/json, so a book whose title or a query that
+// mentions the vendor must not be mistaken for a DiamWall block page.
+func TestSearchEAPIAllowsDiamWallInJSONPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"success":1,"books":[{"id":"1","hash":"h","title":"Defeating DiamWall"}],"pagination":{"current":1,"total_pages":1}}`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	c.SetMode(ClientModeEAPI)
+	c.SetCookies(map[string]string{"remix_userid": "1", "remix_userkey": "k"})
+
+	got, err := c.searchEAPI("diamwall", 1, 10, nil)
+	if err != nil {
+		t.Fatalf("searchEAPI() error = %v, want the results", err)
+	}
+	if len(got.Books) != 1 || got.Books[0].Name != "Defeating DiamWall" {
+		t.Errorf("searchEAPI() books = %+v, want the DiamWall title", got.Books)
+	}
+}
+
+// A non-2xx EAPI response still carries {"success":0,"error":"..."}. The
+// server's message must survive instead of being flattened into a bare status.
+func TestEAPIPreservesServerErrorOnNon2xx(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"success":0,"error":"Daily download limit reached"}`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	c.SetMode(ClientModeEAPI)
+	c.SetCookies(map[string]string{"remix_userid": "1", "remix_userkey": "k"})
+
+	_, err := c.searchEAPI("go", 1, 10, nil)
+	if err == nil {
+		t.Fatal("searchEAPI() error = nil, want the server message")
+	}
+	if !strings.Contains(err.Error(), "Daily download limit reached") {
+		t.Errorf("searchEAPI() error = %v, want it to carry the server message", err)
+	}
+}
+
+// A non-2xx response that is NOT an EAPI envelope still fails on status.
+func TestEAPIReportsStatusWhenBodyIsNotAnEnvelope(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		fmt.Fprint(w, "gateway exploded")
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	c.SetMode(ClientModeEAPI)
+	c.SetCookies(map[string]string{"remix_userid": "1", "remix_userkey": "k"})
+
+	_, err := c.searchEAPI("go", 1, 10, nil)
+	var statusErr *HTTPStatusError
+	if !errors.As(err, &statusErr) || statusErr.StatusCode != http.StatusBadGateway {
+		t.Fatalf("searchEAPI() error = %v, want HTTPStatusError 502", err)
+	}
+}
+
+// A zero Page freezes the interactive pager, so fall back to the page asked for.
+func TestSearchEAPIFallsBackToRequestedPage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"success":1,"books":[],"pagination":{"total_pages":5}}`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	c.SetMode(ClientModeEAPI)
+	c.SetCookies(map[string]string{"remix_userid": "1", "remix_userkey": "k"})
+
+	got, err := c.searchEAPI("go", 3, 10, nil)
+	if err != nil {
+		t.Fatalf("searchEAPI() error = %v", err)
+	}
+	if got.Page != 3 {
+		t.Errorf("searchEAPI() Page = %d, want 3", got.Page)
 	}
 }
 

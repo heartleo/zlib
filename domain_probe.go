@@ -21,7 +21,12 @@ const (
 type DomainStatus string
 
 const (
-	DomainStatusHealthy         DomainStatus = "healthy"
+	DomainStatusHealthy DomainStatus = "healthy"
+	// DomainStatusChallenged means the domain answered with Z-Library's own JS
+	// proof-of-work interstitial. It is a USABLE domain: Client.get() solves the
+	// challenge transparently. The interstitial arrives with HTTP 503, so
+	// without this status the most usable mirrors were reported as http_error.
+	DomainStatusChallenged      DomainStatus = "challenged"
 	DomainStatusDiamWallBlocked DomainStatus = "diamwall_blocked"
 	DomainStatusRedirectLoop    DomainStatus = "redirect_loop"
 	DomainStatusHTTPError       DomainStatus = "http_error"
@@ -117,14 +122,27 @@ func ProbeDomainWithOptions(ctx context.Context, domain string, opts DomainProbe
 		return http.ErrUseLastResponse
 	}
 
+	// A __diamwall cookie seen anywhere in the chain only means the request was
+	// blocked if the chain never resolves to a real response; see
+	// isDiamWallResponse.
+	sawDiamWallCookie := false
+	blockedOrLoop := func(detail string) DomainCheck {
+		if sawDiamWallCookie {
+			result.Status = DomainStatusDiamWallBlocked
+			result.Detail = "DiamWall anti-bot redirect that never resolves"
+			return result
+		}
+		result.Status = DomainStatusRedirectLoop
+		result.Detail = detail
+		return result
+	}
+
 	seen := make(map[string]struct{})
 	for redirects := 0; ; redirects++ {
 		currentURL := current.String()
 		result.FinalURL = currentURL
 		if _, ok := seen[currentURL]; ok {
-			result.Status = DomainStatusRedirectLoop
-			result.Detail = "redirected to a previously visited URL"
-			return result
+			return blockedOrLoop("redirected to a previously visited URL")
 		}
 		seen[currentURL] = struct{}{}
 
@@ -154,9 +172,20 @@ func ProbeDomainWithOptions(ctx context.Context, domain string, opts DomainProbe
 
 		result.HTTPStatus = resp.StatusCode
 		result.FinalURL = resp.Request.URL.String()
+		if hasDiamWallCookie(resp) {
+			sawDiamWallCookie = true
+		}
 		if isDiamWallResponse(resp, body) {
 			result.Status = DomainStatusDiamWallBlocked
 			result.Detail = "DiamWall anti-bot response"
+			return result
+		}
+		// Z-Library's own challenge arrives with HTTP 503, so it must be
+		// recognised before the status checks below call it an http_error. The
+		// domain is usable: the client clears this automatically.
+		if isChallengePage(string(body)) {
+			result.Status = DomainStatusChallenged
+			result.Detail = "JS challenge; the client solves this automatically"
 			return result
 		}
 		if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
@@ -176,17 +205,30 @@ func ProbeDomainWithOptions(ctx context.Context, domain string, opts DomainProbe
 			return result
 		}
 		if redirects >= maxDomainProbeRedirects {
-			result.Status = DomainStatusRedirectLoop
-			result.Detail = fmt.Sprintf("exceeded %d redirects", maxDomainProbeRedirects)
-			return result
+			return blockedOrLoop(fmt.Sprintf("exceeded %d redirects", maxDomainProbeRedirects))
 		}
 		current = resp.Request.URL.ResolveReference(location)
 	}
 }
 
+// isDiamWallResponse reports whether a single response is DiamWall refusing the
+// request outright.
+//
+// It deliberately does NOT consider the __diamwall Set-Cookie. That is
+// DiamWall's clearance cookie, issued on requests that PASS, so keying on it
+// reported every reachable mirror as blocked. The cookie is only evidence of a
+// block when the probe never reaches a successful response at all, which
+// hasDiamWallCookie feeds into the redirect-loop exits below.
 func isDiamWallResponse(resp *http.Response, body []byte) bool {
-	if isBotProtectionResponse(resp.StatusCode, body) {
-		return true
+	return isBotProtectionResponse(resp.StatusCode, resp.Header, body)
+}
+
+// hasDiamWallCookie reports whether a response issues DiamWall's cookie.
+func hasDiamWallCookie(resp *http.Response) bool {
+	for _, value := range resp.Header.Values("Set-Cookie") {
+		if strings.Contains(strings.ToLower(value), "__diamwall") {
+			return true
+		}
 	}
-	return strings.Contains(strings.ToLower(resp.Header.Get("Set-Cookie")), "__diamwall")
+	return false
 }

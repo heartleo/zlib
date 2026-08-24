@@ -48,11 +48,16 @@ var loginCmd = &cobra.Command{
 			fmt.Printf("%s Imported %d cookies.\n", colorGreen(symbolSuccess), count)
 			return nil
 		}
+		// Decide whether to prompt from the flags, before the remembered email
+		// is filled in. Letting the prefill satisfy the check would make
+		// `zlib login --password X` log into whatever account was remembered,
+		// without ever showing the user which one.
+		promptNeeded := email == "" || password == ""
 		if email == "" {
 			email = rememberedLoginEmail()
 		}
 
-		if email == "" || password == "" {
+		if promptNeeded {
 			form := huh.NewForm(
 				huh.NewGroup(
 					huh.NewInput().

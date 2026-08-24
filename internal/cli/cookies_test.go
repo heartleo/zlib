@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,6 +90,35 @@ func TestImportCookieSessionPersistsCookiesAndDomain(t *testing.T) {
 	}
 	if session.Cookies["remix_userkey"] != "secret" {
 		t.Errorf("session cookies = %v, want imported cookie", session.Cookies)
+	}
+}
+
+// A cookie file can match the domain and still authenticate nothing. Saving it
+// makes every later command fail with an opaque "session expired" instead.
+func TestImportCookieSessionRejectsFileWithoutAuthCookies(t *testing.T) {
+	isolateConfigHome(t)
+	path := writeCookieFile(t, `# Netscape HTTP Cookie File
+.z-lib.gd	TRUE	/	TRUE	0	siteLanguage	en
+`)
+
+	_, err := importCookieSession(path, "https://z-lib.gd", time.Now())
+	if err == nil {
+		t.Fatal("importCookieSession() error = nil, want a missing-auth-cookie error")
+	}
+	if !strings.Contains(err.Error(), "remix_userid") {
+		t.Errorf("importCookieSession() error = %v, want it to name the missing cookie", err)
+	}
+}
+
+func TestImportCookieSessionRejectsFileMissingUserKey(t *testing.T) {
+	isolateConfigHome(t)
+	path := writeCookieFile(t, `# Netscape HTTP Cookie File
+.z-lib.gd	TRUE	/	TRUE	0	remix_userid	123
+`)
+
+	_, err := importCookieSession(path, "https://z-lib.gd", time.Now())
+	if err == nil || !strings.Contains(err.Error(), "remix_userkey") {
+		t.Fatalf("importCookieSession() error = %v, want it to name remix_userkey", err)
 	}
 }
 

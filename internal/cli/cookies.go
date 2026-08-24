@@ -146,6 +146,14 @@ func importCookieSession(cookieFile, domain string, now time.Time, modes ...stri
 	if len(cookies) == 0 {
 		return 0, fmt.Errorf("no unexpired root cookies match %s", domain)
 	}
+	// A file can match the domain and still carry nothing that authenticates.
+	// Rejecting it here beats saving a useless session and failing every later
+	// command with an opaque "session expired".
+	for _, name := range []string{"remix_userid", "remix_userkey"} {
+		if strings.TrimSpace(cookies[name]) == "" {
+			return 0, fmt.Errorf("cookie file has no %s cookie for %s; export it while logged in", name, domain)
+		}
+	}
 
 	mode := ""
 	if len(modes) > 0 {

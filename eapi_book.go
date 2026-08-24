@@ -61,7 +61,12 @@ func (c *Client) resolveEAPIFileURL(ctx context.Context, rawURL string) (string,
 	if err != nil {
 		return "", err
 	}
-	base, _ := url.Parse(c.domain)
+	// url.Parse returns a nil *URL on failure, and SetDomain assigns c.domain
+	// before validating it, so this error must not be discarded.
+	base, err := url.Parse(c.domain)
+	if err != nil {
+		return "", fmt.Errorf("zlibrary: invalid client domain %q: %w", c.domain, err)
+	}
 	if target.Scheme != base.Scheme || !strings.EqualFold(target.Host, base.Host) ||
 		!strings.HasPrefix(target.Path, "/eapi/book/") || !strings.HasSuffix(target.Path, "/file") {
 		return rawURL, nil

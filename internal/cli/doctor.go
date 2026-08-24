@@ -96,7 +96,8 @@ func validateDoctorProxy(rawURL string) (string, error) {
 
 func doctorStatusColor(status zlib.DomainStatus) lipgloss.Color {
 	switch status {
-	case zlib.DomainStatusHealthy:
+	case zlib.DomainStatusHealthy, zlib.DomainStatusChallenged:
+		// Challenged domains are usable; the client clears the challenge.
 		return currentTheme.Success
 	case zlib.DomainStatusDiamWallBlocked, zlib.DomainStatusRedirectLoop:
 		return currentTheme.Error

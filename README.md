@@ -14,13 +14,13 @@ English | [中文](README.zh.md)
 
 ## Features
 
-- 🔍 **Interactive search** — browse results with `↑/↓`, switch pages with `←/→`
-- 📥 **Book download** — by book ID, from search results, with live progress
-- 📚 **Download history** — paginated history browser with download support
-- 📖 **Send to Kindle** — deliver files to your Kindle address
-- 🕒 **Usage profile** — view daily download quota
-- 🎨 **Themes** — auto, mocha, latte, dracula, tokyo, nord, gruvbox
-- 🌐 **Proxy & custom domain** support for restricted networks
+🔍 **Interactive search** — browse results with `↑/↓`, switch pages with `←/→`  
+📥 **Book download** — by book ID, from search results, with live progress  
+📚 **Download history** — paginated history browser with download support  
+📖 **Send to Kindle** — deliver files to your Kindle address  
+🕒 **Usage profile** — view daily download quota  
+🎨 **Themes** — auto, mocha, latte, dracula, tokyo, nord, gruvbox  
+🌐 **Proxy & custom domain** support for restricted networks  
 
 ## Install
 
@@ -72,18 +72,25 @@ zlib ships a [Claude Code](https://claude.com/claude-code) plugin, so Claude can
 
 Most current Z-Library web domains put automated requests behind DiamWall, so
 the recommended setup uses EAPI. Probe the candidates first, then set
-`ZLIB_DOMAIN` to one reported as `healthy`:
+`ZLIB_DOMAIN` to one reported as `healthy` or `challenged`:
 
 ```bash
 zlib doctor --eapi
-export ZLIB_DOMAIN=https://z-lib.gd # replace with a healthy result
-zlib login --eapi
-zlib search        # interactive mode
-zlib search "dune" # static table
+zlib login --eapi --domain https://z-lib.gd
+# or export ZLIB_DOMAIN=https://z-lib.gd, then:
+# zlib login --eapi
+zlib search
+zlib search "dune"
 ```
 
+`challenged` means the domain answered with Z-Library's own JS
+proof-of-work page. That domain is usable: the client solves the challenge
+automatically, so pick it as readily as a `healthy` one. Only
+`diamwall_blocked`, `http_error`, `redirect_loop` and `network_error` are
+unusable.
+
 EAPI login checks the selected domain again before asking for account
-credentials. If no candidate is healthy, see
+credentials. If no candidate is usable, see
 [Troubleshooting DiamWall](#troubleshooting-diamwall-issue-16).
 
 ## Commands
@@ -222,7 +229,8 @@ found`, or `invalid character '<'` while decoding login JSON.
    zlib doctor --eapi --json
    ```
 
-2. Set `ZLIB_DOMAIN` to a domain reported as `healthy`, then log in with EAPI:
+2. Set `ZLIB_DOMAIN` to a domain reported as `healthy` or `challenged`, then log
+   in with EAPI:
 
    ```bash
    export ZLIB_DOMAIN=https://z-lib.gd
@@ -238,26 +246,28 @@ found`, or `invalid character '<'` while decoding login JSON.
    export ZLIB_PROXY=http://127.0.0.1:7890
    ```
 
-`diamwall_blocked` means DiamWall intercepted the request. `redirect_loop` means
-the redirects never reached content. `http_error` covers responses such as `403`
-and `503`; `network_error` covers DNS, TLS, timeout, reset, and EOF failures.
-Changing the User-Agent or importing login cookies does not solve a DiamWall
-JS/TLS challenge. Use a healthy EAPI domain or a different network route.
+`challenged` means the domain served Z-Library's own JS proof-of-work page; the
+client clears it automatically, so the domain is usable. `diamwall_blocked` means
+DiamWall intercepted the request. `redirect_loop` means the redirects never
+reached content. `http_error` covers responses such as `403`; `network_error`
+covers DNS, TLS, timeout, reset, and EOF failures. Changing the User-Agent or
+importing login cookies does not solve a DiamWall JS/TLS challenge. Use a
+`healthy` or `challenged` EAPI domain, or a different network route.
 
 ### Recommended access domains
 
 Source: [r/zlibrary access wiki](https://www.reddit.com/r/zlibrary/wiki/index/access/?screen_view_count=1&ext-referrer=EXTERNAL#wiki_how_to_access_zlibrary_through_your_browser)
 
 | Available domain |
-| --- |
-| `z-library.gs` |
-| `1lib.sk` |
-| `z-lib.fm` |
-| `z-lib.gd` |
-| `z-lib.gl` |
-| `zliba.ru` |
-| `z-lib.sk` |
-| `z-library.ec` |
+| ---------------- |
+| `z-library.gs`   |
+| `1lib.sk`        |
+| `z-lib.fm`       |
+| `z-lib.gd`       |
+| `z-lib.gl`       |
+| `zliba.ru`       |
+| `z-lib.sk`       |
+| `z-library.ec`   |
 
 ### kindle
 

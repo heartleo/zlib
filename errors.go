@@ -22,6 +22,9 @@ var (
 	// ErrRedirectLoop is returned when an upstream keeps redirecting a request
 	// beyond the client's redirect limit.
 	ErrRedirectLoop = errors.New("zlibrary: too many redirects")
+	// ErrChallengeFailed is returned when the JS challenge could not be cleared
+	// within the client's attempt budget.
+	ErrChallengeFailed = errors.New("zlibrary: could not clear the browser challenge")
 )
 
 // BotProtectionError describes an anti-bot response returned by the upstream.

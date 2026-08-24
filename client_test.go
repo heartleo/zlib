@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestLogin_Success(t *testing.T) {
@@ -196,6 +199,107 @@ func TestGetReportsRedirectLoop(t *testing.T) {
 	_, err := c.get(server.URL + "/loop")
 	if !errors.Is(err, ErrRedirectLoop) {
 		t.Fatalf("get() error = %v, want ErrRedirectLoop", err)
+	}
+}
+
+// challengePageHTML builds a "Checking your browser" interstitial that
+// solveChallenge can actually solve.
+func challengePageHTML() string {
+	return `<html><body><script>var a=['6f1e2d3c4b5a69788796a5b4c3d2e1f009182736','c_token=','array'];</script></body></html>`
+}
+
+// shortenChallengeBackoff keeps the retry tests from sleeping for real.
+func shortenChallengeBackoff(t *testing.T) {
+	t.Helper()
+	base, max := challengeRetryBase, challengeRetryMaxWait
+	challengeRetryBase, challengeRetryMaxWait = time.Millisecond, time.Millisecond
+	t.Cleanup(func() {
+		challengeRetryBase, challengeRetryMaxWait = base, max
+	})
+}
+
+// The challenge interstitial is served with HTTP 503. If the status check runs
+// before the challenge check, the solver is unreachable and every request to
+// the primary mirror fails with an opaque 503.
+func TestGetSolvesChallengeServedWith503(t *testing.T) {
+	shortenChallengeBackoff(t)
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requests.Add(1) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, challengePageHTML())
+			return
+		}
+		fmt.Fprint(w, `<html><body>real content</body></html>`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	html, err := c.get(server.URL + "/s/test")
+	if err != nil {
+		t.Fatalf("get() error = %v, want the challenge to be solved", err)
+	}
+	if !strings.Contains(html, "real content") {
+		t.Errorf("get() html = %q, want the page served after the challenge", html)
+	}
+	if got := c.Cookies()["c_token"]; got == "" {
+		t.Error("get() did not store a solved c_token")
+	}
+}
+
+// The retry must stay bounded: each attempt restarts the HTTP timeout, so an
+// unbounded loop turns a stubborn endpoint into a command that never returns.
+func TestGetGivesUpAfterChallengeBudget(t *testing.T) {
+	shortenChallengeBackoff(t)
+
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		fmt.Fprint(w, challengePageHTML())
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	_, err := c.get(server.URL + "/s/test")
+	if !errors.Is(err, ErrChallengeFailed) {
+		t.Fatalf("get() error = %v, want ErrChallengeFailed", err)
+	}
+	if got := int(requests.Load()); got != maxChallengeAttempts {
+		t.Errorf("get() made %d requests, want %d", got, maxChallengeAttempts)
+	}
+}
+
+// A search echoes the query into the results page, so content that merely
+// mentions the vendor must not be mistaken for a block page.
+func TestGetAllowsContentMentioningDiamWall(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `<html><title>Search results</title><body>
+			<input value="diamwall"><div>Defeating DiamWall, 2nd ed.</div></body></html>`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	html, err := c.get(server.URL + "/s/diamwall")
+	if err != nil {
+		t.Fatalf("get() error = %v, want the page to be returned", err)
+	}
+	if !strings.Contains(html, "Defeating DiamWall") {
+		t.Errorf("get() html = %q, want the search results", html)
+	}
+}
+
+func TestGetDetectsDiamWallStatus513(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(513)
+		fmt.Fprint(w, `<html><title>Verifying your browser | DiamWall</title></html>`)
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	if _, err := c.get(server.URL + "/s/test"); !errors.Is(err, ErrBotProtection) {
+		t.Fatalf("get() error = %v, want ErrBotProtection", err)
 	}
 }
 

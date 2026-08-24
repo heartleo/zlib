@@ -14,13 +14,13 @@ Z-Library 命令行客户端。
 
 ## 功能
 
-- 🔍 **交互式搜索** — `↑/↓` 浏览结果，`←/→` 翻页
-- 📥 **书籍下载** — 通过 ID 或搜索结果直接下载，实时进度显示
-- 📚 **下载历史** — 分页浏览历史记录，支持重新下载
-- 📖 **发送到 Kindle** — 通过 SMTP 投递文件到 Kindle
-- 🕒 **用量查看** — 查看每日下载配额
-- 🎨 **主题** — auto、mocha、latte、dracula、tokyo、nord、gruvbox
-- 🌐 **代理和自定义域名** — 支持受限网络环境
+🔍 **交互式搜索** — `↑/↓` 浏览结果，`←/→` 翻页  
+📥 **书籍下载** — 通过 ID 或搜索结果直接下载，实时进度显示  
+📚 **下载历史** — 分页浏览历史记录，支持重新下载  
+📖 **发送到 Kindle** — 通过 SMTP 投递文件到 Kindle  
+🕒 **用量查看** — 查看每日下载配额  
+🎨 **主题** — auto、mocha、latte、dracula、tokyo、nord、gruvbox  
+🌐 **代理和自定义域名** — 支持受限网络环境  
 
 ## 安装
 
@@ -70,16 +70,21 @@ zlib 提供 [Claude Code](https://claude.com/claude-code) 插件，让 Claude �
 
 ## 快速开始
 
-目前大多数 Z-Library 网页域名都对自动请求启用了 DiamWall，推荐使用 EAPI。
-先探测候选域名，再把 `ZLIB_DOMAIN` 设为结果为 `healthy` 的域名：
+目前大多数 Z-Library 域名都对自动请求启用了 DiamWall，推荐使用 EAPI。
+先探测候选域名，再把 `ZLIB_DOMAIN` 设为结果为 `healthy` 或 `challenged` 的域名：
 
 ```bash
 zlib doctor --eapi
-export ZLIB_DOMAIN=https://z-lib.gd # 请替换为探测结果为 healthy 的域名
-zlib login --eapi
+zlib login --eapi --domain https://z-lib.gd
+# or export ZLIB_DOMAIN=https://z-lib.gd, then:
+# zlib login --eapi
 zlib search
 zlib search "dune"
 ```
+
+`challenged` 表示该域名返回的是 Z-Library 自带的 JS 计算题页面。这类域名**可以正常使用**，
+客户端会自动求解，选它和选 `healthy` 一样稳妥。只有 `diamwall_blocked`、`http_error`、
+`redirect_loop`、`network_error` 才是不可用的。
 
 输入账号前，EAPI 登录会再次检查该域名。如果没有可用域名，请参考
 [DiamWall 排障](#diamwall-排障issue-16)。
@@ -216,7 +221,7 @@ DiamWall 挑战页，CLI 因此拿不到预期的 HTML 或 JSON。错误可能�
    zlib doctor --eapi --json
    ```
 
-2. 将 `ZLIB_DOMAIN` 设为结果为 `healthy` 的域名，再用 EAPI 登录：
+2. 将 `ZLIB_DOMAIN` 设为结果为 `healthy` 或 `challenged` 的域名，再用 EAPI 登录：
 
    ```bash
    export ZLIB_DOMAIN=https://z-lib.gd
@@ -231,24 +236,26 @@ DiamWall 挑战页，CLI 因此拿不到预期的 HTML 或 JSON。错误可能�
    export ZLIB_PROXY=http://127.0.0.1:7890
    ```
 
-`diamwall_blocked` 表示 DiamWall 截获了请求，`redirect_loop` 表示重定向没有
-到达真实内容，`http_error` 包含 `403` 和 `503` 等响应，`network_error` 包含
+`challenged` 表示该域名返回的是 Z-Library 自带的 JS 计算题页面，客户端会自动求解，
+因此该域名可用。`diamwall_blocked` 表示 DiamWall 截获了请求，`redirect_loop` 表示
+重定向没有到达真实内容，`http_error` 包含 `403` 等响应，`network_error` 包含
 DNS、TLS、超时、连接重置和 EOF。更换 User-Agent 或导入登录 Cookie 无法解决
-DiamWall 的 JS/TLS 挑战。此时应改用健康的 EAPI 域名或更换网络出口。
+DiamWall 的 JS/TLS 挑战。此时应改用 `healthy` 或 `challenged` 的 EAPI 域名，
+或更换网络出口。
 
 ### 推荐访问域名
 
 来源：[r/zlibrary 访问 Wiki](https://www.reddit.com/r/zlibrary/wiki/index/access/?screen_view_count=1&ext-referrer=EXTERNAL#wiki_how_to_access_zlibrary_through_your_browser)
 
-| 可用域名 |
-| --- |
+| 可用域名       |
+| -------------- |
 | `z-library.gs` |
-| `1lib.sk` |
-| `z-lib.fm` |
-| `z-lib.gd` |
-| `z-lib.gl` |
-| `zliba.ru` |
-| `z-lib.sk` |
+| `1lib.sk`      |
+| `z-lib.fm`     |
+| `z-lib.gd`     |
+| `z-lib.gl`     |
+| `zliba.ru`     |
+| `z-lib.sk`     |
 | `z-library.ec` |
 
 ### kindle
@@ -287,13 +294,13 @@ zlib theme nord      # 设置主题
 
 HTML 和 EAPI 都读取 `ZLIB_DOMAIN`。它的优先级高于 `~/.config/zlib/session.json` 中保存的域名；清空后，CLI 使用 session 域名。新登录省略 `--domain` 时必须设置 `ZLIB_DOMAIN`。EAPI 登录会先检查该域名，再要求输入账号。
 
-| 变量                    | 说明                                    |
-| ----------------------- | --------------------------------------- |
+| 变量                    | 说明                                       |
+| ----------------------- | ------------------------------------------ |
 | `ZLIB_DOMAIN`           | HTML/EAPI 共用域名；省略 `--domain` 时使用 |
-| `ZLIB_PROXY`            | 代理地址，如 `http://127.0.0.1:7890`    |
-| `ZLIB_SMTP_PWD`         | Kindle 投递的 SMTP 密码                 |
-| `ZLIB_THEME`            | 覆盖主题，无需修改配置文件              |
-| `ZLIB_DOWNLOAD_RETRIES` | 连接中断与 `502`/`503`/`504` 的重试次数 |
+| `ZLIB_PROXY`            | 代理地址，如 `http://127.0.0.1:7890`       |
+| `ZLIB_SMTP_PWD`         | Kindle 投递的 SMTP 密码                    |
+| `ZLIB_THEME`            | 覆盖主题，无需修改配置文件                 |
+| `ZLIB_DOWNLOAD_RETRIES` | 连接中断与 `502`/`503`/`504` 的重试次数    |
 
 `ZLIB_DOWNLOAD_RETRIES` 默认 `3`。
 
