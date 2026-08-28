@@ -1,0 +1,36 @@
+{
+  "name": "zlib",
+  "version": "0.1.0",
+  "description": "Search, download, and send books to Kindle through the zlib CLI.",
+  "author": {
+    "name": "heartleo"
+  },
+  "homepage": "https://github.com/heartleo/zlib",
+  "repository": "https://github.com/heartleo/zlib",
+  "license": "MIT",
+  "keywords": [
+    "zlibrary",
+    "z-library",
+    "books",
+    "ebook",
+    "download",
+    "search",
+    "kindle",
+    "cli"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Z-Library",
+    "shortDescription": "Search and download books with zlib.",
+    "longDescription": "Use the zlib CLI to search Z-Library, download books, inspect history and quota, and deliver local books to Kindle.",
+    "developerName": "heartleo",
+    "category": "Productivity",
+    "capabilities": [
+      "Search",
+      "Download",
+      "Kindle delivery"
+    ],
+    "websiteURL": "https://github.com/heartleo/zlib",
+    "defaultPrompt": "Search Z-Library for a book and help me download the best match."
+  }
+}

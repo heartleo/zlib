@@ -68,6 +68,18 @@ zlib ships a [Claude Code](https://claude.com/claude-code) plugin, so Claude can
 `/zlib "the pragmatic programmer"` to search and download.
 `/zlib:kindle` sends a book to your Kindle.
 
+### Codex plugin
+
+zlib also ships a skills-only plugin for Codex:
+
+```bash
+codex plugin marketplace add heartleo/zlib
+codex plugin add zlib@zlib
+```
+
+Ask Codex to search or download a book with zlib. Use the bundled Kindle skill
+when you want to send a local book file to your Kindle.
+
 ## Quick Start
 
 Most current Z-Library web domains put automated requests behind DiamWall, so

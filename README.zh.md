@@ -68,6 +68,18 @@ zlib 提供 [Claude Code](https://claude.com/claude-code) 插件，让 Claude �
 `/zlib "the pragmatic programmer"` 搜索并下载。  
 `/zlib:kindle` 把书发送到你的 Kindle。
 
+### Codex 插件
+
+zlib 同时提供仅包含技能的 Codex 插件：
+
+```bash
+codex plugin marketplace add heartleo/zlib
+codex plugin add zlib@zlib
+```
+
+安装后可让 Codex 通过 zlib 搜索或下载图书；需要把本地文件发送到 Kindle 时，
+使用插件内置的 Kindle 技能。
+
 ## 快速开始
 
 目前大多数 Z-Library 域名都对自动请求启用了 DiamWall，推荐使用 EAPI。
