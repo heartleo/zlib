@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en" data-theme="mocha">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Send Books to Kindle from the Terminal — zlib</title>
+<meta name="description" content="Send EPUB, PDF, and DOCX files to a Kindle with one command. zlib mails them through your own SMTP server, so there is no upload step and no browser.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://zlib.heartleo.dev/send-to-kindle/">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://zlib.heartleo.dev/send-to-kindle/">
+<meta property="og:title" content="Send Books to Kindle from the Terminal">
+<meta property="og:description" content="Send EPUB, PDF, and DOCX files to a Kindle with one command, through your own SMTP server.">
+<meta property="og:site_name" content="zlib">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://zlib.heartleo.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="zlib, a CLI for Z-Library, showing its interactive search picker in a terminal.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://zlib.heartleo.dev/og.png">
+<meta name="theme-color" content="#eff1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1e1e2e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Send books to your Kindle from the terminal",
+  "description": "How to mail EPUB, PDF, and DOCX files to a Kindle address with the zlib command-line client, using your own SMTP server.",
+  "url": "https://zlib.heartleo.dev/send-to-kindle/",
+  "inLanguage": "en",
+  "author": { "@type": "Person", "name": "heartleo", "url": "https://github.com/heartleo" },
+  "publisher": { "@type": "Person", "name": "heartleo", "url": "https://github.com/heartleo" },
+  "about": {
+    "@type": "SoftwareApplication",
+    "name": "zlib",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "macOS, Linux, Windows",
+    "url": "https://zlib.heartleo.dev/"
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,300;7..72,400;7..72,500;7..72,600;7..72,700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+/* Page-specific: the landing page has no long-form prose components, so the
+   article column, the numbered setup list, and the two tables live here
+   rather than bloating the shared stylesheet. */
+.doc{max-width:74ch}
+.doc h2{font-size:clamp(1.5rem,2.8vw,2rem);margin-bottom:.7rem}
+.doc h3{font-size:1.12rem;margin:2.2rem 0 .5rem}
+.doc p{color:var(--subtext);margin-bottom:1rem}
+.doc p code,.doc li code,.doc td code{
+  font-family:var(--mono);font-size:.88em;color:var(--accent);
+  background:var(--accent-wash);border-radius:4px;padding:.1em .35em;
+}
+.doc a{color:var(--accent)}
+
+.steps{list-style:none;counter-reset:s;padding:0;margin:2rem 0 0}
+.steps>li{
+  counter-increment:s;position:relative;padding-left:3.1rem;
+  padding-bottom:2rem;border-left:1px solid var(--rule-soft);margin-left:1rem;
+}
+.steps>li:last-child{border-left-color:transparent;padding-bottom:0}
+.steps>li::before{
+  content:counter(s);position:absolute;left:-1rem;top:-.15rem;
+  width:2rem;height:2rem;border-radius:50%;
+  display:grid;place-items:center;
+  background:var(--card);border:1px solid var(--rule);
+  font-family:var(--mono);font-size:.82rem;color:var(--accent);
+}
+.steps h3{margin-top:0}
+.steps pre,.doc pre{
+  margin:.9rem 0 0;background:var(--t-bg);color:var(--t-text);border-radius:7px;
+  padding:.85rem .95rem;overflow-x:auto;
+  font-family:var(--mono);font-size:.8rem;line-height:1.8;
+}
+.doc pre .p{color:var(--t-mauve)}
+.doc pre .c{color:var(--t-muted)}
+
+.tbl-scroll{overflow-x:auto;margin:1.4rem 0 0}
+table.doc-t{border-collapse:collapse;width:100%;font-size:.92rem;min-width:32rem}
+table.doc-t th,table.doc-t td{
+  text-align:left;padding:.62rem .8rem;border-bottom:1px solid var(--rule-soft);
+  vertical-align:top;
+}
+table.doc-t th{
+  font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--faint);font-weight:500;border-bottom-color:var(--rule);
+}
+table.doc-t td{color:var(--subtext)}
+table.doc-t td:first-child{color:var(--strong)}
+
+.faq{margin-top:1.4rem;border-top:1px solid var(--rule-soft)}
+.faq details{border-bottom:1px solid var(--rule-soft)}
+.faq summary{
+  cursor:pointer;padding:.95rem 0;color:var(--strong);font-size:1.02rem;
+  list-style:none;display:flex;align-items:baseline;gap:.7rem;
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::before{content:"+";font-family:var(--mono);color:var(--accent);font-size:.95rem}
+.faq details[open] summary::before{content:"−"}
+.faq details p{margin:0 0 1rem 1.6rem;font-size:.95rem}
+
+.callout{
+  border-left:2px solid var(--accent);background:var(--accent-wash);
+  border-radius:0 7px 7px 0;padding:.9rem 1.1rem;margin:1.4rem 0 0;
+}
+.callout p{margin:0;color:var(--subtext);font-size:.94rem}
+.crumb{
+  font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;
+  color:var(--faint);margin-bottom:1.1rem;
+}
+.crumb a{color:var(--faint);text-decoration:none}
+.crumb a:hover{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ── nav ─────────────────────────────────────────────────── -->
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/">zlib<span class="caret" aria-hidden="true"></span></a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="/#install">Install</a>
+      <a href="/#commands">Commands</a>
+      <a href="/#agents">Agents</a>
+      <a href="/#themes">Themes</a>
+    </nav>
+    <div class="nav-right">
+      <button type="button" class="iconbtn" id="themeToggle" aria-label="Switch to light theme">
+        <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.05 4.05l1.56 1.56M18.39 18.39l1.56 1.56M2.6 12h2.2M19.2 12h2.2M4.05 19.95l1.56-1.56M18.39 5.61l1.56-1.56"/></svg>
+        <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.4 13.6A8.4 8.4 0 1 1 10.4 3.6a6.6 6.6 0 0 0 10 10Z"/></svg>
+      </button>
+      <a class="ghlink" href="https://github.com/heartleo/zlib" target="_blank" rel="noopener" aria-label="zlib on GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span class="cnt">GitHub</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<section class="wrap hero">
+  <div class="doc">
+    <p class="crumb"><a href="/">zlib</a> / send to kindle</p>
+    <h1>Send books to your Kindle from the terminal.</h1>
+    <p class="sub" style="margin-top:.9rem">
+      One command mails a file to your Kindle address through your own mail
+      server. No browser, no upload page, nothing to drag anywhere.
+    </p>
+
+    <div class="cmdline" style="margin-top:1.8rem">
+      <span class="p" aria-hidden="true">$</span>
+      <code>zlib kindle send ./dune.epub</code>
+      <button class="copy" type="button" data-copy="zlib kindle send ./dune.epub">copy</button>
+    </div>
+
+    <div class="meta">
+      <span><i></i>EPUB · PDF · DOCX · and more</span>
+      <span><i></i>Any SMTP server</span>
+      <span><i></i>Password never written to disk</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── setup ───────────────────────────────────────────────── -->
+<section class="wrap band">
+  <div class="doc">
+    <div class="eyebrow">$ zlib kindle</div>
+    <h2>Setting it up once</h2>
+    <p>
+      Amazon lets you mail documents to a Kindle, and it accepts mail only from
+      addresses you have approved. So the setup is two halves: tell zlib which
+      mail server to send through, and tell Amazon that server's address is
+      allowed to send to you.
+    </p>
+
+    <ol class="steps">
+      <li>
+        <h3>Install zlib</h3>
+        <p>Homebrew, winget, <code>go install</code>, or a prebuilt binary from the releases page.</p>
+<pre><span class="p">$</span> brew install heartleo/tap/zlib</pre>
+      </li>
+
+      <li>
+        <h3>Point it at your mail server</h3>
+        <p>
+          Running <code>zlib kindle</code> with no arguments opens a short form:
+          your Kindle address, the address you are sending from, and the SMTP
+          host and port. It defaults to <code>smtp.gmail.com</code> on port
+          <code>587</code>. The answers are saved to
+          <code>~/.config/zlib/kindle.json</code>.
+        </p>
+<pre><span class="p">$</span> zlib kindle
+
+  Kindle address   you@kindle.com
+  From address     you@gmail.com
+  SMTP host        smtp.gmail.com
+  SMTP port        587</pre>
+      </li>
+
+      <li>
+        <h3>Put the password in the environment</h3>
+        <p>
+          zlib reads the mail password from <code>ZLIB_SMTP_PWD</code> at send
+          time and never writes it to the config file. On Gmail this has to be
+          an App Password, which requires 2-step verification on the account;
+          your normal login password will be rejected by the server.
+        </p>
+<pre><span class="p">$</span> export ZLIB_SMTP_PWD=your-app-password</pre>
+        <div class="callout">
+          <p>
+            Putting it in your shell profile makes it permanent. Putting it in a
+            <code>.env</code> file next to the project also works, since zlib
+            reads <code>.env</code> from the working directory and from
+            <code>~/.config/zlib/</code>.
+          </p>
+        </div>
+      </li>
+
+      <li>
+        <h3>Approve the sender at Amazon</h3>
+        <p>
+          In your Amazon account, under Manage Your Content and Devices →
+          Preferences → Personal Document Settings, add your From address to the
+          Approved Personal Document E-mail List. Mail from anywhere else is
+          dropped silently, which is the usual reason a send looks like it
+          worked but nothing arrives.
+        </p>
+      </li>
+
+      <li>
+        <h3>Send something</h3>
+        <p>
+          Pass a path, or run it bare to get a file picker filtered to the
+          formats Amazon accepts.
+        </p>
+<pre><span class="p">$</span> zlib kindle send ./dune.epub
+<span class="c">  ✓ Sent dune.epub to you@kindle.com</span></pre>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ── formats ─────────────────────────────────────────────── -->
+<section class="wrap band">
+  <div class="doc">
+    <div class="eyebrow">what goes through</div>
+    <h2>Formats and size limits</h2>
+    <p>
+      zlib checks the file before it opens a connection, so a file Amazon would
+      reject fails immediately with a reason instead of vanishing into a
+      mailbox somewhere.
+    </p>
+
+    <div class="tbl-scroll">
+      <table class="doc-t">
+        <thead>
+          <tr><th>Check</th><th>Rule</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Extension</td>
+            <td><code>.epub</code> <code>.pdf</code> <code>.txt</code> <code>.doc</code> <code>.docx</code> <code>.html</code> <code>.htm</code> <code>.rtf</code> <code>.jpg</code> <code>.jpeg</code> <code>.png</code> <code>.bmp</code> <code>.gif</code></td>
+            <td>Amazon's Send to Kindle accepts these and ignores the rest.</td>
+          </tr>
+          <tr>
+            <td>File size</td>
+            <td>200 MB</td>
+            <td>Amazon's own ceiling for a personal document.</td>
+          </tr>
+          <tr>
+            <td>Message size</td>
+            <td>25 MB, Gmail only</td>
+            <td>
+              Attachments are base64 encoded, which inflates them by about a
+              third, so a 19 MB book becomes a message over Gmail's limit. zlib
+              works this out up front when the host is Gmail.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <p>
+        zlib does not convert between formats. If you need an unsupported format
+        turned into an EPUB first, convert it with something like Calibre and
+        send the result.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ── inline ──────────────────────────────────────────────── -->
+<section class="wrap band">
+  <div class="doc">
+    <div class="eyebrow">--send-to-kindle</div>
+    <h2>Skipping the second command</h2>
+    <p>
+      Every command that ends in a downloaded file takes
+      <code>--send-to-kindle</code>, which mails it on as soon as the download
+      lands. That works on <code>search</code>, <code>download</code>, and
+      <code>history</code>.
+    </p>
+<pre><span class="p">$</span> zlib download 12345678 --send-to-kindle
+<span class="p">$</span> zlib search "the dispossessed" --send-to-kindle
+<span class="p">$</span> zlib history --send-to-kindle</pre>
+    <p style="margin-top:1.2rem">
+      Because none of this needs a terminal UI, the same flags work inside a
+      script or a cron job.
+    </p>
+  </div>
+</section>
+
+<!-- ── vs calibre ──────────────────────────────────────────── -->
+<section class="wrap band">
+  <div class="doc">
+    <div class="eyebrow">alternatives</div>
+    <h2>How this compares to Calibre</h2>
+    <p>
+      Calibre is the usual answer to this problem and it is a good one. The two
+      tools solve different halves of it, and using both is reasonable.
+    </p>
+
+    <div class="tbl-scroll">
+      <table class="doc-t">
+        <thead>
+          <tr><th></th><th>zlib</th><th>Calibre</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Interface</td>
+            <td>One command, scriptable</td>
+            <td>Desktop app, plus a command-line suite</td>
+          </tr>
+          <tr>
+            <td>Format conversion</td>
+            <td>None</td>
+            <td>Extensive, and the main reason to reach for it</td>
+          </tr>
+          <tr>
+            <td>Library management</td>
+            <td>None</td>
+            <td>Full catalogue, metadata editing, covers</td>
+          </tr>
+          <tr>
+            <td>Mail transport</td>
+            <td>Your SMTP server, configured directly</td>
+            <td>Your SMTP server, configured in preferences</td>
+          </tr>
+          <tr>
+            <td>Runs headless</td>
+            <td>Yes, no display needed</td>
+            <td>Yes via <code>calibre-smtp</code>, though the GUI is the common path</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:1.4rem">
+      The short version: if you need a file converted or a library organised,
+      use Calibre. If the file is already in a format Amazon takes and you want
+      it gone in one line, this is faster.
+    </p>
+  </div>
+</section>
+
+<!-- ── faq ─────────────────────────────────────────────────── -->
+<section class="wrap band">
+  <div class="doc">
+    <div class="eyebrow">questions</div>
+    <h2>Common problems</h2>
+
+    <div class="faq">
+      <details>
+        <summary>The command reports success but nothing reaches the Kindle.</summary>
+        <p>
+          Almost always the From address is not on Amazon's Approved Personal
+          Document E-mail List. Amazon accepts the mail and discards it without
+          telling the sender, so SMTP reports a clean delivery. Add the address
+          under Personal Document Settings and send again.
+        </p>
+      </details>
+      <details>
+        <summary>Does zlib store my email password?</summary>
+        <p>
+          No. <code>~/.config/zlib/kindle.json</code> holds the addresses, host,
+          and port only. The password is read from the
+          <code>ZLIB_SMTP_PWD</code> environment variable each time a send runs.
+        </p>
+      </details>
+      <details>
+        <summary>Gmail rejects the login.</summary>
+        <p>
+          Gmail refuses account passwords over SMTP. Turn on 2-step verification,
+          generate an App Password, and use that as
+          <code>ZLIB_SMTP_PWD</code>.
+        </p>
+      </details>
+      <details>
+        <summary>Can I use a provider other than Gmail?</summary>
+        <p>
+          Yes. The host and port are whatever you enter, so any SMTP server
+          works. The 25 MB message check only applies when the host is Gmail;
+          other providers are held to Amazon's 200 MB file limit alone.
+        </p>
+      </details>
+      <details>
+        <summary>Where does the Kindle address come from?</summary>
+        <p>
+          Amazon assigns each device one, ending in <code>@kindle.com</code>. It
+          is listed beside the device under Manage Your Content and Devices.
+        </p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ── cta ─────────────────────────────────────────────────── -->
+<section class="wrap cta">
+  <h2>Get it installed.</h2>
+  <p>Free, MIT licensed, and it only ever talks to Z-Library and the SMTP server you configure.</p>
+  <div class="btns">
+    <a class="btn pri" href="/#install">Installation options</a>
+    <a class="btn" href="https://github.com/heartleo/zlib" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      Star on GitHub
+    </a>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="f-grid">
+      <div class="f-brand">
+        <a class="brand" href="/">zlib<span class="caret" aria-hidden="true"></span></a>
+        <p>A Z-Library client for people who already have a terminal open.</p>
+      </div>
+      <div>
+        <h3>Start</h3>
+        <ul>
+          <li><a href="/#install">Install</a></li>
+          <li><a href="/#commands">Commands</a></li>
+          <li><a href="/#themes">Themes</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Docs</h3>
+        <ul>
+          <li><a href="https://github.com/heartleo/zlib#readme" target="_blank" rel="noopener">README</a></li>
+          <li><a href="https://github.com/heartleo/zlib/blob/main/README.zh.md" target="_blank" rel="noopener">中文 README</a></li>
+          <li><a href="https://github.com/heartleo/zlib/blob/main/docs/eapi.md" target="_blank" rel="noopener">EAPI mode</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Project</h3>
+        <ul>
+          <li><a href="https://github.com/heartleo/zlib" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://github.com/heartleo/zlib/releases" target="_blank" rel="noopener">Releases</a></li>
+          <li><a href="https://github.com/heartleo/zlib/issues" target="_blank" rel="noopener">Report an issue</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="f-base">
+      <span>&copy; 2026 heartleo &middot; <a href="https://github.com/heartleo/zlib/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const $ = s => document.querySelector(s);
+
+  /* Theme, sharing the landing page's stored preference. */
+  const setTheme = t => {
+    root.dataset.theme = t;
+    try { localStorage.setItem("zlib.theme", t); } catch {}
+    const tb = $("#themeToggle");
+    if (tb) tb.setAttribute("aria-label", t === "mocha" ? "Switch to light theme" : "Switch to dark theme");
+  };
+  let savedTheme;
+  try { savedTheme = localStorage.getItem("zlib.theme"); } catch {}
+  setTheme(savedTheme || (matchMedia("(prefers-color-scheme: light)").matches ? "latte" : "mocha"));
+  $("#themeToggle").addEventListener("click", () =>
+    setTheme(root.dataset.theme === "mocha" ? "latte" : "mocha"));
+
+  /* Copy buttons. */
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]");
+    if (!b) return;
+    try {
+      await navigator.clipboard.writeText(b.dataset.copy);
+      const was = b.textContent;
+      b.textContent = "copied";
+      setTimeout(() => { b.textContent = was; }, 1400);
+    } catch {}
+  });
+})();
+</script>
+
+</body>
+</html>

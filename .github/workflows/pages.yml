@@ -1,0 +1,66 @@
+name: pages
+
+on:
+  push:
+    branches: [main]
+    # The site is the only thing this workflow deploys, so a Go-only commit
+    # should not spend a Pages deployment.
+    paths:
+      - "site/**"
+      - "scripts/build-zh.mjs"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Queue rather than cancel. A cancelled run leaves the previous version live,
+# which is safe but means a push can silently not reach the site; queueing
+# costs one extra run and always ends on the newest commit.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # The custom domain (zlib.heartleo.dev) is configured via the repo's
+    # Pages settings/API, not a CNAME file, so a fork enabling Actions
+    # would otherwise deploy to this repo's own custom-domain config.
+    if: github.repository == 'heartleo/zlib'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # enablement defaults to false, which fails with "Get Pages site failed"
+      # on a repository that has never had Pages turned on. Setting it true
+      # makes this step create the Pages site with build_type: workflow, so
+      # there is nothing to click in Settings beforehand.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # site/zh/index.html is generated, not committed: it is site/index.html
+      # with the English half removed, so the Chinese copy gets a URL of its
+      # own instead of sitting behind display:none on the English page. The
+      # script fails loudly if it cannot find what it rewrites, which is what
+      # keeps a markup change in index.html from silently shipping a stale or
+      # half-translated page.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node scripts/build-zh.mjs
+
+      # site/ is served verbatim: no Jekyll runs on this path, so there is
+      # nothing to escape and no .nojekyll to add. A CNAME file is ignored
+      # for custom-workflow deploys; the domain lives in Pages settings.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

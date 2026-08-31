@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="en" data-theme="mocha" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>zlib — a Z-Library CLI for your terminal and AI agents</title>
+<meta name="description" content="Search, download, and send books to Kindle from the terminal. An open-source Z-Library client with plugins for Claude Code and Codex.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://zlib.heartleo.dev/">
+<link rel="alternate" hreflang="en" href="https://zlib.heartleo.dev/">
+<link rel="alternate" hreflang="zh-Hans" href="https://zlib.heartleo.dev/zh/">
+<link rel="alternate" hreflang="x-default" href="https://zlib.heartleo.dev/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://zlib.heartleo.dev/">
+<meta property="og:title" content="zlib — a Z-Library CLI for your terminal and AI agents">
+<meta property="og:description" content="Search, download, and send books to Kindle from the terminal, or hand the same binary to Claude Code or Codex.">
+<meta property="og:site_name" content="zlib">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<meta property="og:image" content="https://zlib.heartleo.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="zlib, a CLI for Z-Library, showing its interactive search picker in a terminal.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://zlib.heartleo.dev/og.png">
+<meta name="theme-color" content="#eff1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1e1e2e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "zlib",
+  "description": "A command-line client for Z-Library. Search the catalogue, download books, and mail them to a Kindle address from the terminal, or drive the same binary from an AI coding agent through the bundled Claude Code and Codex plugins.",
+  "url": "https://zlib.heartleo.dev/",
+  "applicationCategory": "UtilitiesApplication",
+  "applicationSubCategory": "Command Line Utility",
+  "operatingSystem": "macOS, Linux, Windows",
+  "softwareRequirements": "Go 1.25 or later when building from source",
+  "downloadUrl": "https://github.com/heartleo/zlib/releases",
+  "codeRepository": "https://github.com/heartleo/zlib",
+  "programmingLanguage": "Go",
+  "license": "https://github.com/heartleo/zlib/blob/main/LICENSE",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "author": { "@type": "Person", "name": "heartleo", "url": "https://github.com/heartleo" },
+  "screenshot": "https://zlib.heartleo.dev/og.png"
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,300;7..72,400;7..72,500;7..72,600;7..72,700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ── nav ─────────────────────────────────────────────────── -->
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/">zlib<span class="caret" aria-hidden="true"></span></a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#install" data-i18n="en">Install</a><a href="#install" data-i18n="zh">安装</a>
+      <a href="#commands" data-i18n="en">Commands</a><a href="#commands" data-i18n="zh">命令</a>
+      <a href="#agents" data-i18n="en">Agents</a><a href="#agents" data-i18n="zh">插件</a>
+      <a href="#access" data-i18n="en">Access</a><a href="#access" data-i18n="zh">访问</a>
+      <a href="#themes" data-i18n="en">Themes</a><a href="#themes" data-i18n="zh">主题</a>
+    </nav>
+    <div class="nav-right">
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" data-lang-set="en" aria-pressed="true" aria-label="English">EN</button>
+        <button type="button" data-lang-set="zh" aria-pressed="false" aria-label="中文">中</button>
+      </div>
+      <button type="button" class="iconbtn" id="themeToggle" aria-label="Switch to light theme">
+        <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M4.05 4.05l1.56 1.56M18.39 18.39l1.56 1.56M2.6 12h2.2M19.2 12h2.2M4.05 19.95l1.56-1.56M18.39 5.61l1.56-1.56"/></svg>
+        <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.4 13.6A8.4 8.4 0 1 1 10.4 3.6a6.6 6.6 0 0 0 10 10Z"/></svg>
+      </button>
+      <a class="ghlink" href="https://github.com/heartleo/zlib" target="_blank" rel="noopener" aria-label="zlib on GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span class="cnt">GitHub</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ── hero ────────────────────────────────────────────────── -->
+<section class="wrap hero">
+  <div class="hero-grid">
+    <div>
+      <h1>
+        <span data-i18n="en">A CLI for <span class="z">Z&#8209;Library</span>.</span>
+        <span data-i18n="zh">终端里的 <span class="z">Z&#8209;Library</span></span>
+      </h1>
+      <p class="sub">
+        <span data-i18n="en">Search the catalogue, download the file, and mail it to your Kindle without leaving the terminal.</span>
+        <span data-i18n="zh">搜书、下载、发送到 Kindle，全程不用离开终端。</span>
+      </p>
+
+      <div class="cmdline">
+        <span class="p" aria-hidden="true">$</span>
+        <code id="heroCmd">brew install heartleo/tap/zlib</code>
+        <button class="copy" type="button" data-copy="brew install heartleo/tap/zlib">
+          <span data-i18n="en">copy</span><span data-i18n="zh">复制</span>
+        </button>
+      </div>
+
+      <div class="meta">
+        <span><i></i>Go 1.25+</span>
+        <span><i></i>macOS · Linux · Windows</span>
+        <span><i></i>MIT</span>
+      </div>
+    </div>
+
+    <!-- signature: a working replica of `zlib search` -->
+    <div class="term" id="picker" tabindex="0" role="application"
+         aria-label="Interactive replica of the zlib search picker. Use arrow keys to browse, Enter to download.">
+      <div class="term-bar">
+        <span class="dot" style="background:var(--t-red)"></span>
+        <span class="dot" style="background:var(--t-yellow)"></span>
+        <span class="dot" style="background:var(--t-green)"></span>
+        <span class="term-title">zlib search</span>
+        <span class="term-hint" id="pickerHint">
+          <span data-i18n="en">click to use ↑ ↓ ← → ⏎</span>
+          <span data-i18n="zh">点击后可用 ↑ ↓ ← → ⏎</span>
+        </span>
+      </div>
+      <div class="term-body">
+        <div id="pickerOut"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── install ─────────────────────────────────────────────── -->
+<section class="wrap band" id="install">
+  <div class="install-grid">
+    <div>
+      <div class="eyebrow">$ brew install</div>
+      <h2 class="sec">
+        <span data-i18n="en">Pick a package manager.</span>
+        <span data-i18n="zh">挑一个包管理器。</span>
+      </h2>
+      <p class="lede">
+        <span data-i18n="en">Every release ships prebuilt binaries for macOS, Linux, and Windows. Or build it yourself; it is a single Go module.</span>
+        <span data-i18n="zh">每个版本都发 macOS、Linux、Windows 的预编译二进制。也可以自己编译，就一个 Go module。</span>
+      </p>
+      <div class="status-key next" style="margin-top:1.6rem">
+        <div><b data-i18n="en">Then</b><b data-i18n="zh">然后</b><span data-i18n="en">run <span style="color:var(--accent)">zlib doctor --eapi</span> to pick a domain</span><span data-i18n="zh">跑 <span style="color:var(--accent)">zlib doctor --eapi</span> 挑一个可用域名</span></div>
+        <div><b data-i18n="en">And</b><b data-i18n="zh">接着</b><span data-i18n="en"><span style="color:var(--accent)">zlib login --eapi</span>, then <span style="color:var(--accent)">zlib search</span></span><span data-i18n="zh"><span style="color:var(--accent)">zlib login --eapi</span>，再 <span style="color:var(--accent)">zlib search</span></span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="tabs" role="tablist" aria-label="Install method">
+        <button type="button" role="tab" aria-selected="true" data-inst="brew">Homebrew</button>
+        <button type="button" role="tab" aria-selected="false" data-inst="winget">winget</button>
+        <button type="button" role="tab" aria-selected="false" data-inst="curl">curl</button>
+        <button type="button" role="tab" aria-selected="false" data-inst="go">go install</button>
+        <button type="button" role="tab" aria-selected="false" data-inst="src"><span data-i18n="en">source</span><span data-i18n="zh">源码</span></button>
+      </div>
+
+      <div class="pane on" data-pane="brew">
+        <div class="cmdline" style="max-width:none">
+          <span class="p">$</span><code>brew install heartleo/tap/zlib</code>
+          <button class="copy" type="button" data-copy="brew install heartleo/tap/zlib"><span data-i18n="en">copy</span><span data-i18n="zh">复制</span></button>
+        </div>
+        <p class="note"><span data-i18n="en">macOS and Linux. Upgrades with <b>brew upgrade zlib</b>.</span><span data-i18n="zh">macOS 和 Linux。用 <b>brew upgrade zlib</b> 升级。</span></p>
+      </div>
+      <div class="pane" data-pane="winget">
+        <div class="cmdline" style="max-width:none">
+          <span class="p">&gt;</span><code>winget install heartleo.zlib</code>
+          <button class="copy" type="button" data-copy="winget install heartleo.zlib"><span data-i18n="en">copy</span><span data-i18n="zh">复制</span></button>
+        </div>
+        <p class="note"><span data-i18n="en">Windows 10 and later, PowerShell or Terminal.</span><span data-i18n="zh">Windows 10 及以上，PowerShell 或 Terminal 都行。</span></p>
+      </div>
+      <div class="pane" data-pane="curl">
+        <div class="cmdline" style="max-width:none">
+          <span class="p">$</span><code>curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh</code>
+          <button class="copy" type="button" data-copy="curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh"><span data-i18n="en">copy</span><span data-i18n="zh">复制</span></button>
+        </div>
+        <p class="note"><span data-i18n="en">Detects your OS and architecture, then drops the binary on your PATH.</span><span data-i18n="zh">自动识别系统和架构，把二进制放进 PATH。</span></p>
+      </div>
+      <div class="pane" data-pane="go">
+        <div class="cmdline" style="max-width:none">
+          <span class="p">$</span><code>go install github.com/heartleo/zlib/cmd/zlib@latest</code>
+          <button class="copy" type="button" data-copy="go install github.com/heartleo/zlib/cmd/zlib@latest"><span data-i18n="en">copy</span><span data-i18n="zh">复制</span></button>
+        </div>
+        <p class="note"><span data-i18n="en">Requires Go 1.25 or later.</span><span data-i18n="zh">需要 Go 1.25 及以上。</span></p>
+      </div>
+      <div class="pane" data-pane="src">
+        <div class="card" style="padding:0;box-shadow:none;border:0">
+          <pre><span class="p">$</span> git clone https://github.com/heartleo/zlib
+<span class="p">$</span> cd zlib
+<span class="p">$</span> go build -o zlib ./cmd/zlib</pre>
+        </div>
+        <p class="note"><span data-i18n="en">It builds with the standard Go toolchain. <b>make test</b> runs the suite.</span><span data-i18n="zh">用标准 Go 工具链就能编译。<b>make test</b> 跑测试。</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── commands ────────────────────────────────────────────── -->
+<section class="wrap band" id="commands">
+  <div class="eyebrow">$ zlib --help</div>
+  <h2 class="sec">
+    <span data-i18n="en">Eight subcommands, all scriptable.</span>
+    <span data-i18n="zh">八条子命令，都能写进脚本。</span>
+  </h2>
+  <p class="lede" style="margin-bottom:1.3rem">
+    <span data-i18n="en"><b class="mono">search</b>, <b class="mono">history</b>, <b class="mono">profile</b>, and <b class="mono">doctor</b> each take <b class="mono">--json</b>, so the same tool works by hand and inside a script. Pick one to see what it prints.</span>
+    <span data-i18n="zh"><b class="mono">search</b>、<b class="mono">history</b>、<b class="mono">profile</b>、<b class="mono">doctor</b> 都支持 <b class="mono">--json</b>，手敲和写脚本用的是同一个工具。点一条看它输出什么。</span>
+  </p>
+  <a class="pill-link" href="/send-to-kindle/" style="margin-bottom:2.6rem">
+    <span data-i18n="en">Setting up Send to Kindle</span><span data-i18n="zh">发送到 Kindle 怎么配</span>
+    <span class="en-badge" data-i18n="zh">EN</span>
+    <span class="arw" aria-hidden="true">→</span>
+  </a>
+
+  <div class="cmd-grid">
+    <div class="cmd-list" role="tablist" aria-label="Commands">
+      <button type="button" role="tab" aria-selected="false" data-cmd="login"><span class="k">login</span><span class="d"><span data-i18n="en">Sign in and pin a working domain</span><span data-i18n="zh">登录，并锁定一个可用域名</span></span></button>
+      <button type="button" role="tab" aria-selected="true" data-cmd="search"><span class="k">search</span><span class="d"><span data-i18n="en">Browse results with the keyboard</span><span data-i18n="zh">用键盘翻搜索结果</span></span></button>
+      <button type="button" role="tab" aria-selected="false" data-cmd="download"><span class="k">download</span><span class="d"><span data-i18n="en">Fetch a book by ID, with live progress</span><span data-i18n="zh">按 ID 下载，带实时进度</span></span></button>
+      <button type="button" role="tab" aria-selected="false" data-cmd="history"><span class="k">history</span><span class="d"><span data-i18n="en">Re-download anything you pulled before</span><span data-i18n="zh">重新下载以前拿过的书</span></span></button>
+      <button type="button" role="tab" aria-selected="false" data-cmd="profile"><span class="k">profile</span><span class="d"><span data-i18n="en">Check today's download quota</span><span data-i18n="zh">看今天还剩多少下载额度</span></span></button>
+      <button type="button" role="tab" aria-selected="false" data-cmd="kindle"><span class="k">kindle</span><span class="d"><span data-i18n="en">Mail a file to your Kindle address</span><span data-i18n="zh">把文件发送到 Kindle 邮箱</span></span></button>
+      <button type="button" role="tab" aria-selected="false" data-cmd="doctor"><span class="k">doctor</span><span class="d"><span data-i18n="en">Probe every mirror before you pick one</span><span data-i18n="zh">先探测所有镜像再决定用哪个</span></span></button>
+      <button type="button" role="tab" aria-selected="false" data-cmd="theme"><span class="k">theme</span><span class="d"><span data-i18n="en">Seven palettes, or follow the terminal</span><span data-i18n="zh">七套配色，或跟随终端背景</span></span></button>
+    </div>
+
+    <div class="term">
+      <div class="term-bar">
+        <span class="dot" style="background:var(--t-red)"></span>
+        <span class="dot" style="background:var(--t-yellow)"></span>
+        <span class="dot" style="background:var(--t-green)"></span>
+        <span class="term-title" id="cmdTitle">zlib search</span>
+      </div>
+      <div class="term-body" id="cmdOut"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── agents ──────────────────────────────────────────────── -->
+<section class="wrap band" id="agents">
+  <div class="eyebrow">/plugin install</div>
+  <h2 class="sec">
+    <span data-i18n="en">Hand it to your coding agent.</span>
+    <span data-i18n="zh">交给你的编码 agent。</span>
+  </h2>
+  <p class="lede" style="margin-bottom:2.4rem">
+    <span data-i18n="en">zlib ships plugins for Claude Code and Codex. The agent calls the same binary you do, and reads the same <b class="mono">--json</b> output.</span>
+    <span data-i18n="zh">zlib 自带 Claude Code 和 Codex 插件。Agent 调用的是同一个二进制，读的是同一份 <b class="mono">--json</b> 输出。</span>
+  </p>
+  <div class="two">
+    <div class="card">
+      <h3>Claude Code</h3>
+      <p><span data-i18n="en">Install the marketplace, then ask for a book by name.</span><span data-i18n="zh">装上 marketplace，然后直接报书名。</span></p>
+      <pre><span class="p">/</span>plugin marketplace add heartleo/zlib
+<span class="p">/</span>plugin install zlib@zlib-plugin-cc</pre>
+      <p class="after"><span data-i18n="en"><code>/zlib "the pragmatic programmer"</code> searches and downloads. <code>/zlib:kindle</code> sends it on.</span><span data-i18n="zh"><code>/zlib "the pragmatic programmer"</code> 搜索并下载，<code>/zlib:kindle</code> 转寄 Kindle。</span></p>
+    </div>
+    <div class="card">
+      <h3>Codex</h3>
+      <p><span data-i18n="en">A skills-only plugin, so there is no MCP server to keep running.</span><span data-i18n="zh">纯 skills 插件，不需要常驻 MCP server。</span></p>
+      <pre><span class="p">$</span> codex plugin marketplace add heartleo/zlib
+<span class="p">$</span> codex plugin add zlib@zlib</pre>
+      <p class="after"><span data-i18n="en">Ask Codex to find a title, or point the bundled Kindle skill at a local file.</span><span data-i18n="zh">让 Codex 找书，或者把自带的 Kindle skill 指向本地文件。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ── access ──────────────────────────────────────────────── -->
+<section class="wrap band" id="access">
+  <div class="access">
+    <div>
+      <div class="eyebrow">$ zlib doctor</div>
+      <h2 class="sec">
+        <span data-i18n="en">When the mirror fights back.</span>
+        <span data-i18n="zh">镜像站不让进的时候。</span>
+      </h2>
+      <p class="lede">
+        <span data-i18n="en">Most Z-Library web domains now sit behind DiamWall. Run <b class="mono">doctor</b> first: it checks every known mirror without logging you in or touching your saved session, and tells you which ones still answer.</span>
+        <span data-i18n="zh">现在大多数 Z-Library 网页域名都挂在 DiamWall 后面。先跑 <b class="mono">doctor</b>。它不用登录，也不动你已经存好的会话，把所有已知镜像探一遍，然后告诉你哪些还能用。</span>
+      </p>
+      <div class="status-key">
+        <div><b class="ok">healthy</b><span data-i18n="en">answered normally, so use it</span><span data-i18n="zh">正常响应，可以直接用</span></div>
+        <div><b class="warn">challenged</b><span data-i18n="en">served a JS proof-of-work; the client clears it for you</span><span data-i18n="zh">返回了 JS 工作量证明，客户端会自动解掉</span></div>
+        <div><b class="bad">diamwall_blocked</b><span data-i18n="en">intercepted, so pick another</span><span data-i18n="zh">被拦截了，换一个</span></div>
+        <div><b class="bad">redirect_loop</b><span data-i18n="en">redirects never reached content</span><span data-i18n="zh">重定向绕不出去</span></div>
+        <div><b class="bad">network_error</b><span data-i18n="en">DNS, TLS, timeout, or reset. Try a proxy</span><span data-i18n="zh">DNS、TLS、超时或连接重置，试试代理</span></div>
+      </div>
+    </div>
+    <div class="term">
+      <div class="term-bar">
+        <span class="dot" style="background:var(--t-red)"></span>
+        <span class="dot" style="background:var(--t-yellow)"></span>
+        <span class="dot" style="background:var(--t-green)"></span>
+        <span class="term-title">zlib doctor --eapi</span>
+      </div>
+      <div class="term-body" id="doctorOut"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── themes ──────────────────────────────────────────────── -->
+<section class="wrap band" id="themes">
+  <div class="eyebrow">$ zlib theme</div>
+  <h2 class="sec">
+    <span data-i18n="en">Set one, or follow the terminal.</span>
+    <span data-i18n="zh">选一套，或者跟着终端走。</span>
+  </h2>
+  <p class="lede">
+    <span data-i18n="en">These are the palettes your editor probably already uses, and <b class="mono">zlib theme auto</b> reads your terminal background to choose between them. This page is set in two: <b class="mono">latte</b> in light, <b class="mono">mocha</b> in dark.</span>
+    <span data-i18n="zh">这些配色你的编辑器多半已经在用了，<b class="mono">zlib theme auto</b> 会读终端背景色自己挑。这个页面用了其中两套：亮色 <b class="mono">latte</b>，暗色 <b class="mono">mocha</b>。</span>
+  </p>
+  <div class="swatches" id="swatches"></div>
+</section>
+
+</main>
+
+<!-- ── cta ─────────────────────────────────────────────────── -->
+<section class="wrap cta">
+  <h2>
+    <span data-i18n="en">Go get a book.</span>
+    <span data-i18n="zh">去找本书吧。</span>
+  </h2>
+  <p>
+    <span data-i18n="en">Free, MIT licensed, and it only ever talks to Z-Library and the SMTP server you configure.</span>
+    <span data-i18n="zh">免费，MIT 协议，只会连 Z-Library 和你自己配的 SMTP 服务器。</span>
+  </p>
+  <div class="btns">
+    <a class="btn pri" href="https://github.com/heartleo/zlib/releases/latest" target="_blank" rel="noopener">
+      <span data-i18n="en">Download a release</span><span data-i18n="zh">下载发行版</span>
+    </a>
+    <a class="btn" href="https://github.com/heartleo/zlib" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span data-i18n="en">Star on GitHub</span><span data-i18n="zh">在 GitHub 点 Star</span>
+    </a>
+  </div>
+</section>
+
+<!-- ── footer ──────────────────────────────────────────────── -->
+<footer>
+  <div class="wrap">
+    <div class="f-grid">
+      <div class="f-brand">
+        <a class="brand" href="/">zlib<span class="caret" aria-hidden="true"></span></a>
+        <p>
+          <span data-i18n="en">A Z-Library client for people who already have a terminal open.</span>
+          <span data-i18n="zh">一个 Z-Library 客户端。写给终端反正一直开着的那些人。</span>
+        </p>
+      </div>
+      <div>
+        <h3 data-i18n="en">Start</h3><h3 data-i18n="zh">开始</h3>
+        <ul>
+          <li><a href="#install" data-i18n="en">Install</a><a href="#install" data-i18n="zh">安装</a></li>
+          <li><a href="#commands" data-i18n="en">Commands</a><a href="#commands" data-i18n="zh">命令</a></li>
+          <li><a href="/send-to-kindle/" data-i18n="en">Send to Kindle</a><a href="/send-to-kindle/" data-i18n="zh">发送到 Kindle</a></li>
+          <li><a href="#themes" data-i18n="en">Themes</a><a href="#themes" data-i18n="zh">主题</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 data-i18n="en">Docs</h3><h3 data-i18n="zh">文档</h3>
+        <ul>
+          <li><a href="https://github.com/heartleo/zlib#readme" target="_blank" rel="noopener">README</a></li>
+          <li><a href="https://github.com/heartleo/zlib/blob/main/README.zh.md" target="_blank" rel="noopener">中文 README</a></li>
+          <li><a href="https://github.com/heartleo/zlib/blob/main/docs/eapi.md" target="_blank" rel="noopener">EAPI mode</a></li>
+        </ul>
+      </div>
+      <div>
+        <h3 data-i18n="en">Project</h3><h3 data-i18n="zh">项目</h3>
+        <ul>
+          <li><a href="https://github.com/heartleo/zlib" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://github.com/heartleo/zlib/releases" target="_blank" rel="noopener" data-i18n="en">Releases</a><a href="https://github.com/heartleo/zlib/releases" target="_blank" rel="noopener" data-i18n="zh">发行版</a></li>
+          <li><a href="https://github.com/heartleo/zlib/issues" target="_blank" rel="noopener" data-i18n="en">Report an issue</a><a href="https://github.com/heartleo/zlib/issues" target="_blank" rel="noopener" data-i18n="zh">提 issue</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="f-base">
+      <span data-i18n="en">&copy; 2026 heartleo &middot; <a href="https://github.com/heartleo/zlib/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a></span>
+      <span data-i18n="zh">&copy; 2026 heartleo &middot; <a href="https://github.com/heartleo/zlib/blob/main/LICENSE" target="_blank" rel="noopener">MIT 协议</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const $  = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── preferences ─────────────────────────────────────── */
+  const root = document.documentElement;
+
+  const setTheme = t => {
+    root.dataset.theme = t;
+    try { localStorage.setItem("zlib.theme", t); } catch {}
+    const tb = $("#themeToggle");
+    if (tb) tb.setAttribute("aria-label", t === "mocha" ? "Switch to light theme" : "Switch to dark theme");
+  };
+  const setLang = l => {
+    root.dataset.lang = l;
+    root.setAttribute("lang", l === "zh" ? "zh-Hans" : "en");
+    try { localStorage.setItem("zlib.lang", l); } catch {}
+    $$("[data-lang-set]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.langSet === l)));
+  };
+
+  let savedTheme, savedLang;
+  try { savedTheme = localStorage.getItem("zlib.theme"); savedLang = localStorage.getItem("zlib.lang"); } catch {}
+  setTheme(savedTheme || (matchMedia("(prefers-color-scheme: light)").matches ? "latte" : "mocha"));
+  setLang(savedLang || ((navigator.language || "en").toLowerCase().startsWith("zh") ? "zh" : "en"));
+
+  $("#themeToggle").addEventListener("click", () =>
+    setTheme(root.dataset.theme === "mocha" ? "latte" : "mocha"));
+  $$("[data-lang-set]").forEach(b => b.addEventListener("click", () => setLang(b.dataset.langSet)));
+
+  /* ── copy buttons ────────────────────────────────────── */
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]");
+    if (!b) return;
+    try {
+      await navigator.clipboard.writeText(b.dataset.copy);
+      b.dataset.done = "1";
+      setTimeout(() => delete b.dataset.done, 1400);
+    } catch {}
+  });
+
+  /* ── install tabs ────────────────────────────────────── */
+  $$("[data-inst]").forEach(b => b.addEventListener("click", () => {
+    const k = b.dataset.inst;
+    $$("[data-inst]").forEach(x => x.setAttribute("aria-selected", String(x.dataset.inst === k)));
+    $$("[data-pane]").forEach(p => p.classList.toggle("on", p.dataset.pane === k));
+  }));
+
+  /* ── text helpers, matching the CLI's column widths ──── */
+  const trunc = (s, n) => (s.length > n ? s.slice(0, n) : s);
+  const padR  = (s, n) => trunc(s, n).padEnd(n, " ");
+  const padL  = (s, n) => trunc(s, n).padStart(n, " ");
+  const G     = '<span class="gap"> </span>';
+
+  /* ── hero: a replica of `zlib search` ────────────────── */
+  const PAGES = [
+    [
+      ["115066162", "Dune",                       "Frank Herbert",   "EPUB",  "2.8 MB", "5.0"],
+      ["27462851",  "Dune Messiah",               "Frank Herbert",   "EPUB",  "1.4 MB", "4.6"],
+      ["38104421",  "Children of Dune",           "Frank Herbert",   "PDF",   "3.1 MB", "4.4"],
+      ["19288013",  "God Emperor of Dune",        "Frank Herbert",   "EPUB",  "1.9 MB", "4.2"],
+      ["55519037",  "Heretics of Dune",           "Frank Herbert",   "MOBI",  "2.2 MB", "4.1"],
+      ["88214470",  "Chapterhouse: Dune",         "Frank Herbert",   "EPUB",  "2.0 MB", "4.0"],
+      ["41003377",  "The Dune Encyclopedia",      "W. E. McNelly",   "PDF",  "24.6 MB", "4.7"],
+      ["76620518",  "Dune: The Graphic Novel",    "Brian Herbert",   "PDF",  "61.3 MB", "4.3"]
+    ],
+    [
+      ["90135520",  "The Road to Dune",           "Frank Herbert",   "EPUB",  "1.6 MB", "4.0"],
+      ["62884051",  "Sisterhood of Dune",         "Brian Herbert",   "EPUB",  "2.4 MB", "3.9"],
+      ["11390745",  "Mentats of Dune",            "Brian Herbert",   "EPUB",  "2.3 MB", "3.8"],
+      ["47712806",  "Navigators of Dune",         "Brian Herbert",   "EPUB",  "2.5 MB", "3.8"],
+      ["30948117",  "Dune: House Atreides",       "Brian Herbert",   "PDF",   "4.8 MB", "4.1"],
+      ["88230948",  "Dune: House Harkonnen",      "Brian Herbert",   "PDF",   "4.6 MB", "4.0"],
+      ["71204458",  "Dune: House Corrino",        "Brian Herbert",   "EPUB",  "2.7 MB", "4.0"],
+      ["55190322",  "Paul of Dune",               "Brian Herbert",   "EPUB",  "2.6 MB", "3.9"]
+    ]
+  ];
+  const TOTAL_PAGES = 12;
+  const fmtClass = f => ({ EPUB: "f-epub", PDF: "f-pdf", MOBI: "f-mobi", FB2: "f-fb2" }[f] || "ti");
+
+  const picker = $("#picker");
+  const out    = $("#pickerOut");
+  let page = 0, cur = 0, busy = false, timer = null;
+
+  function head() {
+    return (
+      '<div>  <span class="mauve">Search:</span> <span class="q">"dune"</span>' +
+      '  <span class="muted">Page ' + (page + 1) + " / " + TOTAL_PAGES + "</span></div><div>&nbsp;</div>"
+    );
+  }
+
+  function table() {
+    let h =
+      '<div class="row hdr"><span class="c-cur"> </span><span class="c-num">' + padR("#", 2) + "</span>" + G +
+      '<span class="c-id">'    + padR("ID", 10)     + "</span>" + G +
+      '<span class="c-title">' + padR("Title", 40)  + "</span>" + G +
+      '<span class="c-auth">'  + padR("Author", 15) + "</span>" + G +
+      '<span class="c-fmt">'   + padR("Fmt", 4)     + "</span>" + G +
+      '<span class="c-size">'  + padL("Size", 10)   + "</span>" + G +
+      '<span class="c-rate">'  + padL("Rating", 6)  + "</span></div>" +
+      '<div class="sep">  ' + "─".repeat(99) + "</div>";
+
+    PAGES[page].forEach((b, i) => {
+      const on = i === cur;
+      h +=
+        '<div class="row' + (on ? " on" : "") + '">' +
+        '<span class="c-cur">' + (on ? "❯ " : "  ") + "</span>" +
+        '<span class="c-num n">'  + padR(String(i + 1), 2) + "</span>" + G +
+        '<span class="c-id id">'  + padR(b[0], 10)         + "</span>" + G +
+        '<span class="c-title ti">' + esc(padR(b[1], 40))  + "</span>" + G +
+        '<span class="c-auth au">'  + esc(padR(b[2], 15))  + "</span>" + G +
+        '<span class="c-fmt ' + fmtClass(b[3]) + '">' + padR(b[3], 4) + "</span>" + G +
+        '<span class="c-size sz">' + padL(b[4], 10) + "</span>" + G +
+        '<span class="c-rate ra">' + padL(b[5], 6)  + "</span></div>";
+    });
+
+    h +=
+      '<div class="help">  <b>↑/↓</b> select  <b>←/→</b> page  <b>/</b> search' +
+      "  <b>enter</b> download  <b>q</b> quit</div>";
+    return h;
+  }
+
+  const render = () => { out.innerHTML = head() + table(); };
+
+  /* Enter runs the same thing the CLI does: fetch, with a progress bar. */
+  function download() {
+    if (busy) return;
+    busy = true;
+    stopDemo();
+    const b = PAGES[page][cur];
+    const file = b[1].toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "." + b[3].toLowerCase();
+    const total = parseFloat(b[4]);
+    const width = 34;
+    let pct = 0;
+
+    const frame = () => {
+      const done = Math.round((pct / 100) * width);
+      out.innerHTML =
+        '<div><span class="mauve">❯</span> <span class="title">zlib download ' + b[0] + "</span></div>" +
+        "<div>&nbsp;</div>" +
+        '<div>  <span class="muted">' + esc(b[1]) + "</span></div>" +
+        '<div>  <span class="bar">' + "█".repeat(done) + "<s>" + "░".repeat(width - done) + "</s></span>" +
+        '  <span class="title">' + String(pct).padStart(3) + "%</span>" +
+        '  <span class="muted">' + (total * pct / 100).toFixed(1) + " / " + b[4] + "</span></div>" +
+        "<div>&nbsp;</div>" +
+        (pct >= 100
+          ? '<div>  <span class="green">✓</span> <span class="title">' + file + "</span></div>" +
+            '<div>  <span class="muted">saved to ./' + file + "</span></div>"
+          : '<div>  <span class="muted">press ctrl+c to cancel</span></div><div>&nbsp;</div>');
+    };
+
+    frame();
+    const step = () => {
+      pct = Math.min(100, pct + (reduced ? 100 : 3 + Math.random() * 9));
+      pct = Math.round(pct);
+      frame();
+      if (pct < 100) setTimeout(step, reduced ? 0 : 55);
+      else setTimeout(() => { busy = false; render(); startDemo(); }, 1900);
+    };
+    setTimeout(step, reduced ? 0 : 220);
+  }
+
+  const rows = () => PAGES[page].length;
+
+  picker.addEventListener("keydown", e => {
+    if (busy) return;
+    const k = e.key;
+    if (k === "ArrowDown" || k === "j")      { cur = (cur + 1) % rows(); }
+    else if (k === "ArrowUp" || k === "k")   { cur = (cur - 1 + rows()) % rows(); }
+    else if (k === "ArrowRight" || k === "l"){ page = (page + 1) % PAGES.length; cur = 0; }
+    else if (k === "ArrowLeft"  || k === "h"){ page = (page - 1 + PAGES.length) % PAGES.length; cur = 0; }
+    else if (k === "Enter")                  { download(); e.preventDefault(); return; }
+    else if (k === "q" || k === "Escape")    { picker.blur(); return; }
+    else return;
+    e.preventDefault();
+    render();
+  });
+
+  /* idle demo: drift the cursor so the page isn't dead, stop the moment
+     someone takes over with the keyboard or the pointer */
+  function startDemo() {
+    if (reduced || timer || busy) return;
+    timer = setInterval(() => {
+      cur = (cur + 1) % rows();
+      if (cur === 0) page = (page + 1) % PAGES.length;
+      render();
+    }, 2400);
+  }
+  function stopDemo() { clearInterval(timer); timer = null; }
+
+  picker.addEventListener("focus", stopDemo);
+  picker.addEventListener("pointerenter", stopDemo);
+  picker.addEventListener("blur", startDemo);
+  picker.addEventListener("pointerleave", () => { if (document.activeElement !== picker) startDemo(); });
+  picker.addEventListener("click", () => picker.focus());
+
+  render();
+  new IntersectionObserver(es => es.forEach(en => en.isIntersecting ? startDemo() : stopDemo()), { threshold: .25 })
+    .observe(picker);
+
+  /* ── commands: one terminal, eight transcripts ───────── */
+  const L = (cls, s) => '<div><span class="' + cls + '">' + s + "</span></div>";
+  const P = s => '<div><span class="mauve">❯</span> <span class="title">' + s + "</span></div>";
+  const BLANK = "<div>&nbsp;</div>";
+
+  const TRANSCRIPTS = {
+    login: P("zlib login --eapi --domain https://z-lib.gd") + BLANK +
+      L("muted", "  Checking https://z-lib.gd …") +
+      '<div>  <span class="green">✓</span> <span class="muted">reachable via EAPI</span></div>' + BLANK +
+      '<div>  <span class="mauve">Email</span>    <span class="title">you@example.com</span></div>' +
+      '<div>  <span class="mauve">Password</span> <span class="muted">••••••••••</span></div>' + BLANK +
+      '<div>  <span class="green">✓</span> <span class="title">Signed in as you@example.com</span></div>' +
+      L("muted", "  session → ~/.config/zlib/session.json") + BLANK +
+      L("muted", "  The password is never written to disk."),
+
+    search: P('zlib search "dune" --ext epub --page 1') + BLANK +
+      '<div class="row hdr"><span class="c-cur"> </span><span class="c-num">' + padR("#", 2) + "</span>" + G +
+      '<span class="c-id">'    + padR("ID", 10)     + "</span>" + G +
+      '<span class="c-title">' + padR("Title", 34)  + "</span>" + G +
+      '<span class="c-auth">'  + padR("Author", 15) + "</span>" + G +
+      '<span class="c-fmt">'   + padR("Fmt", 4)     + "</span>" + G +
+      '<span class="c-size">'  + padL("Size", 9)    + "</span></div>" +
+      '<div class="sep">  ' + "─".repeat(82) + "</div>" +
+      PAGES[0].slice(0, 6).map((b, i) =>
+        '<div class="row"><span class="c-cur">  </span>' +
+        '<span class="c-num n">'    + padR(String(i + 1), 2) + "</span>" + G +
+        '<span class="c-id id">'    + padR(b[0], 10)         + "</span>" + G +
+        '<span class="c-title ti">' + esc(padR(b[1], 34))    + "</span>" + G +
+        '<span class="c-auth au">'  + esc(padR(b[2], 15))    + "</span>" + G +
+        '<span class="c-fmt ' + fmtClass(b[3]) + '">' + padR(b[3], 4) + "</span>" + G +
+        '<span class="c-size sz">'  + padL(b[4], 9) + "</span></div>").join("") + BLANK +
+      L("muted", "  Run it without a query to get the interactive picker") +
+      L("muted", "  at the top of this page. --json prints the same rows") +
+      L("muted", "  for scripts, --full-title stops the truncation."),
+
+    download: P("zlib download 115066162:e9f13b --dir ./books") + BLANK +
+      '<div>  <span class="muted">Dune · Frank Herbert</span></div>' +
+      '<div>  <span class="bar">' + "█".repeat(34) + '</span>  <span class="title">100%</span>  <span class="muted">2.8 / 2.8 MB</span></div>' + BLANK +
+      '<div>  <span class="green">✓</span> <span class="title">books/dune.epub</span></div>' + BLANK +
+      L("muted", "  Ctrl+C cancels, and partial files are removed.") +
+      L("muted", "  Add --send-to-kindle to mail it on as soon as it lands."),
+
+    history: P("zlib history --format epub") + BLANK +
+      '<div class="row hdr"><span class="c-cur"> </span><span class="c-num"># </span>' + G +
+      '<span class="c-id">' + padR("ID", 10) + "</span>" + G +
+      '<span class="c-title">' + padR("Title", 40) + "</span>" + G +
+      '<span class="c-auth">' + padR("Downloaded", 15) + "</span></div>" +
+      '<div class="sep">  ' + "─".repeat(74) + "</div>" +
+      '<div class="row on"><span class="c-cur mauve">❯ </span><span class="c-num n">1 </span>' + G +
+      '<span class="c-id id">' + padR("115066162", 10) + "</span>" + G +
+      '<span class="c-title ti">' + padR("Dune", 40) + "</span>" + G +
+      '<span class="c-auth au">' + padR("2 hours ago", 15) + "</span></div>" +
+      '<div class="row"><span class="c-cur">  </span><span class="c-num n">2 </span>' + G +
+      '<span class="c-id id">' + padR("27462851", 10) + "</span>" + G +
+      '<span class="c-title ti">' + padR("Dune Messiah", 40) + "</span>" + G +
+      '<span class="c-auth au">' + padR("yesterday", 15) + "</span></div>" +
+      '<div class="row"><span class="c-cur">  </span><span class="c-num n">3 </span>' + G +
+      '<span class="c-id id">' + padR("41003377", 10) + "</span>" + G +
+      '<span class="c-title ti">' + padR("The Dune Encyclopedia", 40) + "</span>" + G +
+      '<span class="c-auth au">' + padR("Mar 12", 15) + "</span></div>" + BLANK +
+      L("muted", "  ↑/↓ select   ←/→ page   enter re-download"),
+
+    profile: P("zlib profile") + BLANK +
+      '<div>  <span class="mauve">Account</span>    <span class="title">you@example.com</span></div>' +
+      '<div>  <span class="mauve">Plan</span>       <span class="title">Free</span></div>' +
+      '<div>  <span class="mauve">Today</span>      <span class="bar">' + "█".repeat(6) + "<s>" + "░".repeat(18) + '</s></span>  <span class="title">6 / 10</span></div>' +
+      '<div>  <span class="mauve">Resets</span>     <span class="muted">in 7h 41m</span></div>' + BLANK +
+      L("muted", "  Turns yellow at 3 downloads left, red at 0.") +
+      L("muted", "  --json prints the same numbers for your status bar."),
+
+    kindle: P("zlib kindle send ./dune.epub") + BLANK +
+      '<div>  <span class="mauve">To</span>    <span class="title">you@kindle.com</span></div>' +
+      '<div>  <span class="mauve">From</span>  <span class="title">you@example.com</span></div>' +
+      '<div>  <span class="mauve">SMTP</span>  <span class="muted">smtp.gmail.com:587</span></div>' + BLANK +
+      '<div>  <span class="green">✓</span> <span class="title">Sent dune.epub (2.8 MB)</span></div>' + BLANK +
+      L("muted", "  EPUB · PDF · MOBI · TXT · DOC · DOCX · RTF · HTML") +
+      L("muted", "  The SMTP password lives in ZLIB_SMTP_PWD, never on disk."),
+
+    doctor: P("zlib doctor --eapi") + BLANK +
+      L("muted", "  Probing 8 known domains …") + BLANK +
+      '<div>  <span class="green">healthy</span>           <span class="title">z-lib.gd</span></div>' +
+      '<div>  <span class="green">healthy</span>           <span class="title">1lib.sk</span></div>' +
+      '<div>  <span class="yellow">challenged</span>        <span class="title">z-library.gs</span>  <span class="muted">js proof-of-work</span></div>' +
+      '<div>  <span class="red">diamwall_blocked</span>  <span class="muted">z-lib.fm</span></div>' +
+      '<div>  <span class="red">network_error</span>     <span class="muted">zliba.ru</span></div>' + BLANK +
+      '<div>  <span class="green">✓</span> <span class="title">3 of 8 usable.</span> <span class="muted">export ZLIB_DOMAIN=https://z-lib.gd</span></div>',
+
+    theme: P("zlib theme") + BLANK +
+      '<div>  <span class="mauve">Current</span>  <span class="title">auto</span> <span class="muted">→ mocha (dark terminal)</span></div>' + BLANK +
+      L("muted", "  auto     follow the terminal background") +
+      '<div>  <span class="mauve">mocha</span>    <span class="muted">catppuccin, dark</span></div>' +
+      '<div>  <span class="mauve">latte</span>    <span class="muted">catppuccin, light</span></div>' +
+      '<div>  <span class="mauve">dracula</span>  <span class="muted">high contrast</span></div>' +
+      '<div>  <span class="mauve">tokyo</span>    <span class="muted">tokyo night</span></div>' +
+      '<div>  <span class="mauve">nord</span>     <span class="muted">cool and low contrast</span></div>' +
+      '<div>  <span class="mauve">gruvbox</span>  <span class="muted">warm and retro</span></div>' + BLANK +
+      L("muted", "  zlib theme nord   sets it globally")
+  };
+
+  const cmdOut = $("#cmdOut"), cmdTitle = $("#cmdTitle");
+  const showCmd = k => {
+    cmdOut.innerHTML = TRANSCRIPTS[k];
+    cmdTitle.textContent = "zlib " + k;
+    $$("[data-cmd]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.cmd === k)));
+  };
+  $$("[data-cmd]").forEach(b => b.addEventListener("click", () => showCmd(b.dataset.cmd)));
+  showCmd("search");
+
+  /* ── access panel ────────────────────────────────────── */
+  $("#doctorOut").innerHTML = TRANSCRIPTS.doctor;
+
+  /* ── theme swatches: the real palettes from the source ─ */
+  const THEMES = [
+    ["mocha",   "catppuccin",  "#1e1e2e", ["#cba6f7", "#89b4fa", "#a6e3a1", "#f9e2af", "#f38ba8"], "#b4befe", "#6c7086"],
+    ["latte",   "catppuccin",  "#eff1f5", ["#8839ef", "#1e66f5", "#40a02b", "#df8e1d", "#d20f39"], "#4c4f69", "#9ca0b0"],
+    ["dracula", "high contrast","#282a36", ["#bd93f9", "#8be9fd", "#50fa7b", "#f1fa8c", "#ff5555"], "#f8f8f2", "#6272a4"],
+    ["tokyo",   "tokyo night", "#1a1b26", ["#7aa2f7", "#7dcfff", "#9ece6a", "#e0af68", "#f7768e"], "#a9b1d6", "#565f89"],
+    ["nord",    "low contrast","#2e3440", ["#81a1c1", "#88c0d0", "#a3be8c", "#ebcb8b", "#bf616a"], "#eceff4", "#4c566a"],
+    ["gruvbox", "retro",       "#282828", ["#fe8019", "#83a598", "#b8bb26", "#fabd2f", "#fb4934"], "#ebdbb2", "#928374"]
+  ];
+  $("#swatches").innerHTML = THEMES.map(([name, note, bg, cols, fg, mut]) =>
+    '<div class="sw"><div class="top" style="background:' + bg + '">' +
+      '<div class="strp">' + cols.map(c => '<i style="background:' + c + '"></i>').join("") + "</div>" +
+      '<div class="line" style="background:' + fg + ';width:82%"></div>' +
+      '<div class="line" style="background:' + mut + ';width:64%"></div>' +
+      '<div class="line" style="background:' + mut + ';width:73%"></div>' +
+      '<div class="line" style="background:' + cols[0] + ';width:38%;margin-bottom:0"></div>' +
+    "</div>" +
+    '<div class="foot"><b>' + name + "</b><span>" + note + "</span></div></div>"
+  ).join("");
+})();
+</script>
+</body>
+</html>
