@@ -82,17 +82,23 @@ codex plugin add zlib@zlib
 
 ## 快速开始
 
+> **请先设置 `ZLIB_DOMAIN`。** Z-Library 镜像变动频繁，且大多数被 DiamWall 挡住，
+> 因此不存在一个长期正确的默认值。所有命令都优先从 `ZLIB_DOMAIN` 解析镜像，
+> 该值错误或过期，是「登录成功但下一条命令报错」最常见的原因。
+
 目前大多数 Z-Library 域名都对自动请求启用了 DiamWall，推荐使用 EAPI。
 先探测候选域名，再把 `ZLIB_DOMAIN` 设为结果为 `healthy` 或 `challenged` 的域名：
 
 ```bash
 zlib doctor --eapi
-zlib login --eapi --domain https://z-lib.gd
-# or export ZLIB_DOMAIN=https://z-lib.gd, then:
-# zlib login --eapi
-zlib search
+export ZLIB_DOMAIN=https://z-lib.gd     # 选一个 doctor 报告可用的
+zlib login --eapi
 zlib search "dune"
 ```
+
+登录成功后，该域名会被写入 `~/.config/zlib/.env` 的 `ZLIB_DOMAIN`，换一个 shell
+也依然生效，无需再手动记忆。该文件中的其他键不受影响。但有两处优先级仍然高于它，
+其中任意一处存有旧值都会盖掉登录写入的值：真实环境变量，以及工作目录下的 `.env`。
 
 `challenged` 表示该域名返回的是 Z-Library 自带的 JS 计算题页面。这类域名**可以正常使用**，
 客户端会自动求解，选它和选 `healthy` 一样稳妥。只有 `diamwall_blocked`、`http_error`、
@@ -116,7 +122,8 @@ zlib login --eapi --domain https://z-lib.gd
 zlib login --eapi
 ```
 
-会话保存至 `~/.config/zlib/session.json`。
+会话保存至 `~/.config/zlib/session.json`，同时把所用域名写入
+`~/.config/zlib/.env` 的 `ZLIB_DOMAIN`，后续命令无需再设置即可访问同一镜像。
 交互式登录会记住并预填最近一次成功登录的邮箱，但不会保存密码。
 `--cookies` 用于导入用户主动提供的 Netscape/Mozilla 格式 Cookie 文件；
 只有与 `--domain` 匹配、未过期且作用于根路径的 Cookie 才会写入会话。
@@ -130,6 +137,11 @@ Cookie 文件包含可复用凭据，请妥善保护导出的文件。
 图书详情、下载和 Kindle 投递会按需走 EAPI。图书引用格式为 `id:hash`，例如
 `zlib download 115066162:e9f13b --send-to-kindle`。端点和稳定性说明见
 [EAPI 模式](docs/eapi.md)。
+
+若 `/eapi/user/login` 拒绝下发凭证，`--eapi` 登录会回退到 HTML 登录表单，并继续
+以 EAPI 模式运行。EAPI 只认 `remix_userid`/`remix_userkey` 这一对，HTML 表单下发
+的正是同一对，因此回退得到的会话没有任何功能缺失。参见
+[EAPI 登录报 `Authorization failed`](#eapi-登录报-authorization-failed)。
 
 ### logout
 
@@ -255,20 +267,72 @@ DNS、TLS、超时、连接重置和 EOF。更换 User-Agent 或导入登录 Coo
 DiamWall 的 JS/TLS 挑战。此时应改用 `healthy` 或 `challenged` 的 EAPI 域名，
 或更换网络出口。
 
+### EAPI 登录报 `Authorization failed`
+
+```text
+Error: login failed: zlibrary: login failed: Authorization failed
+```
+
+Z-Library 把 `/eapi/user/login` 与 EAPI 的其余部分分开管控。被它这样拒绝的账号，
+访问 `/eapi/user/profile`、`/eapi/book/search`、`/eapi/user/book/downloaded`
+依然完全正常。这条消息也不代表密码错误：密码错误返回的是
+`Incorrect email or password`。
+
+CLI 会自行处理：改用 HTML 表单登录并继续以 EAPI 模式运行，因此在当前版本上登录
+会直接成功。如果你仍看到这条消息，说明所用版本早于该回退逻辑 —— 请升级，或改用
+浏览器导出的 Cookie 文件：
+
+```bash
+zlib login --cookies ~/Downloads/cookies.txt --domain https://z-lib.gd
+```
+
+`Incorrect email or password` 才是真正的凭证错误。另外，密码中若含 shell 特殊
+字符，用 `--password` 传递可能被 shell 改写；省略该参数，改由交互提示输入。
+
+### 登录成功后命令仍然失败
+
+```text
+Error: zlibrary: blocked by anti-bot protection (HTTP 517) at https://z-lib.sk/...
+Error: zlibrary: unexpected HTTP status 503 at https://z-lib.gd/users/downloads
+```
+
+早先配置遗留的 `ZLIB_DOMAIN` 会覆盖登录刚刚保存的域名，于是
+`zlib login --domain https://z-lib.gd` 明明成功，紧接着的命令却仍然打向旧镜像。
+在怀疑其他原因之前先确认生效值 —— 工作目录和 `~/.config/zlib/` 下的 `.env`
+都会写入它：
+
+```bash
+echo "$ZLIB_DOMAIN"
+grep -r ZLIB_DOMAIN .env ~/.config/zlib/.env 2>/dev/null
+```
+
+把它指向 `zlib doctor --eapi` 报告为 `healthy` 或 `challenged` 的域名，或者直接
+删除该项，回落到会话中保存的域名。
+
+若 `healthy` 或 `challenged` 的域名返回裸 `503`，说明所用版本早于挑战页修复，
+把 Z-Library 自己的 proof-of-work 页面当成了错误。请升级。
+
 ### 推荐访问域名
 
-来源：[r/zlibrary 访问 Wiki](https://www.reddit.com/r/zlibrary/wiki/index/access/?screen_view_count=1&ext-referrer=EXTERNAL#wiki_how_to_access_zlibrary_through_your_browser)
+2026-09-04 实测：逐个探测各主机的 `/eapi/user/login`。该列表按实测维护，而非照抄
+Z-Library 自己的 `/eapi/info/domains` —— 后者既列出了被 DiamWall 挡住的主机，也
+漏掉了若干可用主机。
 
-| 可用域名       |
-| -------------- |
-| `z-library.gs` |
-| `1lib.sk`      |
-| `z-lib.fm`     |
-| `z-lib.gd`     |
-| `z-lib.gl`     |
-| `zliba.ru`     |
-| `z-lib.sk`     |
-| `z-library.ec` |
+| 允许的域名     | EAPI（2026-09-04 实测）              |
+| -------------- | ------------------------------------ |
+| `z-lib.gd`     | 可用（EAPI 默认域名）                |
+| `z-lib.gl`     | 可用                                 |
+| `z-library.ec` | 仅 EAPI 可用；HTML 站点被 Cloudflare 拦截 |
+| `zlib.bz`      | 可用                                 |
+| `article.sk`   | 可用                                 |
+| `articles.sk`  | 可用                                 |
+| `zliba.ru`     | 跳转到 `zlib.bz`，`login --eapi` 会自动跟随 |
+| `1lib.sk`      | 被 DiamWall 拦截                     |
+| `z-lib.fm`     | 被 DiamWall 拦截                     |
+| `z-lib.sk`     | 被 DiamWall 拦截                     |
+
+`z-library.gs` 已移除：TLS 握手失败。此表会过时，请以 `zlib doctor --eapi`
+的实时结果为准。
 
 ### kindle
 
@@ -305,6 +369,8 @@ zlib theme nord      # 设置主题
 敏感值（如 `ZLIB_SMTP_PWD`）请写入 `.env` 文件，别用 `export` 内联以免留在 shell 历史里。zlib 读取环境变量的优先级：**真实环境变量 > 工作目录 `.env` > `~/.config/zlib/.env`**。全局文件是机器级配置的推荐存放处。
 
 HTML 和 EAPI 都读取 `ZLIB_DOMAIN`。它的优先级高于 `~/.config/zlib/session.json` 中保存的域名；清空后，CLI 使用 session 域名。新登录省略 `--domain` 时必须设置 `ZLIB_DOMAIN`。EAPI 登录会先检查该域名，再要求输入账号。
+
+登录成功后会把 `ZLIB_DOMAIN` 写入 `~/.config/zlib/.env`：替换其中已有的赋值行，其余行保持不变。这是三个来源里优先级最低的一个，因此已 export 的环境变量或工作目录下的 `.env` 仍会盖过它 —— 命令打向了你没选的镜像时，先查这两处。
 
 | 变量                    | 说明                                       |
 | ----------------------- | ------------------------------------------ |

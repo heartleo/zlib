@@ -82,18 +82,28 @@ when you want to send a local book file to your Kindle.
 
 ## Quick Start
 
+> **Set `ZLIB_DOMAIN` first.** Z-Library mirrors change often and most of them
+> are behind DiamWall, so there is no default that stays correct. Every command
+> resolves its mirror from `ZLIB_DOMAIN` before anything else, and a wrong or
+> stale value is the single most common cause of a login that succeeds and a
+> next command that fails.
+
 Most current Z-Library web domains put automated requests behind DiamWall, so
 the recommended setup uses EAPI. Probe the candidates first, then set
 `ZLIB_DOMAIN` to one reported as `healthy` or `challenged`:
 
 ```bash
 zlib doctor --eapi
-zlib login --eapi --domain https://z-lib.gd
-# or export ZLIB_DOMAIN=https://z-lib.gd, then:
-# zlib login --eapi
-zlib search
+export ZLIB_DOMAIN=https://z-lib.gd     # pick one doctor reported usable
+zlib login --eapi
 zlib search "dune"
 ```
+
+A successful login records that domain as `ZLIB_DOMAIN` in
+`~/.config/zlib/.env`, so the setting survives a new shell and you do not have
+to remember it. Other keys in that file are left untouched. Two things still
+outrank it, and a stale value in either shadows what the login wrote: a real
+environment variable, and a `.env` in the working directory.
 
 `challenged` means the domain answered with Z-Library's own JS
 proof-of-work page. That domain is usable: the client solves the challenge
@@ -120,7 +130,9 @@ zlib login --eapi --domain https://z-lib.gd
 zlib login --eapi
 ```
 
-Saves session to `~/.config/zlib/session.json`.
+Saves session to `~/.config/zlib/session.json`, and records the domain it used
+as `ZLIB_DOMAIN` in `~/.config/zlib/.env` so later commands reach the same
+mirror without you setting anything.
 The interactive login remembers and prefills the last successful email address,
 but never stores the password. `--cookies` imports a user-supplied
 Netscape/Mozilla-format cookie file; only unexpired root cookies matching
@@ -137,6 +149,12 @@ session. Search, profile, history, book details, downloads, and Kindle delivery
 then use the EAPI path where needed. Book references use `id:hash`, for example
 `zlib download 115066162:e9f13b --send-to-kindle`. See
 [EAPI mode](docs/eapi.md) for the endpoint list and stability notes.
+
+If `/eapi/user/login` refuses to issue credentials, `--eapi` login falls back to
+the HTML login form and continues in EAPI mode. The EAPI authenticates on
+nothing but `remix_userid`/`remix_userkey`, and the HTML form hands out the same
+pair, so the fallback session is not degraded. See
+[EAPI login says `Authorization failed`](#eapi-login-says-authorization-failed).
 
 ### logout
 
@@ -266,20 +284,78 @@ covers DNS, TLS, timeout, reset, and EOF failures. Changing the User-Agent or
 importing login cookies does not solve a DiamWall JS/TLS challenge. Use a
 `healthy` or `challenged` EAPI domain, or a different network route.
 
+### EAPI login says `Authorization failed`
+
+```text
+Error: login failed: zlibrary: login failed: Authorization failed
+```
+
+Z-Library gates `/eapi/user/login` separately from the rest of the EAPI. An
+account it refuses this way still drives `/eapi/user/profile`,
+`/eapi/book/search` and `/eapi/user/book/downloaded` normally. The message is
+also not a wrong password: a wrong one comes back `Incorrect email or password`
+instead.
+
+The CLI handles this on its own by logging in through the HTML form and
+continuing in EAPI mode, so on a current build the login simply succeeds. If you
+see the message, you are on a build older than that fallback — upgrade, or
+import a browser cookie file instead:
+
+```bash
+zlib login --cookies ~/Downloads/cookies.txt --domain https://z-lib.gd
+```
+
+`Incorrect email or password` really is a credential failure. Note that a
+password containing shell metacharacters can be mangled by `--password`; omit
+the flag and let the prompt take it.
+
+### Commands fail after a successful login
+
+```text
+Error: zlibrary: blocked by anti-bot protection (HTTP 517) at https://z-lib.sk/...
+Error: zlibrary: unexpected HTTP status 503 at https://z-lib.gd/users/downloads
+```
+
+A `ZLIB_DOMAIN` left over from an earlier setup overrides the domain the login
+just saved, so `zlib login --domain https://z-lib.gd` can succeed and the very
+next command still target the old mirror. Check the effective value before
+suspecting anything else — `.env` files in the working directory and in
+`~/.config/zlib/` both feed it:
+
+```bash
+echo "$ZLIB_DOMAIN"
+grep -r ZLIB_DOMAIN .env ~/.config/zlib/.env 2>/dev/null
+```
+
+Point it at a domain `zlib doctor --eapi` reports as `healthy` or `challenged`,
+or remove it entirely to fall back to the domain saved in the session.
+
+A bare `503` from a `healthy` or `challenged` domain means the build predates
+the challenge fix and is treating Z-Library's own proof-of-work page as an
+error. Upgrade.
+
 ### Recommended access domains
 
-Source: [r/zlibrary access wiki](https://www.reddit.com/r/zlibrary/wiki/index/access/?screen_view_count=1&ext-referrer=EXTERNAL#wiki_how_to_access_zlibrary_through_your_browser)
+Measured 2026-09-04 by probing `/eapi/user/login` on each host. The list is
+maintained from measurement rather than from Z-Library's own
+`/eapi/info/domains`, which advertises hosts that are DiamWall-fronted and
+omits several that work.
 
-| Available domain |
-| ---------------- |
-| `z-library.gs`   |
-| `1lib.sk`        |
-| `z-lib.fm`       |
-| `z-lib.gd`       |
-| `z-lib.gl`       |
-| `zliba.ru`       |
-| `z-lib.sk`       |
-| `z-library.ec`   |
+| Allowed domain | EAPI (measured 2026-09-04) |
+| -------------- | -------------------------- |
+| `z-lib.gd`     | works (EAPI default)       |
+| `z-lib.gl`     | works                      |
+| `z-library.ec` | works (EAPI only; the HTML site is Cloudflare-blocked) |
+| `zlib.bz`      | works                      |
+| `article.sk`   | works                      |
+| `articles.sk`  | works                      |
+| `zliba.ru`     | redirects to `zlib.bz`; `login --eapi` follows it |
+| `1lib.sk`      | DiamWall-blocked           |
+| `z-lib.fm`     | DiamWall-blocked           |
+| `z-lib.sk`     | DiamWall-blocked           |
+
+`z-library.gs` was removed: its TLS handshake fails. Run `zlib doctor --eapi`
+for the current picture rather than trusting this table, which ages.
 
 ### kindle
 
@@ -316,6 +392,8 @@ Available: `auto` · `mocha` · `latte` · `dracula` · `tokyo` · `nord` · `gr
 Keep secrets like `ZLIB_SMTP_PWD` out of your shell history — put them in an `.env` file instead of exporting them inline. zlib reads env vars with this precedence: **real environment > working-directory `.env` > `~/.config/zlib/.env`**. The global file is the recommended home for machine-wide values.
 
 HTML and EAPI both read `ZLIB_DOMAIN`. It overrides the domain saved in `~/.config/zlib/session.json`; if you unset it, the CLI uses the saved domain. A new login without `--domain` requires `ZLIB_DOMAIN`. EAPI login checks that domain before requesting account credentials.
+
+A successful login writes `ZLIB_DOMAIN` into `~/.config/zlib/.env`, replacing the assignment already there and leaving every other line alone. That is the lowest-precedence of the three sources, so an exported variable or a working-directory `.env` still wins over it — check those first when a command targets a mirror you did not choose.
 
 | Variable                | Description                                                     |
 | ----------------------- | --------------------------------------------------------------- |

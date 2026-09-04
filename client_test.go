@@ -382,3 +382,38 @@ func TestWithProxyPreservesDefaultTransportSettings(t *testing.T) {
 		t.Errorf("ForceAttemptHTTP2 = %v, want %v", transport.ForceAttemptHTTP2, defaultTransport.ForceAttemptHTTP2)
 	}
 }
+
+func TestCheckRedirectKeepsEAPICredentialsOnAllowedHost(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://z-lib.gd/eapi/user/profile", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("remix-userid", "1")
+	req.Header.Set("remix-userkey", "secret")
+
+	if err := checkRedirect(req, nil); err != nil {
+		t.Fatalf("checkRedirect() error = %v", err)
+	}
+	if req.Header.Get("remix-userkey") != "secret" {
+		t.Error("checkRedirect() dropped EAPI credentials on an allowed host")
+	}
+}
+
+func TestCheckRedirectStripsEAPICredentialsOffAllowlist(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "https://evil.example/eapi/user/profile", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("remix-userid", "1")
+	req.Header.Set("remix-userkey", "secret")
+
+	if err := checkRedirect(req, nil); err != nil {
+		t.Fatalf("checkRedirect() error = %v", err)
+	}
+	if got := req.Header.Get("remix-userkey"); got != "" {
+		t.Errorf("checkRedirect() forwarded remix-userkey to a foreign host: %q", got)
+	}
+	if got := req.Header.Get("remix-userid"); got != "" {
+		t.Errorf("checkRedirect() forwarded remix-userid to a foreign host: %q", got)
+	}
+}

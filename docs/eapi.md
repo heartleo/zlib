@@ -34,7 +34,7 @@ zlib login --eapi --cookies ./cookies.txt --domain https://z-lib.gd
 
 | 功能 | 状态 | 端点 |
 | --- | --- | --- |
-| 登录 | 支持 | `POST /eapi/user/login` |
+| 登录 | 支持 | `POST /eapi/user/login`，被拒时回退 `POST /rpc.php` |
 | 静态和交互式搜索 | 支持 | `POST /eapi/book/search` |
 | 域名诊断 | 支持 | `GET /eapi/info/domains` |
 | profile 下载配额 | 支持 | `GET /eapi/user/profile` |
@@ -51,11 +51,32 @@ zlib download 115066162:e9f13b --send-to-kindle
 zlib history --download 115066162:e9f13b --send-to-kindle
 ```
 
+## 登录端点的单独管控
+
+Z-Library 把 `/eapi/user/login` 与 EAPI 的其余部分分开管控。2026-09-04 对一个真实
+账号实测：该端点返回 `400 {"success":0,"error":"Authorization failed"}`，而同一账号
+用 `/rpc.php` 下发的 key 访问 `/eapi/user/profile`、`/eapi/book/search`、
+`/eapi/user/book/downloaded` 全部返回 `success:1`。z-lib.gd、z-lib.gl、
+z-library.ec、article.sk、zlib.bz 五个域名表现一致，因此不是域名问题。
+
+被拒的不是密码：密码错误时该端点返回的是 `Incorrect email or password`。
+
+EAPI 的鉴权只依赖 `remix_userid`/`remix_userkey`，而 `/rpc.php` 会把这一对作为
+Cookie 下发，所以 `LoginEAPI` 在原生端点被拒时回退到 HTML 表单取 key，然后保持
+EAPI 模式。回退得到的会话与原生端点得到的等价。
+
+若 HTML 表单也拒绝，报错以表单返回的消息为准 —— 真正校验密码的是它。
+
 ## 域名白名单
 
-CLI 只接受 `z-library.gs`、`1lib.sk`、`z-lib.fm`、`z-lib.gd`、`z-lib.gl`、
-`zliba.ru`、`z-lib.sk` 和地区备选 `z-library.ec`。这些域名的子域名也可以使用。
-配置值必须是 HTTPS 源站，不能包含端口、路径、查询或凭据。
+CLI 只接受 `1lib.sk`、`article.sk`、`articles.sk`、`z-lib.fm`、`z-lib.gd`、
+`z-lib.gl`、`z-lib.sk`、`z-library.ec`、`zlib.bz` 和 `zliba.ru`。这些域名的子域名
+也可以使用。配置值必须是 HTTPS 源站，不能包含端口、路径、查询或凭据。
+
+2026-09-04 实测：`z-lib.gd`、`z-lib.gl`、`z-library.ec`、`article.sk`、
+`articles.sk`、`zlib.bz` 的 EAPI 可用；`1lib.sk`、`z-lib.fm`、`z-lib.sk` 被
+DiamWall 拦截；`zliba.ru` 已变为跳转到 `zlib.bz` 的纯 redirector，`login --eapi`
+会跟随并改用最终域名登录。`z-library.gs` 因 TLS 握手失败已从白名单移除。
 
 意大利、法国或西班牙可尝试 `z-library.ec`。意大利、法国、西班牙、英国、
 德国、印度、丹麦和中国的政府或 ISP 可能屏蔽这些域名。浏览器无法加载时，法国
@@ -65,7 +86,10 @@ onion 站点。
 新登录优先使用 `--domain`；省略时，EAPI 和 HTML 登录都读取 `ZLIB_DOMAIN`。
 如果两者都没有设置，命令会打印设置方法并退出。EAPI 登录还会检查
 `/eapi/info/domains`；检查失败时，命令会提示运行 `zlib doctor --eapi` 选择
-健康域名。其他命令优先使用环境变量，没有环境变量时才读取 session 域名。
+健康域名。若该检查跳转到了另一台主机，登录会改用最终域名，并对它单独做一次
+白名单校验。其他命令优先使用环境变量，没有环境变量时才读取 session 域名 ——
+遗留的 `ZLIB_DOMAIN` 因此会让刚刚登录成功的域名失效，是"登录成功但后续命令
+报错"的常见原因。
 
 ## 稳定性
 

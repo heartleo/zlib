@@ -360,7 +360,29 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= maxRedirects {
 		return fmt.Errorf("%w: exceeded %d redirects while requesting %s", ErrRedirectLoop, maxRedirects, req.URL)
 	}
+	stripEAPICredentialsOffAllowlist(req)
 	return nil
+}
+
+// stripEAPICredentialsOffAllowlist removes the EAPI credential headers when a
+// redirect leaves the allowed Z-Library hosts.
+//
+// eapiRequest carries remix-userid/remix-userkey as custom headers, and
+// net/http only strips Authorization, Cookie and WWW-Authenticate on a
+// cross-host redirect. Without this, a mirror answering 30x with an
+// attacker-controlled Location would receive the user key verbatim, which is
+// exactly what the ParseAllowedDomain allowlist exists to prevent. Downloads
+// legitimately redirect to CDN hosts that are not on the allowlist, so the
+// redirect itself is still followed; only the credentials are dropped.
+func stripEAPICredentialsOffAllowlist(req *http.Request) {
+	if req.URL == nil {
+		return
+	}
+	if _, err := ParseAllowedDomain(req.URL.Scheme + "://" + req.URL.Host); err == nil {
+		return
+	}
+	req.Header.Del("remix-userid")
+	req.Header.Del("remix-userkey")
 }
 
 // isLoginPage reports whether html is Z-Library's login page, which the server

@@ -11,15 +11,13 @@ import (
 )
 
 func TestKnownDomains(t *testing.T) {
-	want := []string{
-		"https://z-library.gs",
-		"https://1lib.sk",
-		"https://z-lib.fm",
-		"https://z-lib.gd",
-		"https://z-lib.gl",
-		"https://zliba.ru",
-		"https://z-lib.sk",
-		"https://z-library.ec",
+	// Derived from the allowlist rather than repeated literally: the mirror
+	// list churns, and a second hardcoded copy only makes every churn edit
+	// fail a test that is not about the mirrors.
+	suffixes := AllowedDomainSuffixes()
+	want := make([]string, 0, len(suffixes))
+	for _, suffix := range suffixes {
+		want = append(want, "https://"+suffix)
 	}
 	if got := KnownDomains(); !reflect.DeepEqual(got, want) {
 		t.Errorf("KnownDomains() = %v, want %v", got, want)

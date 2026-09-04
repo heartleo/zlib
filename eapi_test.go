@@ -181,3 +181,100 @@ func TestSearchEAPIMapsJSONResponse(t *testing.T) {
 		t.Errorf("mapped download fields = %+v", book)
 	}
 }
+
+// Measured 2026-09-04: /eapi/user/login answers "Authorization failed" for an
+// account whose password it has already accepted, while every other EAPI
+// endpoint serves that same account using the keys /rpc.php hands out.
+func TestLoginEAPIFallsBackToHTMLWhenLoginEndpointRefuses(t *testing.T) {
+	var htmlLogins int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/eapi/user/login":
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"success":0,"error":"Authorization failed"}`)
+		case "/rpc.php":
+			htmlLogins++
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("ParseForm() error = %v", err)
+			}
+			if r.Form.Get("email") != "reader@example.com" || r.Form.Get("password") != "secret" {
+				t.Errorf("rpc.php form = %v", r.Form)
+			}
+			http.SetCookie(w, &http.Cookie{Name: "remix_userid", Value: "123", Path: "/"})
+			http.SetCookie(w, &http.Cookie{Name: "remix_userkey", Value: "key123", Path: "/"})
+			fmt.Fprint(w, `{"errors":[],"response":{"user_id":123,"user_key":"key123"}}`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	if err := c.LoginEAPI("reader@example.com", "secret"); err != nil {
+		t.Fatalf("LoginEAPI() error = %v, want the HTML fallback to succeed", err)
+	}
+	if htmlLogins != 1 {
+		t.Errorf("rpc.php called %d times, want 1", htmlLogins)
+	}
+	if c.Mode() != ClientModeEAPI {
+		t.Errorf("Mode() = %q, want %q", c.Mode(), ClientModeEAPI)
+	}
+	if c.Cookies()["remix_userid"] != "123" || c.Cookies()["remix_userkey"] != "key123" {
+		t.Errorf("Cookies() = %v, want the remix credentials from the HTML login", c.Cookies())
+	}
+}
+
+// A password the HTML form also rejects must surface that rejection, not the
+// vaguer EAPI one: /rpc.php is the endpoint that actually checks the password.
+func TestLoginEAPIFallbackReportsHTMLRejection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/eapi/user/login":
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"success":0,"error":"Authorization failed"}`)
+		case "/rpc.php":
+			fmt.Fprint(w, `{"errors":[],"response":{"validationError":"Incorrect email or password"}}`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	err := c.LoginEAPI("reader@example.com", "wrong")
+	if err == nil {
+		t.Fatal("LoginEAPI() succeeded with a password the HTML form rejected")
+	}
+	if !errors.Is(err, ErrLoginFailed) {
+		t.Errorf("LoginEAPI() error = %v, want ErrLoginFailed", err)
+	}
+	if !strings.Contains(err.Error(), "Incorrect email or password") {
+		t.Errorf("LoginEAPI() error = %v, want the HTML rejection message", err)
+	}
+}
+
+// The fallback must not report success when the HTML login returns 200 without
+// seating the remix credentials the EAPI needs.
+func TestLoginEAPIFallbackRejectsMissingRemixCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/eapi/user/login":
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"success":0,"error":"Authorization failed"}`)
+		case "/rpc.php":
+			fmt.Fprint(w, `{"errors":[],"response":{"user_id":123}}`)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	c := NewClient(WithDomain(server.URL))
+	err := c.LoginEAPI("reader@example.com", "secret")
+	if err == nil {
+		t.Fatal("LoginEAPI() succeeded without remix credentials")
+	}
+	if !strings.Contains(err.Error(), "Authorization failed") {
+		t.Errorf("LoginEAPI() error = %v, want the original EAPI rejection preserved", err)
+	}
+}

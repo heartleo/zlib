@@ -13,6 +13,8 @@ func TestParseAllowedDomain(t *testing.T) {
 		{name: "subdomain", value: "https://api.z-lib.gl", want: "https://api.z-lib.gl"},
 		{name: "case", value: "https://Z-LIB.SK", want: "https://z-lib.sk"},
 		{name: "regional exception", value: "https://z-library.ec", want: "https://z-library.ec"},
+		{name: "redirector target", value: "https://zlib.bz", want: "https://zlib.bz"},
+		{name: "removed dead mirror", value: "https://z-library.gs", wantErr: true},
 		{name: "fake suffix", value: "https://evil-z-lib.sk", wantErr: true},
 		{name: "suffix with trailing text", value: "https://z-lib.sk.evil.example", wantErr: true},
 		{name: "removed sk domain", value: "https://z-library.sk", wantErr: true},
@@ -36,9 +38,10 @@ func TestParseAllowedDomain(t *testing.T) {
 }
 
 func TestAllowedDomainSuffixesReturnsCopy(t *testing.T) {
+	original := AllowedDomainSuffixes()[0]
 	got := AllowedDomainSuffixes()
 	got[0] = "modified.invalid"
-	if AllowedDomainSuffixes()[0] != "z-library.gs" {
+	if AllowedDomainSuffixes()[0] != original {
 		t.Fatal("AllowedDomainSuffixes() exposed mutable internal storage")
 	}
 }

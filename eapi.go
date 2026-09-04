@@ -70,10 +70,7 @@ func (c *Client) LoginEAPI(email, password string) error {
 		return fmt.Errorf("%w: invalid EAPI response: %v", ErrLoginFailed, err)
 	}
 	if result.Success != 1 {
-		if result.Error == "" {
-			result.Error = "login was rejected"
-		}
-		return fmt.Errorf("%w: %s", ErrLoginFailed, result.Error)
+		return c.loginEAPIViaHTML(email, password, result.Error)
 	}
 
 	key := result.User.RemixUserKey
@@ -87,6 +84,37 @@ func (c *Client) LoginEAPI(email, password string) error {
 		"remix_userid":  result.User.ID.String(),
 		"remix_userkey": key,
 	})
+	return nil
+}
+
+// loginEAPIViaHTML obtains the EAPI credentials through the HTML login form
+// when /eapi/user/login refuses to issue them.
+//
+// The EAPI authenticates on nothing but remix_userid/remix_userkey, and
+// /rpc.php sets both as cookies. Measured 2026-09-04 against a live account:
+// /eapi/user/login answered "Authorization failed" while the same account and
+// password drove /eapi/user/profile, /eapi/book/search and
+// /eapi/user/book/downloaded without complaint using the keys /rpc.php handed
+// out. The password itself was accepted -- a wrong one comes back "Incorrect
+// email or password" instead -- so the login endpoint is gated on something
+// the rest of the EAPI does not check. Falling back to the form keeps EAPI
+// mode usable rather than failing the whole session on that one endpoint.
+func (c *Client) loginEAPIViaHTML(email, password, eapiError string) error {
+	if err := c.Login(email, password); err != nil {
+		return err
+	}
+
+	cookies := c.cookieSnapshot()
+	if cookies["remix_userid"] == "" || cookies["remix_userkey"] == "" {
+		if eapiError == "" {
+			eapiError = "login was rejected"
+		}
+		return fmt.Errorf("%w: EAPI login failed (%s) and the HTML login returned no remix credentials", ErrLoginFailed, eapiError)
+	}
+	// Login is the HTML path and leaves the mode alone, but say it outright:
+	// the caller asked for EAPI and the credentials it just seated are EAPI
+	// credentials.
+	c.SetMode(ClientModeEAPI)
 	return nil
 }
 

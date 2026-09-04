@@ -6,15 +6,24 @@ import (
 	"strings"
 )
 
+// allowedDomainSuffixes is the mirror allowlist. Mirrors churn, so it is
+// maintained from measurement rather than from the vendor's own domain list:
+// several hosts Z-Library advertises are DiamWall-fronted and unusable, and
+// several usable ones are not advertised at all. Last measured 2026-09-04:
+// z-lib.gd, z-lib.gl, z-library.ec, zlib.bz, article.sk and articles.sk answer
+// /eapi/user/login directly; 1lib.sk, z-lib.fm and z-lib.sk self-redirect
+// behind DiamWall; zliba.ru is now a plain redirector to zlib.bz.
 var allowedDomainSuffixes = []string{
-	"z-library.gs",
 	"1lib.sk",
+	"article.sk",
+	"articles.sk",
 	"z-lib.fm",
 	"z-lib.gd",
 	"z-lib.gl",
-	"zliba.ru",
 	"z-lib.sk",
 	"z-library.ec",
+	"zlib.bz",
+	"zliba.ru",
 }
 
 // AllowedDomainSuffixes returns the only upstream hostname suffixes accepted

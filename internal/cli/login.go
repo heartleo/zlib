@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -28,9 +31,13 @@ var loginCmd = &cobra.Command{
 			return err
 		}
 		if eapi {
-			check := zlib.ProbeDomainWithOptions(cmd.Context(), domain, zlib.DomainProbeOptions{Path: "/eapi/info/domains"})
-			if check.Status != zlib.DomainStatusHealthy {
-				return fmt.Errorf("ZLIB_DOMAIN=%s is not usable for EAPI (%s): set ZLIB_DOMAIN to a domain reported healthy by `zlib doctor --eapi`, or pass --domain", domain, check.Status)
+			resolved, err := resolveEAPIDomain(cmd.Context(), domain)
+			if err != nil {
+				return err
+			}
+			if resolved != domain {
+				fmt.Printf("%s %s redirects to %s; logging in there.\n", colorCyan(symbolInfo), domain, resolved)
+				domain = resolved
 			}
 		}
 		mode := ""
@@ -46,6 +53,7 @@ var loginCmd = &cobra.Command{
 				return fmt.Errorf("failed to import cookies: %w", err)
 			}
 			fmt.Printf("%s Imported %d cookies.\n", colorGreen(symbolSuccess), count)
+			reportPersistedDomain(cmd.OutOrStdout(), cmd.ErrOrStderr(), domain)
 			return nil
 		}
 		// Decide whether to prompt from the flags, before the remembered email
@@ -98,8 +106,58 @@ var loginCmd = &cobra.Command{
 		}
 
 		fmt.Printf("%s Logged in successfully.\n", colorGreen(symbolSuccess))
+		reportPersistedDomain(cmd.OutOrStdout(), cmd.ErrOrStderr(), c.Domain())
 		return nil
 	},
+}
+
+// reportPersistedDomain records the domain a login just used as ZLIB_DOMAIN in
+// the config-dir .env and says so. A failure here is reported but not fatal:
+// the login itself succeeded and the session already carries the domain.
+func reportPersistedDomain(stdout, stderr io.Writer, domain string) {
+	path, changed, err := persistDotEnvDomain(domain)
+	if err != nil {
+		fmt.Fprintf(stderr, "Could not record %s: %v\n", zlib.EnvDomain, err)
+		return
+	}
+	if changed {
+		fmt.Fprintf(stdout, "%s Wrote %s=%s to %s\n", colorCyan(symbolInfo), zlib.EnvDomain, domain, path)
+	}
+}
+
+// eapiProbePath is the unauthenticated endpoint resolveEAPIDomain uses to
+// decide whether an origin speaks the EAPI at all.
+const eapiProbePath = "/eapi/info/domains"
+
+// resolveEAPIDomain checks that domain answers the EAPI and follows a pure
+// redirector to the origin that actually serves it.
+//
+// Adopting the final origin is not cosmetic. net/http turns a 302 POST into a
+// GET and drops the body, so posting the login form at a redirector (zliba.ru
+// 302s to zlib.bz) arrives at the target as a bare GET and comes back 404 --
+// the failure reported in issue #18. Resolving up front is also what keeps the
+// saved session domain on a host the allowlist accepts later.
+func resolveEAPIDomain(ctx context.Context, domain string) (string, error) {
+	check := zlib.ProbeDomainWithOptions(ctx, domain, zlib.DomainProbeOptions{Path: eapiProbePath})
+	if check.Status != zlib.DomainStatusHealthy {
+		return "", fmt.Errorf("%s is not usable for EAPI (%s): set %s to a domain reported healthy by `zlib doctor --eapi`, or pass --domain", domain, check.Status, zlib.EnvDomain)
+	}
+
+	requested, err := url.Parse(domain)
+	if err != nil {
+		return domain, nil
+	}
+	finalURL, err := url.Parse(check.FinalURL)
+	if err != nil || finalURL.Host == "" || strings.EqualFold(finalURL.Host, requested.Host) {
+		return domain, nil
+	}
+	// The probe left the requested host, so the adopted origin has to clear the
+	// allowlist on its own. resolveLoginDomain only vetted what the user typed.
+	resolved, err := zlib.ParseAllowedDomain(finalURL.Scheme + "://" + finalURL.Host)
+	if err != nil {
+		return "", fmt.Errorf("%s redirects to %s, which is not an allowed Z-Library domain: %w", domain, finalURL.Host, err)
+	}
+	return resolved, nil
 }
 
 func resolveLoginDomain(flagDomain string, eapi bool) (string, error) {

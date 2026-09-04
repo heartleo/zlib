@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -90,5 +93,60 @@ func TestRememberLoginEmailIgnoresBlankEmail(t *testing.T) {
 	}
 	if got := rememberedLoginEmail(); got != "reader@example.com" {
 		t.Errorf("rememberedLoginEmail() = %q, want existing email", got)
+	}
+}
+
+func TestResolveEAPIDomainKeepsDirectOrigin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != eapiProbePath {
+			t.Errorf("probed %q, want %q", r.URL.Path, eapiProbePath)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"success":1,"domains":[]}`))
+	}))
+	defer server.Close()
+
+	got, err := resolveEAPIDomain(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("resolveEAPIDomain() error = %v", err)
+	}
+	if got != server.URL {
+		t.Errorf("resolveEAPIDomain() = %q, want %q", got, server.URL)
+	}
+}
+
+func TestResolveEAPIDomainRejectsRedirectOffAllowlist(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"success":1,"domains":[]}`))
+	}))
+	defer target.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+r.URL.Path, http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	_, err := resolveEAPIDomain(context.Background(), redirector.URL)
+	if err == nil {
+		t.Fatal("resolveEAPIDomain() accepted a redirect to a host outside the allowlist")
+	}
+	if !strings.Contains(err.Error(), "not an allowed Z-Library domain") {
+		t.Errorf("resolveEAPIDomain() error = %v, want an allowlist rejection", err)
+	}
+}
+
+func TestResolveEAPIDomainRejectsUnhealthyOrigin(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "nope", http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	_, err := resolveEAPIDomain(context.Background(), server.URL)
+	if err == nil {
+		t.Fatal("resolveEAPIDomain() accepted an origin that does not serve the EAPI")
+	}
+	if !strings.Contains(err.Error(), "not usable for EAPI") {
+		t.Errorf("resolveEAPIDomain() error = %v, want an EAPI usability rejection", err)
 	}
 }
