@@ -201,6 +201,16 @@ zlib download Gz31nyAV5E --dir "~/Downloads"
 
 `--dir` expands a leading `~` itself, so it works whether or not the shell expanded it.
 
+To stop repeating the same folder, set `ZLIB_DOWNLOAD_DIR` once and drop the flag. `download`, `search` and `history` all fall back to it, and an explicit `--dir` still wins for that one run:
+
+```bash
+echo 'ZLIB_DOWNLOAD_DIR=~/Downloads' >> ~/.config/zlib/.env
+zlib download Gz31nyAV5E              # saves to ~/Downloads
+zlib download Gz31nyAV5E --dir .      # this one lands here instead
+```
+
+Neither the flag nor the variable creates the directory — make it first if it does not exist.
+
 Press `Ctrl+C` to cancel.
 Incomplete files are removed automatically.
 
@@ -401,9 +411,12 @@ A successful login writes `ZLIB_DOMAIN` into `~/.config/zlib/.env`, replacing th
 | `ZLIB_PROXY`            | Proxy URL, e.g. `http://127.0.0.1:7890`                         |
 | `ZLIB_SMTP_PWD`         | SMTP password for Kindle delivery                               |
 | `ZLIB_THEME`            | Override theme without changing config                          |
+| `ZLIB_DOWNLOAD_DIR`     | Default destination for downloads when `--dir` is omitted       |
 | `ZLIB_DOWNLOAD_RETRIES` | Retries for dropped connections and `502`/`503`/`504` responses |
 
 `ZLIB_DOWNLOAD_RETRIES` defaults to `3`.
+
+`ZLIB_DOWNLOAD_DIR` applies to `download`, `search` and `history`, and expands a leading `~`. An explicit `--dir` always overrides it, so `--dir .` still means the current directory. Unset or blank, downloads land in the current directory as before.
 
 **Edit the global env file** (`~/.config/zlib/.env`, one `KEY=value` per line):
 

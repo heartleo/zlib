@@ -98,7 +98,7 @@ func (m downloadModel) runPlain() (downloadModel, error) {
 }
 
 func init() {
-	downloadCmd.Flags().StringP("dir", "d", ".", "Destination directory.")
+	addDestDirFlag(downloadCmd)
 	downloadCmd.Flags().Bool("send-to-kindle", false, "Send the downloaded file to Kindle.")
 }
 

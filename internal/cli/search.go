@@ -196,7 +196,7 @@ func searchOptsFromFlags(cmd *cobra.Command) *zlib.SearchOptions {
 func init() {
 	searchCmd.Flags().IntP("page", "p", 1, "Page number")
 	searchCmd.Flags().IntP("count", "n", 50, "Results per page")
-	searchCmd.Flags().StringP("dir", "d", ".", "Destination directory.")
+	addDestDirFlag(searchCmd)
 	searchCmd.Flags().Bool("send-to-kindle", false, "Send the downloaded file to Kindle.")
 	searchCmd.Flags().StringArray("ext", nil, "Filter by file extension (repeatable): epub, pdf, mobi, …")
 	searchCmd.Flags().StringArray("format", nil, "Alias for --ext: filter by file format (repeatable)")

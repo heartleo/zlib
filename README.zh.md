@@ -188,6 +188,16 @@ zlib download Gz31nyAV5E --dir "~/Downloads"
 
 `--dir` 会自行展开开头的 `~`，加不加引号效果一致。
 
+不想每次都写同一个目录，可以设置一次 `ZLIB_DOWNLOAD_DIR`，之后省略该参数即可。`download`、`search`、`history` 都会回退到它，而显式传入的 `--dir` 仍对当次生效：
+
+```bash
+echo 'ZLIB_DOWNLOAD_DIR=~/Downloads' >> ~/.config/zlib/.env
+zlib download Gz31nyAV5E              # 保存到 ~/Downloads
+zlib download Gz31nyAV5E --dir .      # 这一次改存到当前目录
+```
+
+参数和变量都不会自动创建目录，请先确认目录存在。
+
 按 `Ctrl+C` 取消下载，未完成的文件会自动删除。
 
 ### history
@@ -378,9 +388,12 @@ HTML 和 EAPI 都读取 `ZLIB_DOMAIN`。它的优先级高于 `~/.config/zlib/se
 | `ZLIB_PROXY`            | 代理地址，如 `http://127.0.0.1:7890`       |
 | `ZLIB_SMTP_PWD`         | Kindle 投递的 SMTP 密码                    |
 | `ZLIB_THEME`            | 覆盖主题，无需修改配置文件                 |
+| `ZLIB_DOWNLOAD_DIR`     | 省略 `--dir` 时的默认下载目录              |
 | `ZLIB_DOWNLOAD_RETRIES` | 连接中断与 `502`/`503`/`504` 的重试次数    |
 
 `ZLIB_DOWNLOAD_RETRIES` 默认 `3`。
+
+`ZLIB_DOWNLOAD_DIR` 对 `download`、`search`、`history` 均生效，并会展开开头的 `~`。显式传入的 `--dir` 始终优先，因此 `--dir .` 仍表示当前目录。未设置或为空时，下载位置与以前一样是当前目录。
 
 **编辑全局 env 文件**（`~/.config/zlib/.env`，每行一个 `KEY=value`）：
 

@@ -68,7 +68,30 @@ To go from a search result straight to a file, take the ID from the table and ca
 
 ### Download — `zlib download <book-id>`
 
-**Ask where to save first.** Unless the user already named a folder, ask them before downloading. Offer the common landing spots and allow a custom path. Resolve each option to a **platform-correct absolute path** and show it so the user sees exactly where the file will land:
+**Check for a configured default before asking.** If the user has set `ZLIB_DOWNLOAD_DIR`, that is their standing answer to "where should this go" — use it, say where the file will land, and skip the question. It can be exported or written in `~/.config/zlib/.env`, so check both; the shell alone will miss the `.env` case.
+
+POSIX shell:
+
+```bash
+printf 'exported=%s\n' "${ZLIB_DOWNLOAD_DIR:-<unset>}"
+cat .env ~/.config/zlib/.env 2>/dev/null |
+    grep '^[[:space:]]*\(export[[:space:]]\)\?ZLIB_DOWNLOAD_DIR=' || echo "no .env entry"
+```
+
+PowerShell:
+
+```powershell
+"exported=" + $(if ($env:ZLIB_DOWNLOAD_DIR) { $env:ZLIB_DOWNLOAD_DIR } else { "<unset>" })
+$hit = Get-Content .env, "$env:USERPROFILE\.config\zlib\.env" -ErrorAction SilentlyContinue |
+    Select-String '^\s*(export\s)?ZLIB_DOWNLOAD_DIR='
+if ($hit) { $hit.Line } else { "no .env entry" }
+```
+
+When either source has a value, **omit `--dir`** and let zlib resolve it — that keeps one behaviour across every command and avoids re-deriving the path yourself. Pass `--dir` only when the user asks for a different folder for that one download; it overrides the variable for that run.
+
+Older zlib builds ignore `ZLIB_DOWNLOAD_DIR` and always default to the current directory. The `Saved to:` line tells you which happened: if the file landed in the working directory despite the variable being set, the binary predates it — pass `--dir` explicitly for the rest of the session and suggest `go install github.com/heartleo/zlib/cmd/zlib@latest`.
+
+**Otherwise, ask where to save first.** Unless the user already named a folder, ask them before downloading. Offer the common landing spots and allow a custom path. Resolve each option to a **platform-correct absolute path** and show it so the user sees exactly where the file will land:
 
 | Option | Windows | macOS | Linux |
 |--------|---------|-------|-------|
@@ -82,8 +105,9 @@ Notes:
 - `--dir` expands a leading `~` itself, so `--dir "~/Downloads"` is safe; expand `%USERPROFILE%` yourself. `--dir` does not create the folder, so create it first with the current shell.
 - On headless Linux (no Desktop dir, SSH session), drop the Desktop option rather than offering a path that doesn't exist.
 - Remember the chosen folder for the rest of the session — don't re-ask on every download; re-confirm only if the user switches context.
+- If the user says they always want the same folder, offer to make it permanent so no future session has to ask: append `ZLIB_DOWNLOAD_DIR=<path>` to `~/.config/zlib/.env` (create the file as shown under **Output & errors**, and don't overwrite what's already in it).
 
-Downloads to the current directory unless `--dir` is given. When it detects no terminal (i.e. you running it), it prints a plain `Downloading…` / `Saved to: <path> (<n> bytes)` and exits cleanly with code 0. Just run it and read the printed path:
+Saves to `--dir`, else `ZLIB_DOWNLOAD_DIR`, else the current directory. When it detects no terminal (i.e. you running it), it prints a plain `Downloading…` / `Saved to: <path> (<n> bytes)` and exits cleanly with code 0. Just run it and read the printed path — that line is the authority on where the file went, so report it rather than the folder you expected:
 
 ```bash
 zlib download Gz31nyAV5E --dir ./books
@@ -95,7 +119,7 @@ zlib download Gz31nyAV5E --dir ./books
 Get-ChildItem ./books                 # PowerShell: optional verification
 ```
 
-Flags: `-d/--dir` (default `.`), `--send-to-kindle`.
+Flags: `-d/--dir` (falls back to `ZLIB_DOWNLOAD_DIR`, then `.`), `--send-to-kindle`.
 
 > Compatibility: older zlib builds (before the no-TTY plain path) render an interactive progress display and can hang without a terminal. If a download fails to return, stop it with the shell tool's execution timeout and verify the target directory instead of trusting the exit code. A complete file of the size shown in the search table is a success. Suggest upgrading with `go install github.com/heartleo/zlib/cmd/zlib@latest`.
 
@@ -111,7 +135,7 @@ zlib history --download Gz31nyAV5E --dir ./books   # re-download a book from his
 
 `--download` uses the same download path as `zlib download` — it exits cleanly with no TTY, same as above.
 
-Flags: `--json`, `-p/--page`, `-f/--format`, `-D/--download <book-id>`, `-d/--dir`, `--send-to-kindle`.
+Flags: `--json`, `-p/--page`, `-f/--format`, `-D/--download <book-id>`, `-d/--dir` (same `ZLIB_DOWNLOAD_DIR` fallback), `--send-to-kindle`.
 
 Older binary without `--json`: bare `zlib history` opens an interactive browser — always pass `--page`/`--format` to force the static table.
 

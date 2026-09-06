@@ -177,7 +177,7 @@ var historyCmd = &cobra.Command{
 func init() {
 	historyCmd.Flags().IntP("page", "p", 1, "Page number")
 	historyCmd.Flags().StringP("download", "D", "", "Download a history book by book ID")
-	historyCmd.Flags().StringP("dir", "d", ".", "Destination directory.")
+	addDestDirFlag(historyCmd)
 	historyCmd.Flags().Bool("send-to-kindle", false, "Send the downloaded file to Kindle.")
 	historyCmd.Flags().StringP("format", "f", "", "Filter by file format (e.g. epub, pdf)")
 	historyCmd.Flags().Bool("json", false, "Output history as JSON (implies non-interactive)")
