@@ -1,3 +1,7 @@
+<div align="center">
+
+<img src="docs/logo.svg" alt="zlib" width="160"/>
+
 # zlib
 
 Z-Library 命令行客户端。
@@ -8,7 +12,11 @@ Z-Library 命令行客户端。
 [![Downloads](https://img.shields.io/github/downloads/heartleo/zlib/total)](https://github.com/heartleo/zlib/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+<a href="https://trendshift.io/repositories/135168?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-135168" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/135168/daily?language=Go" alt="heartleo%2Fzlib | Trendshift" width="250" height="55"/></a>
+
 [English](README.md) | 中文
+
+</div>
 
 ![search demo](docs/demo-search.gif)
 
