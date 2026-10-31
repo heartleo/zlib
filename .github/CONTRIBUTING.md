@@ -21,10 +21,11 @@ make hooks   # git config core.hooksPath .githooks
 | `gofmt -l .` | Formatting |
 | `go mod tidy -diff` | `go.mod` and `go.sum` are tidy |
 | `sync-plugin-skills.mjs --check` | Plugin skills match `.agents/skills` |
+| `check-docs.mjs` | `docs/` is English; docs and skills contain no local paths, usernames, emails or credentials ([rules](../AGENTS.md#documentation-privacy)) |
 | `go vet` × 6 | Type-checks linux, darwin and windows on amd64 and arm64, including build-tagged files and tests |
 | `go test -race ./...` | Tests on your OS (without `-race` when cgo is off) |
 | `govulncheck ./...` | Known vulnerabilities in reachable code, standard library included |
-| `gitleaks git --pre-commit --staged` | Secrets in the staged changes |
+| `gitleaks git --pre-commit --staged` | Secrets in the staged changes, with the rules in `.gitleaks.toml` |
 
 Required tools: Go (the `go.mod` release), Node.js 22+,
 `go install golang.org/x/vuln/cmd/govulncheck@v1.9.0`, and

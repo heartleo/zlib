@@ -22,6 +22,9 @@ jobs:
       - name: Check plugin skills
         run: node scripts/sync-plugin-skills.mjs --check
 
+      - name: Check docs privacy
+        run: node scripts/check-docs.mjs
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod

@@ -1,0 +1,29 @@
+# gitleaks configuration: the built-in rules plus zlib-specific ones. Used by
+# scripts/check.sh (staged changes), .github/workflows/gitleaks.yml (pushes,
+# pull requests and a scheduled full-history scan) and any local
+# `gitleaks git .`. Rules for docs: AGENTS.md#documentation-privacy.
+title = "zlib"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "zlib-remix-userkey"
+description = "Z-Library session key (remix_userkey is 32 hex characters)"
+regex = '''(?i)remix[_-]?user[_-]?key["'\s:=,]{1,6}([0-9a-f]{32})\b'''
+secretGroup = 1
+keywords = ["userkey", "user_key", "user-key"]
+
+[[rules]]
+id = "local-home-path"
+description = "Absolute path into a real user's home directory"
+# Unix paths must start a token, so URL paths such as https://host/users/... do
+# not match.
+regex = '''(?:\b(?i:[a-z]:[\\/](?:users|documents and settings)[\\/])|(?:^|[\s"'`(=])/(?:Users|home)/)([A-Za-z0-9][A-Za-z0-9._-]{1,31})'''
+secretGroup = 1
+keywords = ["users", "home"]
+
+[[rules.allowlists]]
+description = "Placeholder account names used by examples, tests and demo tapes"
+regexTarget = "secret"
+regexes = ['''(?i)^(test|you|me|books|user|runner|name|public|shared|default|example)$''']

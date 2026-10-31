@@ -1,0 +1,8 @@
+# Reviewed findings in published history. Each line is a gitleaks fingerprint
+# (commit:file:rule:line) and holds no secret value. Add an entry only after
+# fixing the current files and deciding not to rewrite history; never add one
+# for a credential, which must be revoked instead.
+
+# Local home path in the former tracked docs/handoff.md (no credential).
+349374948c8cec46621aa04dc55c8888e3ba9a4e:docs/handoff.md:local-home-path:67
+a3d04005e91989b519bae665d3f69d960d077078:docs/handoff.md:local-home-path:101

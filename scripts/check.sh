@@ -37,6 +37,9 @@ go mod tidy -diff || fail "go.mod or go.sum is not tidy (run go mod tidy)"
 step "plugin skills"
 node scripts/sync-plugin-skills.mjs --check
 
+step "docs privacy"
+node scripts/check-docs.mjs
+
 # Cross-platform: type-check every release target, including files behind
 # build tags and tests. Tests themselves run natively here and on Linux,
 # macOS and Windows in CI.

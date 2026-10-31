@@ -5,9 +5,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
 
 jobs:
   gitleaks:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,3 +21,24 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # Weekly scan of every commit with the repository rules, so a rule added
+  # later still catches what was committed before it.
+  history:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install gitleaks
+        run: go install github.com/zricethezav/gitleaks/v8@v8.30.0
+
+      - name: Scan full history
+        run: gitleaks git --redact --no-banner --config .gitleaks.toml .

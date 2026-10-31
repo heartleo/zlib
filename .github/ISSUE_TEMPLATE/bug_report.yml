@@ -1,0 +1,37 @@
+name: Bug report
+description: Something in zlib does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public. Report security vulnerabilities privately as described in [SECURITY.md](https://github.com/heartleo/zlib/blob/main/.github/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: zlib version
+      description: Output of `zlib version`.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and terminal
+      placeholder: Windows 11, Windows Terminal
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Command and what happened
+      description: The command you ran, the full error, and what you expected.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Redaction
+      options:
+        - label: I removed passwords, Cookie headers, `remix_userkey`, session files, signed download links, email addresses and local paths that show my username.
+          required: true
