@@ -197,7 +197,7 @@ func serveDemoFile(w http.ResponseWriter, b demoBook) {
 
 // TestDemo runs the real CLI against fixture data, for recording the README
 // GIFs with VHS (docs/*.tape). Nothing in it is a real account, session,
-// book list or path; see docs/demo-search.tape for how it is driven.
+// book list or path; see docs/search.tape for how it is driven.
 //
 //	go test -c ./internal/cli -o zlib-demo
 //	ZLIB_DEMO=1 ZLIB_DEMO_HOME=/home/you ZLIB_DEMO_DIR=/home/books ZLIB_DEMO_ARGS="tui" ./zlib-demo -test.run '^TestDemo$'

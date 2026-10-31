@@ -1,5 +1,5 @@
 # README demo, light version: open the TUI, search with filters, then
-# download a book. The README picks this or docs/demo-search.gif with
+# download a book. The README picks this or docs/search.gif with
 # <picture> and prefers-color-scheme, matching GitHub's light mode. The
 # themes are the site's pair: catppuccin-latte (light), catppuccin-mocha (dark).
 #
@@ -9,7 +9,7 @@
 # folder (/home/books).
 #
 #   GOOS=linux go test -c ./internal/cli -o /tmp/zlib-demo
-#   vhs docs/demo-search-light.tape        # VHS_NO_SANDBOX=true when run as root
+#   vhs docs/search-light.tape        # VHS_NO_SANDBOX=true when run as root
 #
 # Sized for a MacBook Retina display (2 device pixels per CSS pixel, 16:10).
 # The README shows it at width="100%" of its content column, about 840 CSS
@@ -17,7 +17,7 @@
 # and a clean downscale elsewhere. Font 22 is about 122x37 cells: room for
 # 15 results under the book card.
 
-Output docs/demo-search-light.gif
+Output docs/search-light.gif
 
 Set Shell "bash"
 Set Width 1680
@@ -39,4 +39,4 @@ Enter
 Sleep 300ms
 Show
 
-Source docs/demo-search-steps.tape
+Source docs/search-steps.tape

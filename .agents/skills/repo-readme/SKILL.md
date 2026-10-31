@@ -58,9 +58,9 @@ Follow [the copy rules](references/copy.md) for every line of prose.
   in the corresponding guide, rather than another README table.
 - Use the CI workflow for the CI badge. Verify local demo assets exist; compare
   their `.tape` scripts with the current flow before claiming they show the
-  current UI. The README demo is the `docs/demo-search.gif` /
-  `docs/demo-search-light.gif` pair, recorded from fixtures
-  (`internal/cli/demo_test.go`) with the steps in `docs/demo-search-steps.tape`.
+  current UI. The README demo is the `docs/search.gif` /
+  `docs/search-light.gif` pair, recorded from fixtures
+  (`internal/cli/demo_test.go`) with the steps in `docs/search-steps.tape`.
 
 ## References
 

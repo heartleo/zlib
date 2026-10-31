@@ -43,7 +43,7 @@ Raw README files fetched from the default branch of each repository.
 - The README said to type a query on the TUI home and press Enter. The home has
   no search input (`shell_home.go`, `TestShellHomeRequiresSlashForCommands`);
   search starts from `/`. Both READMEs now give the `/search` path.
-- `docs/demo-search.gif` was recorded on 2026-04-10 from `docs/demo-search.tape`,
+- `docs/search.gif` was recorded on 2026-04-10 from `docs/search.tape`,
   which drives the older single-command search form, not the current shell.
   Re-recording needs VHS and a live login, so it was not done. Treat the GIF as
   illustrative until it is re-recorded. (Since re-recorded in `3a1e3d3` from

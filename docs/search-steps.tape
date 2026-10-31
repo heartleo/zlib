@@ -1,5 +1,5 @@
-# Shared steps for docs/demo-search.tape (dark) and
-# docs/demo-search-light.tape (light). Edit the flow here, so both GIFs
+# Shared steps for docs/search.tape (dark) and
+# docs/search-light.tape (light). Edit the flow here, so both GIFs
 # always show the same thing.
 
 Sleep 600ms

@@ -1,11 +1,12 @@
 <div align="center">
 
-<img src="docs/logo.svg" alt="zlib" width="160"/>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark-theme.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/logo-light-theme.svg">
+  <img src="docs/logo-light-theme.svg" alt="zlib" width="260">
+</picture>
 
-# zlib
-
-A Z-Library CLI to search, download, and send books to Kindle,<br>
-for you and AI agents like Claude Code and Codex.
+A Z-Library CLI for you and your AI agents.
 
 <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/heartleo/zlib" alt="Go version" height="20"/></a> <a href="https://github.com/heartleo/zlib/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/heartleo/zlib/ci.yml" alt="CI" height="20"/></a> <a href="https://github.com/heartleo/zlib/releases/latest"><img src="https://img.shields.io/github/v/release/heartleo/zlib" alt="Release" height="20"/></a> <a href="https://github.com/heartleo/zlib/releases"><img src="https://img.shields.io/github/downloads/heartleo/zlib/total" alt="Downloads" height="20"/></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License" height="20"/></a>
 
@@ -18,9 +19,9 @@ English | [简体中文](README.zh.md)
 </div>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/demo-search.gif">
-  <source media="(prefers-color-scheme: light)" srcset="docs/demo-search-light.gif">
-  <img src="docs/demo-search.gif" width="100%" alt="Book search in the terminal">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/search.gif">
+  <source media="(prefers-color-scheme: light)" srcset="docs/search-light.gif">
+  <img src="docs/search.gif" width="100%" alt="Book search in the terminal">
 </picture>
 
 ## Features
@@ -89,15 +90,15 @@ Existing browser sessions can be [imported as cookies](docs/troubleshooting.md#l
 `zlib tui` opens one persistent shell. Every screen lists its keys at the bottom;
 these cover a first session:
 
-| Key | Action |
-| --- | --- |
-| `/` | Open the command list: search, favorites, history, profile, settings, themes |
-| `↑/↓` or `j/k` | Select a book |
-| `←/→` | Previous or next page of results |
-| `Enter` | Download the selected book, after a confirmation |
-| `Ctrl+F` | Change the query and filters of the current search |
-| `Esc` | Go back |
-| `/quit` | Exit |
+| Key            | Action                                                                       |
+| -------------- | ---------------------------------------------------------------------------- |
+| `/`            | Open the command list: search, favorites, history, profile, settings, themes |
+| `↑/↓` or `j/k` | Select a book                                                                |
+| `←/→`          | Previous or next page of results                                             |
+| `Enter`        | Download the selected book, after a confirmation                             |
+| `Ctrl+F`       | Change the query and filters of the current search                           |
+| `Esc`          | Go back                                                                      |
+| `/quit`        | Exit                                                                         |
 
 Settings live under `/config` (network, downloads, Kindle). See
 [Terminal interface](docs/tui.md) for every screen and key.
@@ -111,13 +112,13 @@ zlib search "dune" --ext epub
 zlib search "dune" --ext epub --json --count 10
 ```
 
-| Task | Command |
-| --- | --- |
-| Browse favorites | `zlib favorites` |
-| Browse recommendations | `zlib recommended` |
-| Browse popular books | `zlib most-popular` |
-| Browse download history | `zlib history` |
-| Check account and quota | `zlib profile` |
+| Task                             | Command                        |
+| -------------------------------- | ------------------------------ |
+| Browse favorites                 | `zlib favorites`               |
+| Browse recommendations           | `zlib recommended`             |
+| Browse popular books             | `zlib most-popular`            |
+| Browse download history          | `zlib history`                 |
+| Check account and quota          | `zlib profile`                 |
 | Send to [Kindle](docs/kindle.md) | `zlib kindle send ./book.epub` |
 
 To download, replace `id:hash` with a book's complete `id` from
@@ -171,16 +172,16 @@ delivery. See [MCP server](docs/mcp.md) for other clients, flags, and tools.
 
 ## Documentation
 
-| Guide | Covers |
-| --- | --- |
-| [Installation](docs/installation.md) | Install methods, source builds, `zlib update` |
-| [Usage](docs/usage.md) | Search, downloads, favorites, history |
-| [Terminal interface](docs/tui.md) | Commands and keyboard controls |
-| [Configuration](docs/configuration.md) | Domains, proxies, folders, configuration paths |
-| [Themes](docs/themes.md) | Available palettes and preview controls |
-| [Kindle](docs/kindle.md) | SMTP setup and delivery |
-| [MCP server](docs/mcp.md) | Client setup, flags, and tools for `zlib mcp` |
-| [Troubleshooting](docs/troubleshooting.md) | Login and network problems |
+| Guide                                      | Covers                                         |
+| ------------------------------------------ | ---------------------------------------------- |
+| [Installation](docs/installation.md)       | Install methods, source builds, `zlib update`  |
+| [Usage](docs/usage.md)                     | Search, downloads, favorites, history          |
+| [Terminal interface](docs/tui.md)          | Commands and keyboard controls                 |
+| [Configuration](docs/configuration.md)     | Domains, proxies, folders, configuration paths |
+| [Themes](docs/themes.md)                   | Available palettes and preview controls        |
+| [Kindle](docs/kindle.md)                   | SMTP setup and delivery                        |
+| [MCP server](docs/mcp.md)                  | Client setup, flags, and tools for `zlib mcp`  |
+| [Troubleshooting](docs/troubleshooting.md) | Login and network problems                     |
 
 Report bugs in [Issues](https://github.com/heartleo/zlib/issues) with your
 `zlib version`, OS, command, and error. Omit passwords, cookies, and session files.
