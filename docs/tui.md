@@ -195,9 +195,9 @@ pages and transitions. Closing them returns to the terminal. Kindle send results
 stay visible until dismissed; non-interactive sends do not open a confirmation.
 
 Crush revision: `f49b28113b3bab3fcfe193676cc3f7fb858d6411`.
-The local source checkout is `D:\myspace\github\AI\crush` (Git Bash:
-`/d/myspace/github/AI/crush`; WSL: `/mnt/d/myspace/github/AI/crush`). Check its
-current HEAD before comparing code with the revision above.
+Compare against a local clone of
+[charmbracelet/crush](https://github.com/charmbracelet/crush) (`<crush-checkout>`).
+Check its current HEAD before comparing code with the revision above.
 The implementation uses Bubbles v2, Huh v2 and Lip Gloss v2, with interaction patterns
 from Crush's `internal/ui/dialog/models.go`, `filepicker.go`, `inline_editor.go`,
 `dialog.go`, `internal/ui/list/list.go` and `internal/ui/model/status.go`.

@@ -1,56 +1,60 @@
-# EAPI 接口
+# EAPI
 
-[README](../README.zh.md) · [配置](configuration.md) · [排障](troubleshooting.md)
+[README](../README.md) · [Configuration](configuration.md) · [Troubleshooting](troubleshooting.md)
 
-部分 Z-Library 域名会向非浏览器请求返回 DiamWall 重定向循环，但这些域名的
-移动端 EAPI 仍可能可用。CLI 直接读取结构化 JSON，不处理 DiamWall 挑战。
+Some Z-Library domains answer non-browser requests with a DiamWall redirect loop,
+while the mobile EAPI on those domains may still work. The CLI reads structured
+JSON directly and does not handle DiamWall challenges.
 
-## 快速使用
+## Quick use
 
 ```bash
-# 先检查候选域名的 EAPI 健康状态
+# Check the EAPI health of candidate domains first
 zlib doctor
 
-# 显式指定域名
+# Name the domain explicitly
 zlib login --domain https://z-lib.gd
 
-# 或写入 shell / ~/.config/zlib/.env 后省略 --domain
+# Or set it in the shell / ~/.config/zlib/.env and omit --domain
 export ZLIB_DOMAIN=https://z-lib.gd
 zlib login
 
-# 后续命令直接使用 EAPI
+# Later commands use the EAPI directly
 zlib search "golang"
 zlib search "golang" --json
 ```
 
-你也可以导入自己导出的 Netscape Cookie 文件：
+You can also import a Netscape Cookie file you exported yourself:
 
 ```bash
 zlib login --cookies ./cookies.txt --domain https://z-lib.gd
 ```
 
-会话只保存服务端返回或导入的 Cookie，不保存密码。Cookie 文件和
-`~/.config/zlib/session.json` 都应按账号密码同等保护。
+The session stores only the Cookies the server returned or you imported, never
+the password. Protect the Cookie file and `~/.config/zlib/session.json` as you
+would the account password.
 
-## 当前范围
+## Current scope
 
-| 功能 | 状态 | 端点 |
+| Feature | Status | Endpoint |
 | --- | --- | --- |
-| 登录 | 支持 | `POST /eapi/user/login`；可导入 Cookie 文件 |
-| 静态和交互式搜索 | 支持 | `POST /eapi/book/search` |
-| 推荐图书 | 支持 | `GET /eapi/user/book/recommended` |
-| 热门图书 | 支持 | `GET /eapi/book/most-popular` |
-| 域名诊断 | 支持 | `GET /eapi/info/domains` |
-| profile 账号资料及下载配额 | 支持 | `GET /eapi/user/profile` |
-| history | 支持 | `GET /eapi/user/book/downloaded` |
-| 已收藏（`favorites`） | 支持 | `GET /eapi/user/book/saved` |
-| 图书详情 | 支持 | `GET /eapi/book/{id}/{hash}` |
-| 下载链接 | 支持 | `GET /eapi/book/{id}/{hash}/file` |
-| 下载后 Kindle 投递 | 支持 | EAPI 下载后使用本地 SMTP |
+| Login | Supported | `POST /eapi/user/login`; Cookie file import |
+| Plain and interactive search | Supported | `POST /eapi/book/search` |
+| Recommended books | Supported | `GET /eapi/user/book/recommended` |
+| Most popular books | Supported | `GET /eapi/book/most-popular` |
+| Domain diagnostics | Supported | `GET /eapi/info/domains` |
+| `profile` account details and download quota | Supported | `GET /eapi/user/profile` |
+| `history` | Supported | `GET /eapi/user/book/downloaded` |
+| Favorites (`favorites`) | Supported | `GET /eapi/user/book/saved` |
+| Book details | Supported | `GET /eapi/book/{id}/{hash}` |
+| Download link | Supported | `GET /eapi/book/{id}/{hash}/file` |
+| Kindle delivery after download | Supported | Local SMTP after the EAPI download |
 
-网页全文搜索没有已确认的 EAPI 对应端点；`FullTextSearch` 会明确返回不支持错误。
+Full-text search on the website has no confirmed EAPI equivalent;
+`FullTextSearch` returns an explicit unsupported error.
 
-EAPI 搜索和历史结果会保留数字 ID 与 hash。命令行引用写成 `id:hash`：
+EAPI search and history results keep the numeric ID and the hash. On the command
+line a reference is written `id:hash`:
 
 ```bash
 zlib download 115066162:e9f13b
@@ -58,67 +62,81 @@ zlib download 115066162:e9f13b --send-to-kindle
 zlib history --download 115066162:e9f13b --send-to-kindle
 ```
 
-TUI 选中图书时按需请求 `/eapi/book/{id}/{hash}`，补充详情卡片并按
-`id:hash` 缓存。Android 的 `ZLibBook` 模型明确包含 `edition`、`pages` 和
-`identifier`；分类及独立的 ISBN 10/13 字段不能仅凭 APK 模型保证存在。
-客户端只展示响应中可用的分类，且只从有效 ISBN 推导对应的编号。
+When a book is selected, the TUI requests `/eapi/book/{id}/{hash}` on demand to
+fill in the details card and caches it by `id:hash`. The Android `ZLibBook`
+model explicitly includes `edition`, `pages` and `identifier`; categories and
+separate ISBN 10/13 fields are not guaranteed by the APK model alone. The client
+shows only the categories present in the response, and derives ISBN numbers only
+from a valid ISBN.
 
-## 登录端点的单独管控
+## Separate controls on the login endpoint
 
-Z-Library 把 `/eapi/user/login` 与 EAPI 的其余部分分开管控。2026-09-04 对一个真实
-账号实测：该端点返回 `400 {"success":0,"error":"Authorization failed"}`，而同一账号
-用 `/rpc.php` 下发的 key 访问 `/eapi/user/profile`、`/eapi/book/search`、
-`/eapi/user/book/downloaded` 全部返回 `success:1`。z-lib.gd、z-lib.gl、
-z-library.ec、article.sk、zlib.bz 五个域名表现一致，因此不是域名问题。
+Z-Library controls `/eapi/user/login` separately from the rest of the EAPI. A
+measurement with a real account on 2026-09-04: the endpoint returned
+`400 {"success":0,"error":"Authorization failed"}`, while the same account, using
+a key issued by `/rpc.php`, got `success:1` from `/eapi/user/profile`,
+`/eapi/book/search` and `/eapi/user/book/downloaded`. z-lib.gd, z-lib.gl,
+z-library.ec, article.sk and zlib.bz all behaved the same, so it is not a domain
+problem.
 
-被拒的不是密码：密码错误时该端点返回的是 `Incorrect email or password`。
+It is not the password being refused: with a wrong password the endpoint returns
+`Incorrect email or password`.
 
-EAPI 请求使用 `remix_userid`/`remix_userkey`。若登录端点拒绝账号，CLI 会返回
-服务端错误；可导入浏览器导出的 Netscape Cookie 文件，然后继续使用 EAPI。
+EAPI requests use `remix_userid`/`remix_userkey`. If the login endpoint refuses
+the account, the CLI returns the server's error; you can import a Netscape Cookie
+file exported from a browser and keep using the EAPI.
 
-## 域名白名单
+## Domain allowlist
 
-CLI 内置接受 `1lib.sk`、`article.sk`、`articles.sk`、`z-lib.by`、`z-lib.fm`、
-`z-lib.gd`、`z-lib.gl`、`z-lib.sk`、`z-library.ec`、`z-library.im`、
-`z-library.qa`、`z-library.sk`、`z-library.website` 和 `zlib.bz`。这些域名的子域名
-也可以使用。配置值必须是 HTTPS 源站，不能包含端口、路径、查询或凭据。
+The CLI accepts `1lib.sk`, `article.sk`, `articles.sk`, `z-lib.by`, `z-lib.fm`,
+`z-lib.gd`, `z-lib.gl`, `z-lib.sk`, `z-library.ec`, `z-library.im`,
+`z-library.qa`, `z-library.sk`, `z-library.website` and `zlib.bz` out of the box.
+Subdomains of these domains also work. The configured value must be an HTTPS
+origin with no port, path, query or credentials.
 
-2026-09-04 实测：`z-lib.gd`、`z-lib.gl`、`z-library.ec`、`article.sk`、
-`articles.sk`、`zlib.bz` 的 EAPI 可用；`1lib.sk`、`z-lib.fm`、`z-lib.sk` 被
-DiamWall 拦截；`zliba.ru` 已变为跳转到 `zlib.bz` 的纯 redirector，登录会跟随
-并改用最终域名。`z-library.gs` 因 TLS 握手失败已从白名单移除。
+Measured on 2026-09-04: the EAPI worked on `z-lib.gd`, `z-lib.gl`,
+`z-library.ec`, `article.sk`, `articles.sk` and `zlib.bz`; `1lib.sk`, `z-lib.fm`
+and `z-lib.sk` were blocked by DiamWall; `zliba.ru` had become a pure redirector
+to `zlib.bz`, which login follows and then switches to the final domain.
+`z-library.gs` was removed from the allowlist after TLS handshakes failed.
 
-2026-10-25 按 r/zlibrary 十月清单实测 `/eapi/info/domains`：`z-lib.by`、
-`z-library.qa`、`z-library.website` 直接返回 EAPI JSON；`z-library.im`、
-`z-library.sk` 与 `z-lib.sk`、`z-lib.fm`、`1lib.sk` 一样 307 重定向回自身
-（DiamWall），但属于官方主域名，同样加入白名单，解封后可直接使用。
-`zliba.ru` 不在清单上，只是跳转到 `zlib.bz` 的 redirector，已从白名单移除，
-请直接使用 `zlib.bz`。不在内置列表的域名可用 `zlib mirrors add`
-自行信任。
+Measured `/eapi/info/domains` on 2026-10-25 against the October list from
+r/zlibrary: `z-lib.by`, `z-library.qa` and `z-library.website` returned EAPI
+JSON directly; `z-library.im` and `z-library.sk`, like `z-lib.sk`, `z-lib.fm`
+and `1lib.sk`, 307-redirected back to themselves (DiamWall), but they are
+official primary domains, so they are on the allowlist too and work directly once
+unblocked. `zliba.ru` is not on the list; it only redirects to `zlib.bz`, has been
+removed from the allowlist, and you should use `zlib.bz` directly. Domains not in
+the built-in list can be trusted with `zlib mirrors add`.
 
-意大利、法国或西班牙可尝试 `z-library.ec`。意大利、法国、西班牙、英国、
-德国、印度、丹麦和中国的政府或 ISP 可能屏蔽这些域名。浏览器无法加载时，法国
-以外的部分地区可以尝试更换 DNS。也可以使用 VPN，或通过 Tor Browser 访问
-onion 站点。
+In Italy, France or Spain, try `z-library.ec`. Governments or ISPs in Italy,
+France, Spain, the United Kingdom, Germany, India, Denmark and China may block
+these domains. When a browser cannot load them, changing DNS may help in some
+regions other than France. A VPN, or Tor Browser with the onion site, also works.
 
-新登录优先使用 `--domain`；省略时读取 `ZLIB_DOMAIN`。
-如果两者都没有设置，命令会打印设置方法并退出。EAPI 登录还会检查
-`/eapi/info/domains`；检查失败时，命令会提示运行 `zlib doctor` 选择
-健康域名。若该检查跳转到了另一台主机，登录会改用最终域名，并对它单独做一次
-白名单校验。其他命令优先使用环境变量，没有环境变量时才读取 session 域名 ——
-遗留的 `ZLIB_DOMAIN` 因此会让刚刚登录成功的域名失效，是"登录成功但后续命令
-报错"的常见原因。
+A new login uses `--domain` first and falls back to `ZLIB_DOMAIN`. If neither is
+set, the command prints how to set one and exits. EAPI login also checks
+`/eapi/info/domains`; when that check fails, the command suggests running
+`zlib doctor` to pick a healthy domain. If the check redirects to another host,
+login switches to the final domain and validates it against the allowlist on its
+own. Other commands prefer the environment variable and read the session domain
+only when it is unset, so a leftover `ZLIB_DOMAIN` overrides the domain you just
+logged in to; this is a common cause of "login succeeded but later commands
+fail".
 
-## 稳定性
+## Stability
 
-EAPI 没有公开、稳定的官方授权契约。接口定义参考
+The EAPI has no public, stable, officially authorized contract. The endpoint
+definitions follow the mobile endpoints documented in
 [baroxyton/zlibrary-eapi-documentation](https://github.com/baroxyton/zlibrary-eapi-documentation)
-记录的移动端接口，开发时通过实时健康端点和搜索响应验证。上游可能修改字段、
-鉴权方式或关闭域名。使用前应先运行 `zlib doctor`，不要依赖某个域名
-长期可用。
+and were verified during development against live health endpoints and search
+responses. Upstream may change fields or authentication, or shut domains down.
+Run `zlib doctor` before use, and do not rely on any one domain staying available.
 
-## Android API 调查
+## Android API research
 
-[APK 初步分析](android-api-research.md)记录了逆向方法；
-[深入调查与实测](android-eapi-deep-dive.md)对照 Android 接口声明、服务端返回和
-当前 CLI 实现，列出了可扩展的命令。调查结论按文中的日期和测试范围理解。
+The [initial APK analysis](android-api-research.md) records the reverse
+engineering method; the [deep dive and measurements](android-eapi-deep-dive.md)
+compares the Android endpoint declarations, server responses and the current CLI,
+and lists commands that could be added. Read the conclusions within the dates and
+test scope stated in each document.

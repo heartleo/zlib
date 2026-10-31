@@ -1,6 +1,6 @@
 # Crush TUI patterns
 
-Source: `D:\myspace\github\AI\crush`, revision `f49b28113b3bab3fcfe193676cc3f7fb858d6411` (checked 2026-10-16). These notes describe that checkout, not every Crush release.
+Source: [charmbracelet/crush](https://github.com/charmbracelet/crush) at revision `f49b28113b3bab3fcfe193676cc3f7fb858d6411`.
 
 ## Structure
 
