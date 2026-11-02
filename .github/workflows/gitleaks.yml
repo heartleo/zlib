@@ -9,10 +9,17 @@ on:
     - cron: '17 4 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   gitleaks:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # gitleaks-action lists the commits of a pull request through the API.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
