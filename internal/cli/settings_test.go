@@ -23,13 +23,15 @@ func TestSettingsCommandRoutesAndJSON(t *testing.T) {
 		args  []string
 		count int
 	}{
-		{[]string{"config"}, 9}, {[]string{"config", "network"}, 2},
+		{[]string{"config"}, 11}, {[]string{"config", "network"}, 2},
 		{[]string{"config", "network", "domain"}, 1}, {[]string{"config", "network", "proxy"}, 1},
 		{[]string{"config", "download"}, 2}, {[]string{"config", "download", "directory"}, 1},
 		{[]string{"config", "download", "retries"}, 1},
 		{[]string{"config", "kindle"}, 5}, {[]string{"config", "kindle", "to"}, 1},
 		{[]string{"config", "kindle", "from"}, 1}, {[]string{"config", "kindle", "host"}, 1},
 		{[]string{"config", "kindle", "port"}, 1}, {[]string{"config", "kindle", "security"}, 1},
+		{[]string{"config", "weread"}, 2}, {[]string{"config", "weread", "account"}, 1},
+		{[]string{"config", "weread", "proxy"}, 1},
 	} {
 		out, err := executeRootForTest(t, append(tc.args, "--json")...)
 		if err != nil {

@@ -99,7 +99,10 @@ func formatCLIError(err error) string {
 	if errors.Is(err, errCancelled) {
 		return colorRed(symbolError) + " Cancelled"
 	}
-	var delivery *kindleDeliveryError
+	var delivery *deliveryError
+	if hint := wereadErrorHint(err, wereadLoginCLI); hint != "" {
+		return prefix + " " + safeText(err.Error()) + ". " + hint
+	}
 	switch {
 	// SMTP errors already name the server, port and TLS mode; a generic
 	// network message would hide whether TLS, auth or the port is wrong.

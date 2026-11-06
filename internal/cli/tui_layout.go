@@ -47,6 +47,42 @@ func screenView(width, height int, title, subtitle, body, status string, binding
 	return fullScreenView(width, height, strings.Join(lines, "\n"))
 }
 
+// tightScreenView is screenView without its spacer rows, for a body that needs
+// nearly the whole terminal, such as the login QR code. Title, subtitle,
+// status and key hints take four rows and the body gets the rest; one spare
+// row beyond the body becomes a blank after the subtitle. The caller styles
+// status.
+func tightScreenView(width, height int, title, subtitle string, body []string, status string, bindings ...keys.Binding) tea.View {
+	if width == 0 {
+		width = 80
+	}
+	if height == 0 {
+		height = 24
+	}
+	width, height = max(1, width), max(1, height)
+	muted := lipgloss.NewStyle().Foreground(currentTheme.Muted)
+	h := help.New()
+	h.SetWidth(width)
+	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(currentTheme.Accent)
+	h.Styles.ShortDesc = muted
+	footer := h.ShortHelpView(bindings)
+	if height < 5 {
+		return fullScreenView(width, height, strings.Join([]string{title, "Enlarge terminal", footer}[:min(height, 3)], "\n"))
+	}
+	avail := height - 4
+	body = body[:min(len(body), avail)]
+	lines := []string{lipgloss.NewStyle().Foreground(currentTheme.Accent).Bold(true).Render(title), muted.Render(subtitle)}
+	if avail-len(body) >= 1 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, body...)
+	for len(lines) < height-2 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, status, footer)
+	return fullScreenView(width, height, strings.Join(lines, "\n"))
+}
+
 // fullScreenView gives every page the same terminal-sized canvas. Keep each
 // line's own styling; repainting styled text with an outer background can
 // leave gaps when an inner ANSI reset clears that background.

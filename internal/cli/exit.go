@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/heartleo/zlib/internal/weread"
 	"github.com/heartleo/zlib/internal/zlib"
 	"github.com/spf13/cobra"
 )
@@ -17,7 +18,7 @@ const (
 	exitUsage     = 2   // unknown command, bad flag or wrong argument count
 	exitAuth      = 3   // not logged in, or the saved session was rejected
 	exitNetwork   = 4   // mirror unreachable, blocked, or no usable domain
-	exitPartial   = 5   // the book was saved, but Send to Kindle failed
+	exitPartial   = 5   // the book was saved, but Send to Kindle or WeRead failed
 	exitCancelled = 130 // the user cancelled the requested action (128+SIGINT)
 )
 
@@ -36,23 +37,31 @@ type usageError struct{ err error }
 func (e *usageError) Error() string { return e.err.Error() }
 func (e *usageError) Unwrap() error { return e.err }
 
-// kindleDeliveryError reports a download that reached disk but could not be
-// delivered to Kindle, so callers can tell it from a failed download.
-type kindleDeliveryError struct {
-	path string
-	err  error
+// Delivery targets named in deliveryError.
+const (
+	targetKindle = "Kindle"
+	targetWeRead = "WeRead"
+)
+
+// deliveryError reports a download that reached disk but could not be
+// delivered to Kindle or WeRead, so callers can tell it from a failed
+// download.
+type deliveryError struct {
+	target string
+	path   string
+	err    error
 }
 
-func (e *kindleDeliveryError) Error() string {
-	return fmt.Sprintf("book saved to %s, but Send to Kindle failed: %v", e.path, e.err)
+func (e *deliveryError) Error() string {
+	return fmt.Sprintf("book saved to %s, but Send to %s failed: %v", e.path, e.target, e.err)
 }
 
-func (e *kindleDeliveryError) Unwrap() error { return e.err }
+func (e *deliveryError) Unwrap() error { return e.err }
 
 // exitCode maps a command error to the documented process exit code.
 func exitCode(err error) int {
 	var usage *usageError
-	var delivery *kindleDeliveryError
+	var delivery *deliveryError
 	switch {
 	case err == nil:
 		return exitOK
@@ -64,7 +73,8 @@ func exitCode(err error) int {
 	// download is still a partial success.
 	case errors.As(err, &delivery):
 		return exitPartial
-	case errors.Is(err, errNotLoggedIn), errors.Is(err, zlib.ErrNotLoggedIn), errors.Is(err, zlib.ErrSessionExpired):
+	case errors.Is(err, errNotLoggedIn), errors.Is(err, zlib.ErrNotLoggedIn), errors.Is(err, zlib.ErrSessionExpired),
+		errors.Is(err, weread.ErrNotLoggedIn), errors.Is(err, weread.ErrSessionExpired):
 		return exitAuth
 	case errors.Is(err, zlib.ErrBotProtection), errors.Is(err, zlib.ErrNoDomain), errors.Is(err, zlib.ErrRedirectLoop), errors.Is(err, zlib.ErrMirrorUnverified):
 		return exitNetwork

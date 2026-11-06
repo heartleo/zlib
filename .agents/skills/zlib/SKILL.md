@@ -90,11 +90,21 @@ zero placeholder fields do not establish exhaustion.
 Success requires exit code 0 and the JSON `path`. Report that path. Other exit
 codes: `3` means the user must run `zlib login` in their own terminal; `4` is a
 network or mirror problem (suggest `zlib doctor`); `5` means the book was saved
-but Kindle delivery failed (the JSON `kindle.error` says why; do not download
-again); `130` means it was cancelled. If the command times out or fails, inspect
+but Kindle or WeRead delivery failed (the JSON `kindle.error` or `weread.error`
+says why; do not download again); `130` means it was cancelled. If the command times out or fails, inspect
 the destination before retrying; a partial file or matching displayed size alone
 does not prove completion. Avoid repeating downloads after an uncertain outcome.
 
 For history re-downloads, use `zlib history --download "id:hash"`. For delivery
 requested by the user, follow the bundled [Kindle skill](../kindle/SKILL.md).
 Use `--send-to-kindle` only when delivery was requested and SMTP is configured.
+
+For WeRead, use `--send-to-weread` on the download, or
+`zlib weread import "<file>" --json` for a local file; the result carries
+`book_id`. Use it only when the user asked for WeRead. The login needs a phone:
+on exit code 3 from a WeRead step, ask the user to run `zlib weread login` in
+their own terminal. Each import counts toward WeRead's import limits, so never
+retry after an error saying the import is unconfirmed; ask the user to check the
+WeRead shelf instead. `already_existed: true` means WeRead already had the file;
+report it as already in WeRead, not as a new import. TXT files can be up to
+20 MiB and other formats up to 300 MiB.

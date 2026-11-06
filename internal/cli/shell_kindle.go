@@ -58,7 +58,7 @@ func (m *shellModel) openKindle(arg string) tea.Cmd {
 		m.setError("Use /kindle send <file> or /kindle config")
 		return nil
 	}
-	dir, _ := os.Getwd()
+	dir := filePickerStartDir()
 	return m.open("kindle-file", newKindleFileModel(dir))
 }
 func shellKindleConfig(fields []formField) (zlib.KindleConfig, error) {
@@ -94,8 +94,8 @@ func (m *shellModel) sendKindle(path string) tea.Cmd {
 		err = cfg.Validate()
 	}
 	if err != nil {
-		if m.kindleReturn != nil {
-			return m.returnToDownloadCompletion("Set up Kindle in /config kindle")
+		if m.deliveryReturn != nil {
+			return m.returnToDownloadCompletion(noticeInfo, "Set up Kindle in /config kindle")
 		}
 		m.commandErr = err
 		m.openInfo("Kindle setup required", "Set up delivery with zlib kindle config or /kindle config.")

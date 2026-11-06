@@ -5,7 +5,9 @@ import tea "charm.land/bubbletea/v2"
 type shellConfirm struct {
 	width, height         int
 	title, detail, action string
-	confirmed, focused    bool
+	// note is an optional line below detail.
+	note               string
+	confirmed, focused bool
 }
 
 func (m shellConfirm) Init() tea.Cmd { return nil }
@@ -28,6 +30,6 @@ func (m shellConfirm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 func (m shellConfirm) View() tea.View {
 	v := screenView(m.width, m.height, m.title, m.detail, "", "", uiKey("←/→", "select"), uiKey("enter", "confirm"), uiKey("esc", "back"))
-	v.Content = confirmationDialog(v.Content, m.width, m.height, m.title, m.detail, "", "", m.action, m.focused, false)
+	v.Content = confirmationDialog(v.Content, m.width, m.height, m.title, m.detail, "", m.note, m.action, m.focused, false)
 	return v
 }

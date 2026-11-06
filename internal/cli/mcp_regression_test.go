@@ -168,10 +168,11 @@ func TestMCPIndependentWriteCapabilities(t *testing.T) {
 		hidden []string
 		count  int
 	}{
-		{"download", mcpServerOptions{DisableDownload: true}, []string{"download_book"}, 10},
-		{"delete", mcpServerOptions{DisableHistoryDelete: true}, []string{"delete_download_history"}, 10},
-		{"kindle", mcpServerOptions{DisableKindle: true}, []string{"send_to_kindle"}, 10},
-		{"read only", mcpServerOptions{ReadOnly: true}, []string{"download_book", "delete_download_history", "send_to_kindle"}, 8},
+		{"download", mcpServerOptions{DisableDownload: true}, []string{"download_book"}, 11},
+		{"delete", mcpServerOptions{DisableHistoryDelete: true}, []string{"delete_download_history"}, 11},
+		{"kindle", mcpServerOptions{DisableKindle: true}, []string{"send_to_kindle"}, 11},
+		{"weread", mcpServerOptions{DisableWeRead: true}, []string{"import_to_weread"}, 11},
+		{"read only", mcpServerOptions{ReadOnly: true}, []string{"download_book", "delete_download_history", "send_to_kindle", "import_to_weread"}, 8},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			session := connectMCPTestSession(t, tc.opts, nil)
@@ -204,6 +205,21 @@ func TestMCPIndependentWriteCapabilities(t *testing.T) {
 				ctx := context.WithValue(context.Background(), mcpOptionsKey{}, tc.opts)
 				if _, _, err := handleMCPDownloadBook(ctx, nil, mcpDownloadBookInput{ID: "42:abc", SendToKindle: true}); err == nil {
 					t.Fatal("handler did not enforce Kindle restriction independently of schema")
+				}
+			}
+			if tc.opts.DisableWeRead {
+				for _, tool := range tools.Tools {
+					raw, _ := json.Marshal(tool.InputSchema)
+					if tool.Name == "download_book" && strings.Contains(string(raw), "send_to_weread") {
+						t.Fatalf("disabled WeRead import still advertised: %s", raw)
+					}
+				}
+				ctx := context.WithValue(context.Background(), mcpOptionsKey{}, tc.opts)
+				if _, _, err := handleMCPDownloadBook(ctx, nil, mcpDownloadBookInput{ID: "42:abc", SendToWeRead: true}); err == nil {
+					t.Fatal("handler did not enforce WeRead restriction independently of schema")
+				}
+				if _, _, err := handleMCPImportToWeRead(ctx, nil, mcpImportToWeReadInput{FilePath: "book.epub"}); err == nil {
+					t.Fatal("import handler did not enforce WeRead restriction independently of registration")
 				}
 			}
 		})

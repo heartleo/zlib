@@ -36,7 +36,9 @@ After [installing the plugin](../README.md#agent-setup), try:
 > year and file size before downloading.
 
 For Kindle delivery, complete [SMTP setup](kindle.md) first, then provide the local
-file path when asking the agent to send it.
+file path when asking the agent to send it. For WeRead, run `zlib weread login`
+yourself first; the agent can then use `zlib weread import <file> --json` or
+`--send-to-weread` ([WeRead](weread.md)).
 
 ## Use non-interactive commands
 
@@ -91,12 +93,13 @@ zlib download "id:hash" --dir ./books --json
 
 `download --json` prints one document, `{"id","name","path","size"}`, with the
 absolute `path` of the saved file; add `--send-to-kindle` and it gains a
-`kindle` object (`sent`, `to` or `error`). Progress lines go to stderr, so
+`kindle` object (`sent`, `to` or `error`); `--send-to-weread` adds a `weread`
+object (`imported`, `book_id`, `already_existed` or `error`). Progress lines go to stderr, so
 read stdout only.
 
 Branch on the [exit code](usage.md#exit-codes) rather than on message text: `3`
 means the session needs `zlib login`, `4` a network or mirror problem
-(`zlib doctor`), `5` a saved book whose Kindle delivery failed, `130` a
+(`zlib doctor`), `5` a saved book whose Kindle or WeRead delivery failed, `130` a
 cancellation.
 
 `zlib tui`, `zlib search` without a query, bare `history`, and `kindle send`

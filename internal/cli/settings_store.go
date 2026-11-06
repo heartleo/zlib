@@ -15,7 +15,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries}
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, wereadProxyEnv}
 var settingsEnvironment map[string]string
 
 func captureSettingsEnvironment() {
@@ -109,7 +109,7 @@ func (s settingsStore) values() ([]settingValue, error) {
 				if session, e := config.LoadSession(); e == nil && session.Domain != "" {
 					v.Value, v.Source = session.Domain, "Saved session"
 				}
-			case zlib.EnvProxy:
+			case zlib.EnvProxy, wereadProxyEnv:
 				v.Value, v.Source = "System proxy environment", "Default"
 			case downloadDirEnvVar:
 				v.Value, v.Source = "Current directory", "Default"
@@ -123,7 +123,10 @@ func (s settingsStore) values() ([]settingValue, error) {
 }
 
 func displaySetting(key, value string) string {
-	if key == zlib.EnvProxy {
+	if key == wereadProxyEnv && strings.EqualFold(strings.TrimSpace(value), wereadProxyDirect) {
+		return "Direct (no proxy)"
+	}
+	if key == zlib.EnvProxy || key == wereadProxyEnv {
 		if strings.TrimSpace(value) == "" {
 			return ""
 		}
@@ -159,6 +162,8 @@ func validateSetting(key, value string) (string, error) {
 		if _, err := validateDoctorProxy(value); err != nil {
 			return "", err
 		}
+	case wereadProxyEnv:
+		return validateWeReadProxy(value)
 	case downloadDirEnvVar:
 		path, err := expandTilde(value)
 		if err != nil {

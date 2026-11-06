@@ -74,6 +74,9 @@ func shellErrorText(err error) string {
 	case errors.Is(err, zlib.ErrSessionExpired):
 		return "Session expired. Use /login to sign in again."
 	}
+	if hint := wereadErrorHint(err, wereadLoginShell); hint != "" {
+		return err.Error() + ". " + hint
+	}
 	return err.Error()
 }
 

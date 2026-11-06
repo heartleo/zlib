@@ -48,6 +48,7 @@ the flag, zlib uses `ZLIB_DOWNLOAD_DIR`, then the current directory. See
 
 Press `Ctrl+C` to cancel a download; the CLI removes the incomplete file.
 After [Kindle setup](kindle.md), add `--send-to-kindle` to send the downloaded file.
+After [WeRead login](weread.md), add `--send-to-weread` to import it into WeRead.
 
 Without a terminal, `download` prints `Downloading:` and a progress line per 10%
 to stderr, then `Saved to:` with the absolute path on stdout. `--json` replaces
@@ -59,6 +60,8 @@ that last line with one JSON document and skips the folder prompt:
 
 With `--send-to-kindle`, the document also has `kindle`: `{"sent":true,"to":"..."}`,
 or `{"sent":false,"error":"..."}` when the book was saved but delivery failed.
+`--send-to-weread` adds `weread` the same way: `{"imported":true,"book_id":"..."}`
+or `{"imported":false,"error":"..."}`.
 `history --download` accepts `--json` the same way.
 
 ## Saved books, recommendations and history
@@ -131,9 +134,9 @@ defaults, run `zlib <command> --help`.
 | 0 | Success, or you left a list without choosing a book |
 | 1 | Other error |
 | 2 | Usage error: unknown command or flag, wrong number of arguments |
-| 3 | Not logged in, or the saved session expired; run `zlib login` |
+| 3 | Not logged in, or the saved session expired; run `zlib login` (or `zlib weread login` for WeRead) |
 | 4 | Network: a host (a mirror, or GitHub for `update`) is unreachable, the mirror is behind DiamWall, `doctor` found no usable domain, or `mirrors add` found no Z-Library at the domain |
-| 5 | The book was saved, but Send to Kindle failed |
+| 5 | The book was saved, but Send to Kindle or WeRead failed |
 | 130 | You cancelled the download or its folder prompt, or declined to trust a mirror |
 
 Errors go to stderr. A network error names the host; for a Z-Library mirror it

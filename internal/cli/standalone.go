@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -10,6 +11,10 @@ import (
 func newStandaloneShellCommand(command string) (shellModel, error) {
 	m := newShellModel()
 	m.standalone = true
+	m.standaloneTitle = "Kindle"
+	if strings.HasPrefix(command, "/weread") {
+		m.standaloneTitle = "WeRead"
+	}
 	m.dispatch(command)
 	if m.page == nil && m.kind == "" {
 		return m, fmt.Errorf("%s", m.status)

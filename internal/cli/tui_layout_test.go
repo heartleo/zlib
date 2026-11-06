@@ -79,10 +79,14 @@ func TestScreenViewUsesFullTerminal(t *testing.T) {
 }
 
 func TestTUICommandPagesFillTerminal(t *testing.T) {
+	isolateConfigHome(t)
 	settings, err := newSettingsModel(t.Context(), testSettingsStore(t), "home")
 	if err != nil {
 		t.Fatal(err)
 	}
+	wereadSettings, _ := newSettingsModel(t.Context(), testSettingsStore(t), "weread")
+	wereadAccount := wereadSettings
+	wereadAccount.openWeReadAccount()
 	pages := []struct {
 		name  string
 		model tea.Model
@@ -92,12 +96,17 @@ func TestTUICommandPagesFillTerminal(t *testing.T) {
 		{"recommended", newBookFeedSelectModel("Recommended", nil)},
 		{"history", newHistorySelectModel(nil)},
 		{"settings", settings},
+		{"weread settings", wereadSettings},
+		{"weread account", wereadAccount},
 		{"theme", newThemePicker(defaultTheme, "")},
 		{"form", newFormModel("Search", "Search", []formField{{label: "Query"}})},
 		{"inline form", newInlineForm("Log in", "Log in", []formField{{label: "Email"}})},
 		{"directory", newDownloadDirectoryModel(".")},
 		{"kindle file", newKindleFileModel(t.TempDir())},
 		{"kindle send", newKindleSendModel("example.epub", zlib.KindleConfig{}, "")},
+		{"weread file", newWeReadFileModel(t.TempDir())},
+		{"weread login", newWeReadLoginModel(nil)},
+		{"weread import", newWeReadImportModel("example.epub", nil)},
 		{"download", newDownloadModel("1:abc", ".", nil)},
 		{"confirm", shellConfirm{title: "Log out?", action: "Log out"}},
 	}

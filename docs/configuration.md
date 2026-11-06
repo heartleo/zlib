@@ -40,9 +40,12 @@ zlib config kindle from
 zlib config kindle host
 zlib config kindle port
 zlib config kindle security
+zlib config weread
+zlib config weread account
+zlib config weread proxy
 ```
 
-`zlib config` shows network, download and Kindle settings together. The
+`zlib config` shows network, download, Kindle and WeRead settings together. The
 subcommands open the same TUI at a specific section or field. Use arrow keys
 or Tab to select, Enter to edit, and Esc to return to the selected setting.
 The settings list keeps its controls and save feedback next to the fields;
@@ -68,6 +71,13 @@ For Kindle, Reset clears an address or restores the default SMTP host or port.
   are saved as absolute paths. Enter a drive path to switch Windows drives.
 - **Retries:** enter a non-negative integer. Zero disables retries; the default
   is three.
+- **WeRead account:** shows whether a WeRead login is saved. Enter opens the
+  account page: log in by scanning a QR code with WeChat (without leaving
+  settings), log in again, or log out after a confirmation.
+- **WeRead proxy:** empty uses the system proxy (`HTTPS_PROXY`), `direct`
+  connects without any proxy, or enter an `http`, `https`, `socks5` or
+  `socks5h` URL. Ctrl+T checks that WeRead answers through the value, without
+  logging in. `ZLIB_PROXY` never applies to WeRead.
 
 Network and download changes are saved to `~/.config/zlib/.env`, preserving unrelated settings.
 Kindle address and SMTP server settings are saved to `~/.config/zlib/kindle.json`.
@@ -93,6 +103,7 @@ zlib config network proxy --json
 | `ZLIB_DOWNLOAD_RETRIES` | Retries for interrupted downloads and HTTP 502/503/504 | `3` |
 | `ZLIB_THEME` | Override the saved terminal theme | Saved preference |
 | `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery | Unset |
+| `ZLIB_WEREAD_PROXY` | WeRead proxy URL, or `direct` for no proxy | Standard `HTTPS_PROXY` environment settings |
 
 See [env.example](env.example) for sample values.
 
@@ -192,9 +203,13 @@ These files live under `~/.config/zlib/`:
 | `session.json` | Login cookies and domain |
 | `config.json` | Theme and last successful login email |
 | `kindle.json` | Kindle recipient, sender and SMTP server settings |
+| `weread.json` | WeRead login tokens, device ID and nickname from `zlib weread login` |
 
 Login does not save your password. Session cookies provide account access, so
 keep `session.json` and exported Cookie files private. The Kindle configuration
 file does not contain the SMTP password; the CLI reads it from `ZLIB_SMTP_PWD`.
+`weread.json` grants access to your WeRead account; keep it private and remove it
+with `zlib weread logout` or the WeRead account page. WeRead requests ignore
+`ZLIB_PROXY`; set `ZLIB_WEREAD_PROXY` to route them.
 
 Interactive downloads show the destination before starting. Choose **Skip** (the default) or press Esc to keep it. Choose **Change directory** to enter a path; Ctrl+B opens the directory browser, Enter opens a folder, and Space selects it. The change applies only to that download. Ctrl+C cancels. An explicit `--dir` or non-interactive execution skips this prompt. Without `--dir` or `ZLIB_DOWNLOAD_DIR`, downloads still use the working directory.

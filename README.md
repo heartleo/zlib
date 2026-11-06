@@ -30,6 +30,7 @@ English | [简体中文](README.zh.md)
 📚 **Browse** — favorites, recommendations, popular books, and download history\
 📥 **Download** — view book details and choose a download directory\
 📖 **Send to Kindle** — deliver files to your [Kindle address](docs/kindle.md)\
+🌏 **Send to WeRead** — import books into your [WeRead](docs/weread.md) shelf\
 🕒 **Profile** — check your daily download quota\
 🎨 **Themes** — switch color themes with `/theme`\
 🌐 **Network** — find working mirrors with `zlib doctor`, trust [your own mirror](docs/configuration.md#your-own-mirrors), or use a proxy\
@@ -120,6 +121,7 @@ zlib search "dune" --ext epub --json --count 10
 | Browse download history          | `zlib history`                 |
 | Check account and quota          | `zlib profile`                 |
 | Send to [Kindle](docs/kindle.md) | `zlib kindle send ./book.epub` |
+| Send to [WeRead](docs/weread.md) | `zlib weread import ./book.epub` |
 
 To download, replace `id:hash` with a book's complete `id` from
 the results:
@@ -167,8 +169,8 @@ claude mcp add -s user zlib -- zlib mcp
 codex mcp add zlib -- zlib mcp
 ```
 
-Add `--read-only` after `mcp` to hide download, history deletion, and Kindle
-delivery. See [MCP server](docs/mcp.md) for other clients, flags, and tools.
+Add `--read-only` after `mcp` to hide download, history deletion, Kindle
+delivery and WeRead import. See [MCP server](docs/mcp.md) for other clients, flags, and tools.
 
 ## Documentation
 
@@ -180,6 +182,7 @@ delivery. See [MCP server](docs/mcp.md) for other clients, flags, and tools.
 | [Configuration](docs/configuration.md)     | Domains, proxies, folders, configuration paths |
 | [Themes](docs/themes.md)                   | Available palettes and preview controls        |
 | [Kindle](docs/kindle.md)                   | SMTP setup and delivery                        |
+| [WeRead](docs/weread.md)                   | QR login and imports into WeRead               |
 | [MCP server](docs/mcp.md)                  | Client setup, flags, and tools for `zlib mcp`  |
 | [Troubleshooting](docs/troubleshooting.md) | Login and network problems                     |
 

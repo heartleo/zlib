@@ -51,8 +51,8 @@ func newBookFeedCommand(name, description, summary string, load func(*zlib.Clien
 				if err != nil {
 					return err
 				}
-				sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
-				return runDownload(newDownloadModel(selected.selectedID, dir, c), sendToKindle, cmd)
+				deliver := deliveryFlags(cmd)
+				return runDownload(newDownloadModel(selected.selectedID, dir, c), deliver, cmd)
 			}
 
 			books, err := fetch()
@@ -74,7 +74,7 @@ func newBookFeedCommand(name, description, summary string, load func(*zlib.Clien
 	}
 	cmd.Flags().Bool("json", false, "Print books as JSON")
 	addDestDirFlag(cmd)
-	cmd.Flags().Bool("send-to-kindle", false, "Send the downloaded book to Kindle")
+	addDeliveryFlags(cmd)
 	return cmd
 }
 

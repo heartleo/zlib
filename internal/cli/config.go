@@ -24,16 +24,13 @@ func settingsCommand(name, page, key, description string) *cobra.Command {
 		}
 		jsonOut, _ := cmd.Flags().GetBool("json")
 		if jsonOut || !isInteractive() {
-			values := m.values
-			if page == "network" || page == "domain" {
-				values = values[:2]
-			} else if page == "download" {
-				values = values[2:4]
-			} else if page == "kindle" {
-				values = values[4:]
+			listPage := page
+			if page == "domain" {
+				listPage = "network"
 			}
 			var output []settingValue
-			for _, v := range values {
+			for _, k := range settingsPageKeys(listPage) {
+				v := m.value(k)
 				if page == "domain" && v.Key != zlib.EnvDomain {
 					continue
 				}
@@ -60,7 +57,9 @@ func settingsCommand(name, page, key, description string) *cobra.Command {
 // when set.
 func runSettingsTUI(m settingsModel, key string) error {
 	initial := m.Init()
-	if key != "" {
+	if key == wereadAccountKey {
+		initial = m.openWeReadAccount()
+	} else if key != "" {
 		initial = m.edit(key)
 	}
 	_, err := tea.NewProgram(settingsStart{settingsModel: m, initial: initial}).Run()
@@ -75,7 +74,7 @@ type settingsStart struct {
 func (m settingsStart) Init() tea.Cmd { return m.initial }
 
 func init() {
-	root := settingsCommand("config", "home", "", "View or edit network, download, and Kindle settings")
+	root := settingsCommand("config", "home", "", "View or edit network, download, Kindle and WeRead settings")
 	root.PersistentFlags().Bool("json", false, "Print settings and their sources as JSON")
 	network := settingsCommand("network", "network", "", "Set domain and proxy")
 	network.AddCommand(settingsCommand("domain", "domain", "", "Set Z-Library domain"), settingsCommand("proxy", "network", zlib.EnvProxy, "Set proxy URL"))
@@ -83,6 +82,8 @@ func init() {
 	download.AddCommand(settingsCommand("directory", "download", downloadDirEnvVar, "Set default download directory"), settingsCommand("retries", "download", zlib.EnvRetries, "Set download retry count"))
 	kindle := settingsCommand("kindle", "kindle", "", "Set Kindle address and SMTP")
 	kindle.AddCommand(settingsCommand("to", "kindle", kindleToKey, "Set Kindle address"), settingsCommand("from", "kindle", kindleFromKey, "Set sender address"), settingsCommand("host", "kindle", kindleHostKey, "Set SMTP host"), settingsCommand("port", "kindle", kindlePortKey, "Set SMTP port"), settingsCommand("security", "kindle", kindleSecurityKey, "Set SMTP security: tls or starttls"))
-	root.AddCommand(network, download, kindle)
+	wereadSettings := settingsCommand("weread", "weread", "", "Show the WeRead login and set its proxy")
+	wereadSettings.AddCommand(settingsCommand("account", "weread", wereadAccountKey, "Log in to or out of WeRead"), settingsCommand("proxy", "weread", wereadProxyEnv, "Set the WeRead proxy: a URL, direct, or empty for the system proxy"))
+	root.AddCommand(network, download, kindle, wereadSettings)
 	rootCmd.AddCommand(root)
 }

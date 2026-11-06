@@ -91,6 +91,7 @@ func TestMCPListToolsAndSchemas(t *testing.T) {
 		"download_book",
 		"delete_download_history",
 		"send_to_kindle",
+		"import_to_weread",
 	}
 	var gotNames []string
 	for _, tool := range res.Tools {
@@ -137,7 +138,7 @@ func TestMCPListToolsAndSchemas(t *testing.T) {
 		if !tool.Annotations.ReadOnlyHint {
 			t.Errorf("read-only server exposed non-read-only tool %q", tool.Name)
 		}
-		if slices.Contains([]string{"download_book", "delete_download_history", "send_to_kindle"}, tool.Name) {
+		if slices.Contains([]string{"download_book", "delete_download_history", "send_to_kindle", "import_to_weread"}, tool.Name) {
 			t.Errorf("read-only server exposed write tool %q", tool.Name)
 		}
 	}
@@ -400,7 +401,7 @@ func TestMCPReadOnlyRejectsWriteTools(t *testing.T) {
 	ctx := context.Background()
 	session := connectMCPTestSession(t, mcpServerOptions{ReadOnly: true}, nil)
 
-	for _, name := range []string{"download_book", "delete_download_history", "send_to_kindle"} {
+	for _, name := range []string{"download_book", "delete_download_history", "send_to_kindle", "import_to_weread"} {
 		if _, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      name,
 			Arguments: map[string]any{},

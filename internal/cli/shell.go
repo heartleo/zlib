@@ -51,15 +51,19 @@ type shellModel struct {
 	typing                                                          bool
 	signedIn                                                        bool
 	download                                                        downloadModel
-	kindleReturn                                                    *downloadModel
-	kindlePath                                                      string
-	loginForm                                                       *inlineForm
-	loginCancel                                                     context.CancelFunc
-	spinner                                                         spinner.Model
-	noticeVersion                                                   uint64
-	noticeTone                                                      noticeTone
-	standalone                                                      bool
-	commandErr                                                      error
+	// deliveryReturn is the download completion page a Kindle or WeRead
+	// delivery returns to.
+	deliveryReturn  *downloadModel
+	kindlePath      string
+	wereadPath      string // file waiting for WeRead import, kept across login
+	loginForm       *inlineForm
+	loginCancel     context.CancelFunc
+	spinner         spinner.Model
+	noticeVersion   uint64
+	noticeTone      noticeTone
+	standalone      bool
+	standaloneTitle string // info title when a standalone command ends with a message
+	commandErr      error
 }
 
 const shellNoticeTTL = 5 * time.Second
@@ -98,12 +102,13 @@ var shellCommands = []shellCommand{
 	{"most-popular", "Show most popular books"},
 	{"history", "Show download history"},
 	{"profile", "Show account profile and download quota"},
-	{"config", "View or edit network, download, and Kindle settings"},
+	{"config", "View or edit network, download, Kindle and WeRead settings"},
 	{"theme", "Choose a color theme"},
 	{"doctor", "Find working Z-Library domains"},
 	{"login", "Log in with email and password"},
 	{"logout", "Delete the saved session"},
 	{"kindle", "Send a file to Kindle"},
+	{"weread", "Import a file into WeRead"},
 	{"quit", "Exit zlib"},
 }
 
@@ -222,12 +227,15 @@ func (m *shellModel) restore() {
 	m.resizePage()
 }
 
-func (m *shellModel) returnToDownloadCompletion(message string) tea.Cmd {
-	page := *m.kindleReturn
-	m.kindleReturn = nil
+// returnToDownloadCompletion reopens the saved-file page with a delivery
+// outcome in the given tone.
+func (m *shellModel) returnToDownloadCompletion(tone noticeTone, message string) tea.Cmd {
+	page := *m.deliveryReturn
+	m.deliveryReturn = nil
 	page.completeAction = 0
 	page.sendToKindle = false
-	page.kindleMessage = message
+	page.sendToWeRead = false
+	page.completeMessage, page.completeTone = message, tone
 	return m.open("download", page)
 }
 
@@ -309,7 +317,7 @@ func (m shellModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m = next.(shellModel)
 	if m.standalone && m.page == nil && m.kind == "" {
 		if m.status != "" {
-			m.openInfo("Kindle", m.status)
+			m.openInfo(m.standaloneTitle, m.status)
 			return m, nil
 		}
 		return m, tea.Quit
@@ -625,8 +633,8 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 		if page == "" {
 			page = "home"
 		}
-		if page != "home" && page != "network" && page != "download" && page != "kindle" && page != "domain" {
-			m.setError("Use /config network, /config domain, /config download, or /config kindle")
+		if page != "home" && page != "network" && page != "download" && page != "kindle" && page != "weread" && page != "domain" {
+			m.setError("Use /config network, /config domain, /config download, /config kindle or /config weread")
 			return nil
 		}
 		model, err := newSettingsModel(context.Background(), store, page)
@@ -639,6 +647,8 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 		return m.open("doctor", newDoctorPageModel(zlib.KnownDomains(), os.Getenv(zlib.EnvProxy), doctorCurrentDomain(), nil))
 	case "kindle":
 		return m.openKindle(arg)
+	case "weread":
+		return m.openWeRead(arg)
 	}
 	c, err := loadClient()
 	if err != nil {
@@ -736,20 +746,30 @@ func (m *shellModel) completed() tea.Cmd {
 			}
 			return m.open("download-error", shellErrorModel{title: "Download failed", subtitle: bookCell(book), detail: downloadFailureDetail(page.err), retry: true})
 		} else if page.state == stateCancelled {
-			m.kindleReturn = nil
+			m.deliveryReturn = nil
 			m.restore()
 			m.setNotice("Download cancelled")
 		} else if page.sendToKindle {
 			page.sendToKindle = false
 			page.completeAction = 0
-			m.kindleReturn = new(page)
+			m.deliveryReturn = new(page)
 			m.kindlePath = page.savedPath
 			if !slices.Contains(kindleAllowedTypes, strings.ToLower(filepath.Ext(page.savedPath))) {
-				return m.returnToDownloadCompletion("Kindle does not support this file type")
+				return m.returnToDownloadCompletion(noticeError, "Kindle does not support this file type")
 			}
 			return m.open("kindle-confirm", shellConfirm{title: "Send to Kindle?", detail: filepath.Base(page.savedPath), action: "Send"})
+		} else if page.sendToWeRead {
+			page.sendToWeRead = false
+			page.completeAction = 0
+			m.deliveryReturn = new(page)
+			confirm, err := wereadConfirmPage(page.savedPath)
+			if err != nil {
+				return m.returnToDownloadCompletion(noticeError, err.Error())
+			}
+			m.wereadPath = page.savedPath
+			return m.open("weread-confirm", confirm)
 		} else {
-			m.kindleReturn = nil
+			m.deliveryReturn = nil
 			m.restore()
 		}
 		return nil
@@ -758,8 +778,11 @@ func (m *shellModel) completed() tea.Cmd {
 			m.download = newDownloadModel(m.download.id, m.download.dir, m.download.client)
 			return m.open("download", m.download)
 		}
-		if m.kindleReturn != nil {
-			return m.returnToDownloadCompletion("Kindle send failed")
+		if m.deliveryReturn != nil {
+			if m.kind == "weread-error" {
+				return m.returnToDownloadCompletion(noticeError, "WeRead import failed")
+			}
+			return m.returnToDownloadCompletion(noticeError, "Kindle send failed")
 		}
 		m.restore()
 		return nil
@@ -776,8 +799,8 @@ func (m *shellModel) completed() tea.Cmd {
 		}
 	case inlineForm:
 		if !page.accepted {
-			if m.kind == "kindle-password" && m.kindleReturn != nil {
-				return m.returnToDownloadCompletion("")
+			if m.kind == "kindle-password" && m.deliveryReturn != nil {
+				return m.returnToDownloadCompletion(noticeInfo, "")
 			}
 			m.restore()
 			return nil
@@ -806,16 +829,23 @@ func (m *shellModel) completed() tea.Cmd {
 			}
 			return m.sendKindle(m.kindlePath)
 		}
-	case kindleFileModel:
+	case sendFileModel:
 		if page.accepted {
+			if m.kind == "weread-file" {
+				return m.importWeRead(page.path)
+			}
 			return m.sendKindle(page.path)
 		}
+	case wereadLoginModel:
+		return m.wereadLoginDone(page)
+	case wereadImportModel:
+		return m.wereadImportDone(page)
 	case kindleSendModel:
 		if page.err != nil {
 			m.commandErr = page.err
 			return m.open("kindle-error", shellErrorModel{title: "Kindle send failed", subtitle: bookCell(page.filePath), detail: page.err.Error()})
-		} else if m.kindleReturn != nil {
-			return m.returnToDownloadCompletion("Email sent to Kindle")
+		} else if m.deliveryReturn != nil {
+			return m.returnToDownloadCompletion(noticeSuccess, "Email sent to Kindle")
 		} else {
 			path, _ := filepath.Abs(page.filePath)
 			m.openInfo("Email sent to Kindle", "File\n"+bookCell(path)+"\n\nTo\n"+bookCell(page.cfg.To))
@@ -839,10 +869,14 @@ func (m *shellModel) completed() tea.Cmd {
 				return m.dispatch("/login")
 			case "kindle-confirm":
 				return m.sendKindle(m.kindlePath)
+			case "weread-confirm":
+				return m.importWeRead(m.wereadPath)
+			case "weread-logout":
+				return m.logoutWeRead()
 			}
 		}
-		if m.kind == "kindle-confirm" && m.kindleReturn != nil {
-			return m.returnToDownloadCompletion("")
+		if (m.kind == "kindle-confirm" || m.kind == "weread-confirm") && m.deliveryReturn != nil {
+			return m.returnToDownloadCompletion(noticeInfo, "")
 		}
 	}
 	m.restore()

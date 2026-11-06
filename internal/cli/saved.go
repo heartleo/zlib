@@ -19,7 +19,7 @@ func newSavedBooksCommand(name string) *cobra.Command {
 	cmd.Flags().IntP("page", "p", 1, "Page number")
 	cmd.Flags().Bool("json", false, "Print favorites as JSON")
 	addDestDirFlag(cmd)
-	cmd.Flags().Bool("send-to-kindle", false, "Send the downloaded book to Kindle")
+	addDeliveryFlags(cmd)
 	return cmd
 }
 
@@ -46,8 +46,8 @@ func runSavedBooks(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
-		return runDownload(newDownloadModel(selected.selectedID, dir, c), sendToKindle, cmd)
+		deliver := deliveryFlags(cmd)
+		return runDownload(newDownloadModel(selected.selectedID, dir, c), deliver, cmd)
 	}
 
 	page, _ := cmd.Flags().GetInt("page")

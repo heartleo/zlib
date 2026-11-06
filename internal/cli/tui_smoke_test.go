@@ -66,6 +66,7 @@ func TestTUIWalkthrough(t *testing.T) {
 		{"saved", saved}, {"search", search}, {"history", newHistorySelectModel(c)},
 		{"domains", settingsStart{settingsModel: settings}}, {"download-directory", newDownloadDirectoryModel(dir)},
 		{"kindle-file", newKindleFileModel(dir)},
+		{"weread-file", newWeReadFileModel(dir)},
 		{"download", newDirectDownloadModel("Fixture book", server.URL+"/demo.epub", dir, c)},
 	}
 	for _, scene := range models {

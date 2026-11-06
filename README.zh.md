@@ -30,6 +30,7 @@ Z-Library 命令行工具，你和 AI Agent 都能用。
 📚 **浏览** — 收藏、推荐、热门图书和下载历史\
 📥 **下载** — 查看书籍详情，选择下载目录\
 📖 **发送到 Kindle** — 把文件投递到你的 [Kindle 邮箱](docs/kindle.md)\
+🌏 **导入微信读书** — 把书导入你的[微信读书](docs/weread.md)书架\
 🕒 **用量查看** — 查看每日下载配额\
 🎨 **主题** — 用 `/theme` 切换配色\
 🌐 **网络** — 用 `zlib doctor` 找到可用镜像，可[添加自己信任的镜像](docs/configuration.md#your-own-mirrors)，也支持代理\
@@ -117,6 +118,7 @@ zlib search "dune" --ext epub --json --count 10
 | 浏览下载历史                    | `zlib history`                 |
 | 查看账号与配额                  | `zlib profile`                 |
 | 发送到 [Kindle](docs/kindle.md) | `zlib kindle send ./book.epub` |
+| 导入[微信读书](docs/weread.md)  | `zlib weread import ./book.epub` |
 
 下载时，将 `id:hash` 替换为结果中书籍的完整 `id`：
 
@@ -161,7 +163,7 @@ claude mcp add -s user zlib -- zlib mcp
 codex mcp add zlib -- zlib mcp
 ```
 
-在 `mcp` 后加 `--read-only` 可禁用下载、删除历史和发送到 Kindle。其他客户端、参数和工具列表见
+在 `mcp` 后加 `--read-only` 可禁用下载、删除历史、发送到 Kindle 和导入微信读书。其他客户端、参数和工具列表见
 [MCP 服务](docs/mcp.md)。
 
 ## 文档
@@ -174,6 +176,7 @@ codex mcp add zlib -- zlib mcp
 | [配置指南](docs/configuration.md)   | 域名、代理、目录、配置路径          |
 | [主题指南](docs/themes.md)          | 配色列表和预览操作                  |
 | [Kindle](docs/kindle.md)            | SMTP 配置与发送                     |
+| [微信读书](docs/weread.md)          | 扫码登录与导入书架                  |
 | [MCP 服务](docs/mcp.md)             | `zlib mcp` 的客户端配置、参数和工具 |
 | [排障指南](docs/troubleshooting.md) | 登录和网络问题                      |
 

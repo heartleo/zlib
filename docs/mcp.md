@@ -125,11 +125,12 @@ Add flags after `mcp`, for example `"args": ["mcp", "--read-only"]`:
 
 | Flag | Effect |
 | --- | --- |
-| `--read-only` | Expose only read tools: no download, history deletion or Kindle delivery |
+| `--read-only` | Expose only read tools: no download, history deletion, Kindle or WeRead delivery |
 | `--disable-download` | Hide `download_book` |
 | `--disable-history-delete` | Hide `delete_download_history` |
 | `--disable-kindle` | Hide `send_to_kindle` and block delivery after a download |
-| `--allowed-dir <dir>` | Keep downloads and Kindle attachments inside one folder |
+| `--disable-weread` | Hide `import_to_weread` and block WeRead import after a download |
+| `--allowed-dir <dir>` | Keep downloads, Kindle attachments and WeRead imports inside one folder |
 | `--log-level <level>` | `off`, `error`, `warn` (default), `info` or `debug`, to stderr |
 
 `--read-only` overrides the individual `--disable-*` flags. `--allowed-dir` also
@@ -141,7 +142,10 @@ and failures, never arguments.
 ## Permissions and results
 
 Downloads can replace same-named files. Kindle delivery reads a local file and
-emails it to the configured recipient. Require client approval for these actions
+emails it to the configured recipient. WeRead import uploads a local file to the
+user's WeRead shelf and counts toward WeRead's import limits; the user
+logs in with `zlib weread login` in a terminal, never through the agent. Require
+client approval for these actions
 and for history deletion; tool annotations are hints, not authorization.
 Read-only mode still exposes account details and history. Without
 `--allowed-dir`, the server can write and read wherever the local user can.
@@ -164,7 +168,10 @@ URL, so signed download links and proxy credentials stay out of transcripts.
 Cancelling a tool stops its HTTP and SMTP work. A completed file remains saved,
 and mail already accepted by the SMTP server cannot be recalled. A failed Kindle
 step after a download retains the file path in the result; do not download again
-just to retry delivery.
+just to retry delivery. A WeRead error saying the import is unconfirmed means the
+upload finished; ask the user to check the shelf instead of importing again.
+`already_existed: true` means WeRead already had the file and returned the
+existing book.
 
 ## Tools
 
@@ -181,3 +188,4 @@ just to retry delivery.
 | `download_book` | Write | Download a book by `id:hash` with MCP progress notifications |
 | `delete_download_history` | Write | Remove an entry from remote history by ID or `id:hash` |
 | `send_to_kindle` | Write | Send a local ebook file to Kindle via SMTP |
+| `import_to_weread` | Write | Import a local EPUB, PDF, MOBI, AZW3 or TXT file into WeRead ([guide](weread.md)) |

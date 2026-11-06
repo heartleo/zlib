@@ -16,6 +16,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/heartleo/zlib/internal/weread"
 	"github.com/heartleo/zlib/internal/zlib"
 	"github.com/spf13/cobra"
 )
@@ -30,13 +31,29 @@ var downloadCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		sendToKindle, _ := cmd.Flags().GetBool("send-to-kindle")
 		c, err := loadClient()
 		if err != nil {
 			return err
 		}
-		return runDownload(newDownloadModel(args[0], dir, c), sendToKindle, cmd)
+		return runDownload(newDownloadModel(args[0], dir, c), deliveryFlags(cmd), cmd)
 	},
+}
+
+// deliveries selects where a finished download is sent.
+type deliveries struct {
+	kindle, weread bool
+}
+
+// addDeliveryFlags registers --send-to-kindle and --send-to-weread.
+func addDeliveryFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("send-to-kindle", false, "Send the downloaded book to Kindle")
+	cmd.Flags().Bool("send-to-weread", false, "Import the downloaded book into WeRead")
+}
+
+func deliveryFlags(cmd *cobra.Command) deliveries {
+	kindle, _ := cmd.Flags().GetBool("send-to-kindle")
+	weread, _ := cmd.Flags().GetBool("send-to-weread")
+	return deliveries{kindle: kindle, weread: weread}
 }
 
 // downloadResult is the --json document a finished download prints.
@@ -46,6 +63,7 @@ type downloadResult struct {
 	Path   string        `json:"path"`
 	Size   int64         `json:"size"`
 	Kindle *kindleResult `json:"kindle,omitempty"`
+	WeRead *wereadResult `json:"weread,omitempty"`
 }
 
 // kindleResult reports the Send to Kindle step of a download.
@@ -58,10 +76,10 @@ type kindleResult struct {
 // runDownload executes the download described by m — through the bubbletea
 // progress UI on an interactive terminal, or a plain path otherwise (see
 // isInteractive) — then reports the saved file and optionally delivers it to
-// Kindle. Shared by the download, search, history, favorites and feed
-// commands. With --json the plain path always runs, progress goes to stderr,
-// and stdout carries only the downloadResult document.
-func runDownload(m downloadModel, sendToKindle bool, cmd *cobra.Command) error {
+// Kindle and WeRead. Shared by the download, search, history, favorites and
+// feed commands. With --json the plain path always runs, progress goes to
+// stderr, and stdout carries only the downloadResult document.
+func runDownload(m downloadModel, deliver deliveries, cmd *cobra.Command) error {
 	jsonOut := false
 	if cmd.Flags().Lookup("json") != nil {
 		jsonOut, _ = cmd.Flags().GetBool("json")
@@ -106,13 +124,29 @@ func runDownload(m downloadModel, sendToKindle bool, cmd *cobra.Command) error {
 			dm.savedSize,
 		)
 	}
+	// Each target runs even when the other failed; the first failure
+	// decides the exit status.
 	var deliveryErr error
-	if sendToKindle {
+	if deliver.kindle {
 		to, err := sendDownloadedFileToKindle(path, !jsonOut)
 		result.Kindle = &kindleResult{Sent: err == nil, To: to}
 		if err != nil {
 			result.Kindle.Error = err.Error()
-			deliveryErr = &kindleDeliveryError{path: path, err: err}
+			deliveryErr = &deliveryError{target: targetKindle, path: path, err: err}
+		}
+	}
+	if deliver.weread {
+		imported, err := sendDownloadedFileToWeRead(path, !jsonOut)
+		result.WeRead = newWeReadResult(imported, err)
+		if err != nil {
+			if hint := wereadErrorHint(err, wereadLoginCLI); hint != "" {
+				result.WeRead.Error += ". " + hint
+			}
+			if deliveryErr == nil {
+				deliveryErr = &deliveryError{target: targetWeRead, path: path, err: err}
+			} else if !jsonOut {
+				lipgloss.Fprintln(os.Stderr, formatCLIError(&deliveryError{target: targetWeRead, path: path, err: err}))
+			}
 		}
 	}
 	if jsonOut {
@@ -202,7 +236,7 @@ func (p *plainProgress) report(written, total int64) {
 
 func init() {
 	addDestDirFlag(downloadCmd)
-	downloadCmd.Flags().Bool("send-to-kindle", false, "Send the downloaded book to Kindle")
+	addDeliveryFlags(downloadCmd)
 	downloadCmd.Flags().Bool("json", false, "Print the saved file as JSON; progress goes to stderr")
 }
 
@@ -235,10 +269,13 @@ type downloadModel struct {
 	completeOffset int
 	completeAction int
 	sendToKindle   bool
-	kindleMessage  string
-	err            error
-	downloadCh     chan tea.Msg
-	cancel         context.CancelFunc
+	sendToWeRead   bool
+	// completeMessage reports a delivery outcome on the completion page.
+	completeMessage string
+	completeTone    noticeTone
+	err             error
+	downloadCh      chan tea.Msg
+	cancel          context.CancelFunc
 }
 
 type fetchDoneMsg struct{ book zlib.Book }
@@ -347,24 +384,20 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		if m.state == stateComplete && m.stayOnComplete {
-			if !m.canSendToKindle() {
-				m.completeAction = 0
-			}
+			actions := m.completeActions()
+			m.completeAction = min(max(0, m.completeAction), len(actions)-1)
 			switch msg.String() {
 			case "enter":
-				m.sendToKindle = m.completeAction == 1 && m.canSendToKindle()
+				m.sendToKindle = actions[m.completeAction] == actionSendToKindle
+				m.sendToWeRead = actions[m.completeAction] == actionSendToWeRead
 				return m, tea.Quit
 			case "esc", "q", "ctrl+c":
-				m.sendToKindle = false
+				m.sendToKindle, m.sendToWeRead = false, false
 				return m, tea.Quit
 			case "left", "shift+tab":
-				if m.canSendToKindle() {
-					m.completeAction = (m.completeAction + 1) % 2
-				}
+				m.completeAction = (m.completeAction + len(actions) - 1) % len(actions)
 			case "right", "tab":
-				if m.canSendToKindle() {
-					m.completeAction = (m.completeAction + 1) % 2
-				}
+				m.completeAction = (m.completeAction + 1) % len(actions)
 			case "up", "k":
 				m.completeOffset--
 			case "down", "j":
@@ -438,15 +471,27 @@ func (m downloadModel) maxCompleteOffset() int {
 	return max(0, len(m.completeLines())-m.completePathRows())
 }
 
+// Labels of the download-complete actions.
+const (
+	actionBack         = "Back"
+	actionSendToKindle = "Send to Kindle"
+	actionSendToWeRead = "Send to WeRead"
+)
+
 func (m downloadModel) canSendToKindle() bool {
 	return slices.Contains(kindleAllowedTypes, strings.ToLower(filepath.Ext(m.savedPath)))
 }
 
+// completeActions lists Back plus each delivery that accepts the file.
 func (m downloadModel) completeActions() []string {
+	actions := []string{actionBack}
 	if m.canSendToKindle() {
-		return []string{"Back", "Send to Kindle"}
+		actions = append(actions, actionSendToKindle)
 	}
-	return []string{"Back"}
+	if weread.SupportedFormat(m.savedPath) {
+		actions = append(actions, actionSendToWeRead)
+	}
+	return actions
 }
 
 func (m downloadModel) completePathRows() int {
@@ -458,12 +503,18 @@ func (m downloadModel) completeView() tea.View {
 	buttons := actionButtonRows(m.completeActions(), m.completeAction+1, m.width)
 	visible := m.completePathRows()
 	start := min(max(0, m.completeOffset), max(0, len(lines)-visible))
-	status := m.kindleMessage
+	status := m.completeMessage
+	switch {
+	case status != "" && m.completeTone == noticeSuccess:
+		status = colorGreen(symbolSuccess + " " + status)
+	case status != "" && m.completeTone == noticeError:
+		status = colorRed(symbolError + " " + status)
+	}
 	if status == "" && len(lines) > visible {
 		status = fmt.Sprintf("Path lines %d–%d of %d", start+1, min(start+visible, len(lines)), len(lines))
 	}
 	bindings := []keys.Binding{uiKey("enter", "back")}
-	if m.canSendToKindle() {
+	if len(m.completeActions()) > 1 {
 		bindings = []keys.Binding{uiKey("←/→", "select"), uiKey("enter", "open")}
 	}
 	if len(lines) > visible {

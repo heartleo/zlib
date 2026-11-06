@@ -79,8 +79,9 @@ the version line. Use `zlib version` to see the full version.
 
 The shell accepts `/search`, `/favorites`, `/recommended`, `/most-popular`,
 `/history`, `/login`, `/logout`, `/profile`, `/doctor`,
-`/config`, `/config network`, `/config download`, `/config kindle`, `/theme`, `/kindle`,
-`/kindle config`, `/kindle send <file>` and `/quit`. Use `zlib version`
+`/config`, `/config network`, `/config download`, `/config kindle`, `/config weread`, `/theme`, `/kindle`,
+`/kindle config`, `/kindle send <file>`, `/weread`, `/weread import <file>`,
+`/weread login`, `/weread logout` and `/quit`. Use `zlib version`
 outside the TUI to check the installed version.
 For automation, use direct commands and their flags, including `--json`.
 To download a selected book in the TUI, press Enter on its list row. To download
@@ -167,13 +168,13 @@ selection style.
 | Failed list request | r retries the failed page; Esc closes |
 | Login, search options, Kindle settings | Enter edits a field; Enter applies an edit; Tab advances; choose the final action or press Ctrl+S to submit; Esc cancels |
 | Format selection | Huh checkbox list: ↑/↓ moves; Space toggles; Ctrl+A selects all or clears all; Enter continues; no selected formats means all formats |
-| Config | Network, download and Kindle settings appear in one compact list; arrows or Tab select a field; Enter opens it; Esc returns; Tab selects editor actions |
+| Config | Network, download, Kindle and WeRead settings appear in one compact list; WeRead account opens a page to log in with a QR code or log out; arrows or Tab select a field; Enter opens it; Esc returns; Tab selects editor actions |
 | Config domain | Your mirrors, then built-in domains, each with its check result and available rows first within each group; `●` marks the current domain; rows appear at once and fill in as checks finish. Enter uses an available row and explains why other rows cannot be used; `a` adds a mirror (check, then a trust dialog); `d` removes a mirror after confirmation; `r` checks again; Esc returns |
-| File picker | Enter opens a folder or selects a file; ← goes to the parent; `/` accepts a directory path; Esc exits |
+| File picker | Lists folders and only the files the destination accepts (extension match ignores case); the status line names the formats. Enter opens a folder or selects a file; ← goes to the parent and returns to the folder just left; `/` accepts a directory path; Esc exits |
 | Download directory | A centered dialog overlays the selected book list. Download here uses the displayed folder; Choose another folder opens the browser. Space selects a folder; e or / edits the path; Esc uses the displayed folder; Ctrl+C cancels. |
 | Theme | Type to filter; ↑/↓ previews; Enter selects; Ctrl+N creates a custom theme; Ctrl+E edits a custom theme or copies a built-in; Ctrl+S saves color edits; Esc cancels or clears the filter |
 | Confirmation | Cancel is selected initially; ←/→ or Tab changes the action; Enter confirms |
-| Download | Esc or Ctrl+C cancels an active transfer. After completion, the page shows the full saved path and Back. Supported file types also show Send to Kindle; left/right selects an action and Enter opens it. Up/down scrolls a long path. Kindle sending asks for confirmation and returns to the saved-file page. A download failure stays on its own page with r to retry using the same book and directory, or Esc to return. |
+| Download | Esc or Ctrl+C cancels an active transfer. After completion, the page shows the full saved path and Back. Supported file types also show Send to Kindle and Send to WeRead; left/right selects an action and Enter opens it. Up/down scrolls a long path. Kindle sending and WeRead import ask for confirmation and return to the saved-file page; without a WeRead login, the QR login page opens first and the import continues after it. A download failure stays on its own page with r to retry using the same book and directory, or Esc to return. |
 
 Passwords are masked. Invalid field values stay in the editor with an error.
 If the SMTP password is missing after Kindle confirmation, a masked form saves
@@ -193,6 +194,35 @@ redirected text output uses the same profile fields without opening a TUI.
 `zlib kindle`, `kindle config`, and `kindle send` reuse the corresponding shell
 pages and transitions. Closing them returns to the terminal. Kindle send results
 stay visible until dismissed; non-interactive sends do not open a confirmation.
+`zlib weread`, `weread login` and `weread import <file>` reuse the `/weread`
+pages the same way. The login page renders the QR code black on white so it
+scans on dark terminals, offers `r` for a new code after expiry or a declined
+login, and asks for a larger terminal when the code does not fit. Kindle and
+WeRead file pickers open in the default download directory.
+
+The QR code is drawn with half-block characters, two modules per cell: one
+column and half a row per module, so modules are square on a terminal whose
+cells are twice as tall as wide. The white panel has as many modules across as
+down, with the code centered to within one module. The quiet zone is 4 modules
+as the QR specification asks, reduced to 3 or 2 when the terminal is too small,
+which lets a standard 80×24 terminal show the whole code. The code is encoded
+at error-correction level L, which needs fewer modules than M and is enough on
+a screen. Where the terminal is wide enough, the steps (scan, then confirm on
+the phone) appear beside the code with done, current and pending marks;
+otherwise the code is centered and the status line carries the instruction. If
+even the smallest panel does not fit, the page names the size it needs and
+draws no part of the code.
+
+WeRead imports check format and size before the confirmation, which names the
+file size and the target account. The progress page lists Prepare upload, Upload
+file and Add to shelf with a done, current or pending mark; the current step
+shows the progress bar or the check count. Esc cancels and waits for WeRead to
+confirm the cancellation; Ctrl+C then stops waiting. The result page names the
+book ID and account, and says **Already in WeRead** when WeRead kept an existing
+copy. An unconfirmed import opens an error page titled **WeRead import not
+confirmed**. On the saved-file page, delivery outcomes appear in the success or
+error color. The settings account page puts its status and actions first and
+adds the import rules only when they fit.
 
 Crush revision: `f49b28113b3bab3fcfe193676cc3f7fb858d6411`.
 Compare against a local clone of
@@ -207,7 +237,7 @@ See [Crush TUI patterns](crush-ui-patterns.md) for the component and layout anal
 - `tui_layout.go`: terminal-sized screen layout, selected rows and Bubbles help.
 - `tui_form.go`, `tui_inline_form.go`: field lists, masked text input, validation
   and Huh format checkboxes in the inline search form.
-- `tui_filepicker.go`: Bubbles file picker, path input and send confirmation.
+- `tui_filepicker.go` and `book_file_list.go`: the folder list that hides unsupported files (the Bubbles file picker can only grey them out), path input and send confirmation.
 - `book_feed_view.go`: shared book list for search, recommendations, popular,
   favorites and history.
 - `confirmation.go`: modal overlay with Cancel selected by default.

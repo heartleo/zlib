@@ -78,7 +78,7 @@ func TestDownloadJSONPrintsOnlyTheResultOnStdout(t *testing.T) {
 	var runErr error
 	stdout, stderr := captureOutput(t, func() {
 		m := newDirectDownloadModel("Dune", server.URL+"/files/dune", ".", client)
-		runErr = runDownload(m, false, downloadTestCommand(t, true))
+		runErr = runDownload(m, deliveries{}, downloadTestCommand(t, true))
 	})
 	if runErr != nil {
 		t.Fatalf("runDownload error = %v", runErr)
@@ -108,7 +108,7 @@ func TestHistoryDirectDownloadJSONKeepsReference(t *testing.T) {
 
 	var runErr error
 	stdout, _ := captureOutput(t, func() {
-		runErr = runDownload(historyDirectDownload(item, item.Name, t.TempDir(), client), false, downloadTestCommand(t, true))
+		runErr = runDownload(historyDirectDownload(item, item.Name, t.TempDir(), client), deliveries{}, downloadTestCommand(t, true))
 	})
 	var result downloadResult
 	if runErr != nil || json.Unmarshal([]byte(stdout), &result) != nil || result.ID != "7:h1" {
@@ -126,9 +126,9 @@ func TestDownloadReportsKindleFailureAfterSavingAsPartial(t *testing.T) {
 	var runErr error
 	stdout, _ := captureOutput(t, func() {
 		m := newDirectDownloadModel("Dune", server.URL+"/files/dune", dir, client)
-		runErr = runDownload(m, true, downloadTestCommand(t, true))
+		runErr = runDownload(m, deliveries{kindle: true}, downloadTestCommand(t, true))
 	})
-	var delivery *kindleDeliveryError
+	var delivery *deliveryError
 	if !errors.As(runErr, &delivery) || exitCode(runErr) != exitPartial {
 		t.Fatalf("error = %v, want a kindle delivery error", runErr)
 	}
@@ -154,7 +154,7 @@ func TestPlainDownloadTextKeepsProgressOffStdout(t *testing.T) {
 	var runErr error
 	stdout, stderr := captureOutput(t, func() {
 		m := newDirectDownloadModel("Dune", server.URL+"/files/dune", dir, client)
-		runErr = runDownload(m, false, downloadTestCommand(t, false))
+		runErr = runDownload(m, deliveries{}, downloadTestCommand(t, false))
 	})
 	if runErr != nil {
 		t.Fatal(runErr)
@@ -175,7 +175,7 @@ func TestPlainDownloadStripsControlSequencesFromTitle(t *testing.T) {
 
 	_, stderr := captureOutput(t, func() {
 		m := newDirectDownloadModel("Dune\x1b]0;owned\x07\x1b[2J", server.URL+"/files/dune", t.TempDir(), client)
-		if err := runDownload(m, false, downloadTestCommand(t, true)); err != nil {
+		if err := runDownload(m, deliveries{}, downloadTestCommand(t, true)); err != nil {
 			t.Error(err)
 		}
 	})

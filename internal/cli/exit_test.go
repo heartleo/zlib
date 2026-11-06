@@ -31,7 +31,7 @@ func TestExitCodeClassifiesCommandErrors(t *testing.T) {
 		{"bot protection", &zlib.BotProtectionError{StatusCode: 513, URL: "https://z-lib.fm/"}, exitNetwork},
 		{"no domain", fmt.Errorf("%w: none answered", zlib.ErrNoDomain), exitNetwork},
 		{"network", networkErr, exitNetwork},
-		{"kindle after download", &kindleDeliveryError{path: "/books/a.epub", err: fmt.Errorf("%w: %w", zlib.ErrSMTPSend, io.EOF)}, exitPartial},
+		{"kindle after download", &deliveryError{target: targetKindle, path: "/books/a.epub", err: fmt.Errorf("%w: %w", zlib.ErrSMTPSend, io.EOF)}, exitPartial},
 		// A failed `zlib kindle send` must not read as a network outage: the
 		// SMTP error names the server and the TLS mode itself.
 		{"smtp", fmt.Errorf("%w: smtp.example.com:587: %w", zlib.ErrSMTPSend, io.EOF), exitError},
@@ -120,7 +120,7 @@ func TestFormatCLIErrorNamesTheRemedy(t *testing.T) {
 		},
 		{
 			"kindle after download",
-			&kindleDeliveryError{path: "/books/a.epub", err: errors.New("kindle smtp password not set")},
+			&deliveryError{target: targetKindle, path: "/books/a.epub", err: errors.New("kindle smtp password not set")},
 			"✗ Error: book saved to /books/a.epub, but Send to Kindle failed: kindle smtp password not set",
 		},
 		{"cancelled", errCancelled, "✗ Cancelled"},
