@@ -14,6 +14,8 @@ import (
 // The shell owns the retry so it can start a fresh, generation-scoped request.
 type shellErrorModel struct {
 	width, height int
+	heading       string
+	note          string
 	title         string
 	subtitle      string
 	detail        string
@@ -47,7 +49,14 @@ func (m shellErrorModel) View() tea.View {
 	if m.retry {
 		return screenView(m.width, m.height, "Download", m.subtitle, body, "", uiKey("r", "retry"), uiKey("esc", "back"))
 	}
-	return screenView(m.width, m.height, "Send to Kindle", m.subtitle, body+"\n\n  Check your Kindle inbox before sending again.", "", uiKey("esc", "back"))
+	heading, note := m.heading, m.note
+	if heading == "" {
+		heading, note = "Send to Kindle", "Check your Kindle inbox before sending again."
+	}
+	if note != "" {
+		body += "\n\n  " + note
+	}
+	return screenView(m.width, m.height, heading, m.subtitle, body, "", uiKey("esc", "back"))
 }
 
 func downloadFailureDetail(err error) string {

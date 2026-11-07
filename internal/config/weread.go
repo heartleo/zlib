@@ -5,9 +5,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/heartleo/zlib/internal/weread"
 )
+
+var wereadMu sync.Mutex
 
 // WeReadPath is where WeRead credentials are saved.
 func WeReadPath() string {
@@ -38,6 +41,33 @@ func LoadWeRead() (weread.Credentials, error) {
 // SaveWeRead writes creds through a temporary file and a rename, so a
 // concurrent reader (such as another MCP call) never sees a partial file.
 func SaveWeRead(creds weread.Credentials) error {
+	wereadMu.Lock()
+	defer wereadMu.Unlock()
+	return saveWeRead(creds)
+}
+
+// WeReadSaver only updates the login it loaded. Logout and replacement logins
+// invalidate pending updates in this process.
+func WeReadSaver(expected weread.Credentials) func(weread.Credentials) error {
+	return func(next weread.Credentials) error {
+		wereadMu.Lock()
+		defer wereadMu.Unlock()
+		current, err := LoadWeRead()
+		if err != nil {
+			return err
+		}
+		if current != expected {
+			return errors.New("WeRead login changed; retry with the current account")
+		}
+		if err := saveWeRead(next); err != nil {
+			return err
+		}
+		expected = next
+		return nil
+	}
+}
+
+func saveWeRead(creds weread.Credentials) error {
 	path := WeReadPath()
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -66,6 +96,8 @@ func SaveWeRead(creds weread.Credentials) error {
 // RemoveWeRead deletes the saved credentials and reports whether a file
 // existed.
 func RemoveWeRead() (bool, error) {
+	wereadMu.Lock()
+	defer wereadMu.Unlock()
 	err := os.Remove(WeReadPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil

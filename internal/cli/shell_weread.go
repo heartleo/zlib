@@ -145,7 +145,7 @@ func (m *shellModel) wereadImportDone(page wereadImportModel) tea.Cmd {
 // download completion page when the import started there.
 func (m *shellModel) wereadFailed(title, path string, err error) tea.Cmd {
 	m.commandErr = err
-	return m.open("weread-error", shellErrorModel{title: title, subtitle: bookCell(filepath.Base(path)), detail: shellErrorText(err)})
+	return m.open("weread-error", shellErrorModel{heading: "Send to WeRead", title: title, subtitle: bookCell(filepath.Base(path)), detail: shellErrorText(err)})
 }
 
 func (m *shellModel) logoutWeRead() tea.Cmd {

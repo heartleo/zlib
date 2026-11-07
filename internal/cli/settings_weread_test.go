@@ -256,3 +256,31 @@ func TestFilePickerStartsInDownloadDirectory(t *testing.T) {
 		t.Fatalf("start dir = %q, want the working directory", got)
 	}
 }
+
+func TestWeReadLogoutDuringNameRefresh(t *testing.T) {
+	isolateConfigHome(t)
+	entered, release := make(chan struct{}), make(chan struct{})
+	fakeWeReadAPI(t, func(w http.ResponseWriter, r *http.Request) {
+		close(entered)
+		<-release
+		_, _ = w.Write([]byte(`{"name":"Reader"}`))
+	})
+	if err := config.SaveWeRead(weread.Credentials{VID: "42", AccessToken: "fixture", RefreshToken: "fixture", DeviceID: "fixture"}); err != nil {
+		t.Fatal(err)
+	}
+	m, err := newSettingsModel(t.Context(), testSettingsStore(t), "weread")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := m.openWeReadAccount()
+	done := make(chan struct{})
+	go func() { cmd(); close(done) }()
+	<-entered
+	m.logoutFocused = true
+	m.updateLogoutConfirm("enter")
+	close(release)
+	<-done
+	if _, err := os.Stat(config.WeReadPath()); !os.IsNotExist(err) {
+		t.Fatal("background refresh restored login")
+	}
+}

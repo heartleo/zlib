@@ -183,11 +183,11 @@ func (c *Client) ImportBook(ctx context.Context, path string, progress func(Impo
 			if ctx.Err() != nil {
 				return ImportResult{}, c.abandon(name, cred.objectName, ctx.Err())
 			}
-			// A clear rejection means nothing was added. A server error or a
-			// lost reply may follow a completed import.
+			// Only a rejection of the first notify proves nothing was added.
+			// Later failures leave the previously started import unconfirmed.
 			var apiErr *APIError
-			if errors.As(err, &apiErr) && apiErr.Status < http.StatusInternalServerError ||
-				errors.Is(err, ErrVerificationRequired) || errors.Is(err, ErrSessionExpired) || errors.Is(err, ErrNotLoggedIn) {
+			if attempt == 1 && (errors.As(err, &apiErr) && apiErr.Status < http.StatusInternalServerError ||
+				errors.Is(err, ErrVerificationRequired) || errors.Is(err, ErrSessionExpired) || errors.Is(err, ErrNotLoggedIn)) {
 				return ImportResult{}, err
 			}
 			return ImportResult{}, fmt.Errorf("%w: %w", ErrImportUnconfirmed, err)
@@ -202,7 +202,11 @@ func (c *Client) ImportBook(ctx context.Context, path string, progress func(Impo
 			return ImportResult{}, ErrImportParseFailed
 		case notifyProcessing, notifyNone:
 		default:
-			return ImportResult{}, fmt.Errorf("WeRead rejected the import (status %d)", status)
+			err := fmt.Errorf("WeRead rejected the import (status %d)", status)
+			if attempt > 1 {
+				err = fmt.Errorf("%w: %w", ErrImportUnconfirmed, err)
+			}
+			return ImportResult{}, err
 		}
 		if attempt >= notifyAttempts {
 			return ImportResult{}, fmt.Errorf("%w: WeRead was still processing the book", ErrImportUnconfirmed)

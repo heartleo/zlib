@@ -639,3 +639,26 @@ func TestCheckImportFileAppliesPerFormatLimits(t *testing.T) {
 		t.Fatalf("docx: err = %v", err)
 	}
 }
+
+func TestProcessingThenRejectionIsUnconfirmed(t *testing.T) {
+	for _, code := range []int{-2014, -2041, -2999} {
+		t.Run(fmt.Sprint(code), func(t *testing.T) {
+			f := newFake(t)
+			f.handleImport()
+			f.notifyReplies(map[string]any{"status": 1}, map[string]any{"errCode": code})
+			_, err := f.client(WithCredentials(testCreds())).ImportBook(t.Context(), writeBook(t, "Dune.epub", "fixture"), nil)
+			if !errors.Is(err, ErrImportUnconfirmed) {
+				t.Fatalf("missing uncertain outcome: %v", err)
+			}
+		})
+	}
+	t.Run("unknown status", func(t *testing.T) {
+		f := newFake(t)
+		f.handleImport()
+		f.notifyReplies(map[string]any{"status": 1}, map[string]any{"status": 7})
+		_, err := f.client(WithCredentials(testCreds())).ImportBook(t.Context(), writeBook(t, "Dune.epub", "fixture"), nil)
+		if !errors.Is(err, ErrImportUnconfirmed) {
+			t.Fatalf("missing uncertain outcome: %v", err)
+		}
+	})
+}

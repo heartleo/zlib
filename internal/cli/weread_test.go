@@ -274,3 +274,18 @@ func TestMCPImportToWeReadAsksForLoginAndHonorsAllowedDir(t *testing.T) {
 		t.Fatalf("import outside the allowed directory: error=%v %q", res.IsError, toolText(t, res))
 	}
 }
+
+func TestWeReadFailureNamesCorrectService(t *testing.T) {
+	m := shellModel{}
+	m.wereadFailed("Import failed", "book.epub", weread.ErrImportUnconfirmed)
+	page := m.page.(shellErrorModel)
+	page.width, page.height = 80, 24
+	view := ansi.Strip(page.View().Content)
+	if strings.Contains(view, "Kindle") || !strings.Contains(view, "Send to WeRead") {
+		t.Fatalf("wrong failure page: %s", view)
+	}
+	hint := wereadErrorHint(fmt.Errorf("%w: %w", weread.ErrImportUnconfirmed, weread.ErrRateLimited), wereadLoginCLI)
+	if !strings.Contains(hint, "shelf") {
+		t.Fatal("uncertainty warning lost")
+	}
+}

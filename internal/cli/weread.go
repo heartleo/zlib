@@ -244,7 +244,7 @@ func loadWeReadClient() (*weread.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newWeReadClient(weread.WithCredentials(creds), weread.WithCredentialsSaver(config.SaveWeRead)), nil
+	return newWeReadClient(weread.WithCredentials(creds), weread.WithCredentialsSaver(config.WeReadSaver(creds))), nil
 }
 
 // newWeReadLoginClient keeps the device ID of an earlier login, so logging
@@ -467,6 +467,8 @@ const (
 // loginStep when signing in is the fix, or "" when err needs no hint.
 func wereadErrorHint(err error, loginStep string) string {
 	switch {
+	case errors.Is(err, weread.ErrImportUnconfirmed):
+		return "Check the WeRead shelf on your phone before importing again; a retry can count as another import."
 	case errors.Is(err, weread.ErrNotLoggedIn):
 		return loginStep + " and scan the QR code with WeChat."
 	case errors.Is(err, weread.ErrSessionExpired):
@@ -481,8 +483,6 @@ func wereadErrorHint(err error, loginStep string) string {
 		return "Check that the file opens in an ebook reader, or convert it to EPUB."
 	case errors.Is(err, weread.ErrFileTooLarge):
 		return "Convert a large TXT file to EPUB, or compress or split the book."
-	case errors.Is(err, weread.ErrImportUnconfirmed):
-		return "Check the WeRead shelf on your phone before importing again; a retry can count as another import."
 	}
 	return ""
 }
