@@ -247,7 +247,13 @@ func TestImportToWeReadRequiresLogin(t *testing.T) {
 func TestMCPImportToWeReadAsksForLoginAndHonorsAllowedDir(t *testing.T) {
 	withDemoMCPFixtures(t)
 	offlineWeRead(t)
-	allowed := t.TempDir()
+	// The server confines paths to a real path, as resolveAllowedDir returns.
+	// A raw t.TempDir differs from it on macOS (/var is a symlink to
+	// /private/var) and on Windows (8.3 short names).
+	allowed, err := resolveAllowedDir(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	book := filepath.Join(allowed, "book.epub")
 	if err := os.WriteFile(book, []byte("fixture"), 0o600); err != nil {
 		t.Fatal(err)
@@ -261,10 +267,10 @@ func TestMCPImportToWeReadAsksForLoginAndHonorsAllowedDir(t *testing.T) {
 		return res
 	}
 	if res := call(book); !res.IsError || !strings.Contains(toolText(t, res), "zlib weread login") {
-		t.Fatalf("import without login: %v", res.Content)
+		t.Fatalf("import without login: error=%v %q", res.IsError, toolText(t, res))
 	}
 	outside := writeTempFile(t, "outside.epub")
 	if res := call(outside); !res.IsError || !strings.Contains(toolText(t, res), "allowed directory") {
-		t.Fatalf("import outside the allowed directory: %v", res.Content)
+		t.Fatalf("import outside the allowed directory: error=%v %q", res.IsError, toolText(t, res))
 	}
 }
