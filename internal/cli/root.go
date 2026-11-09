@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -66,6 +67,9 @@ func loadSessionClient() (*zlib.Client, error) {
 	}
 	c.SetDomain(allowedDomain)
 	c.SetCookies(session.Cookies)
+	if dir, err := os.UserCacheDir(); err == nil {
+		c.SetCoverCacheDir(filepath.Join(dir, "zlib", "covers"))
+	}
 	return c, nil
 }
 

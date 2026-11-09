@@ -3,7 +3,6 @@ package cli
 import (
 	"charm.land/lipgloss/v2"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -30,8 +29,7 @@ func runSavedBooks(cmd *cobra.Command, args []string) error {
 	}
 	jsonOut, _ := cmd.Flags().GetBool("json")
 	if !jsonOut && !cmd.Flags().Changed("page") && isInteractive() {
-		p := tea.NewProgram(newSavedBooksSelectModel(c.SavedBooks).withBookDetails(c))
-		result, err := p.Run()
+		result, err := runCoverProgram(newSavedBooksSelectModel(c.SavedBooks).withBookDetails(c))
 		if err != nil {
 			return err
 		}

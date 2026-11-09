@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
 	"github.com/heartleo/zlib/internal/zlib"
@@ -62,8 +61,7 @@ var historyCmd = &cobra.Command{
 
 		// No flags: interactive mode (--json always forces the static path)
 		if !cmd.Flags().Changed("page") && formatFilter == "" && !jsonOut && isInteractive() {
-			p := tea.NewProgram(newHistorySelectModel(c))
-			result, err := p.Run()
+			result, err := runCoverProgram(newHistorySelectModel(c))
 			if err != nil {
 				return err
 			}

@@ -1,4 +1,4 @@
-# Terminal interface
+﻿# Terminal interface
 
 Run `zlib tui` in a terminal for a persistent shell. Press `/` on the home screen
 to open commands, then choose Search to enter a book title. The home screen has
@@ -134,6 +134,10 @@ test is `TestBookListSpacingMatchesSearchAcrossPages`.
 The selected book's EAPI details load after the selection settles. Results are
 cached by `id:hash`; moving to another book keeps an older response from
 replacing its card. The list response remains visible while details load.
+Press i on a book list to open Book details. Esc returns to the same selection; Enter uses the existing download action.
+
+On a Kitty graphics or Sixel terminal at 100 columns and 20 page rows or larger, the selected-book card and Book details show the cover on the left. Other terminals show a text-only card. Details, limits and caching are in [Book covers](covers.md).
+
 The card border uses the theme accent, and its author uses the theme's primary
 text color. Moving the selection updates the card and status position immediately,
 without a color flash or animated position change.

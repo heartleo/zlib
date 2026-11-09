@@ -5,7 +5,6 @@ import (
 	"io"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
 	zlib "github.com/heartleo/zlib/internal/zlib"
@@ -35,8 +34,7 @@ func newBookFeedCommand(name, description, summary string, load func(*zlib.Clien
 			jsonOut, _ := cmd.Flags().GetBool("json")
 			if !jsonOut && isInteractive() {
 				model := newBookFeedSelectModel(summary, fetch).withBookDetails(c)
-				p := tea.NewProgram(model)
-				result, err := p.Run()
+				result, err := runCoverProgram(model)
 				if err != nil {
 					return err
 				}

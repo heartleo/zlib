@@ -34,6 +34,7 @@ type searchSelectModel struct {
 	opts            *zlib.SearchOptions
 	books           []zlib.Book
 	details         bookDetailState
+	detailOpen      bool
 	page            int
 	loadingPage     int
 	totalPages      int
@@ -177,7 +178,7 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.ensureCursorVisible()
-		return m, nil
+		return m, m.queueSelectedDetail()
 
 	case listLoadError:
 		m.err = msg.err
@@ -199,13 +200,21 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case bookDetailReadyMsg:
 		if msg.sequence == m.details.sequence && msg.ref == m.selectedBookRef() && m.state == searchStateResults {
-			return m, m.details.fetch(m.client, msg.ref)
+			return m, tea.Batch(m.details.fetch(m.client, msg.ref), m.queueSelectedCover())
 		}
 		return m, nil
 
 	case bookDetailResultMsg:
 		m.details.store(msg)
-		return m, nil
+		return m, m.queueSelectedCover()
+
+	case bookCoverResultMsg:
+		m.details.storeCover(msg)
+		return m, m.queueSelectedCover()
+
+	case coverTickMsg:
+		ref, url := m.selectedCoverKey()
+		return m, m.details.advanceCoverTick(m.client, m.width, m.height, ref, url)
 
 	case tea.KeyPressMsg:
 		if m.err != nil && m.state != searchStateFilter && msg.String() != "r" && msg.String() != "/" && msg.String() != "esc" && msg.String() != "q" && msg.String() != "ctrl+c" {
@@ -225,6 +234,19 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		}
+		if m.detailOpen {
+			switch msg.String() {
+			case "esc", "i":
+				m.detailOpen = false
+				return m, nil
+			case "enter", "ctrl+c":
+			default:
+				return m, nil
+			}
+		} else if msg.String() == "i" && m.state == searchStateResults && len(m.books) > 0 {
+			m.detailOpen = true
+			return m, m.queueSelectedDetail()
 		}
 		switch m.state {
 		case searchStateResults:
@@ -403,8 +425,7 @@ func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool)
 	query := form.query
 	opts = form.searchOptions()
 
-	p := tea.NewProgram(newSearchSelectModel(query, c, opts, fullTitle))
-	result, err := p.Run()
+	result, err := runCoverProgram(newSearchSelectModel(query, c, opts, fullTitle))
 	if err != nil {
 		return "", err
 	}

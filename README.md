@@ -179,6 +179,7 @@ delivery and WeRead import. See [MCP server](docs/mcp.md) for other clients, fla
 | [Installation](docs/installation.md)       | Install methods, source builds, `zlib update`  |
 | [Usage](docs/usage.md)                     | Search, downloads, favorites, history          |
 | [Terminal interface](docs/tui.md)          | Commands and keyboard controls                 |
+| [Book covers](docs/covers.md)              | Supported terminals, limits and cache          |
 | [Configuration](docs/configuration.md)     | Domains, proxies, folders, configuration paths |
 | [Themes](docs/themes.md)                   | Available palettes and preview controls        |
 | [Kindle](docs/kindle.md)                   | SMTP setup and delivery                        |

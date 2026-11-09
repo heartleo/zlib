@@ -127,7 +127,7 @@ func newShellStartupModel() shellModel {
 	}
 	return m
 }
-func runShell() error { _, err := tea.NewProgram(newShellStartupModel()).Run(); return err }
+func runShell() error { _, err := runCoverProgram(newShellStartupModel()); return err }
 func (m shellModel) Init() tea.Cmd {
 	if m.page != nil {
 		return shellCmd(m.generation, m.page.Init())

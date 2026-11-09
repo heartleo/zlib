@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"context"
+	"image"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -19,17 +21,25 @@ type bookDetailResultMsg struct {
 }
 
 type bookDetailState struct {
-	sequence uint64
-	cache    map[string]bookDetailResultMsg
-	pending  map[string]bool
+	coverImages     map[string]image.Image
+	covers          map[string]string
+	coverPending    map[string]bool
+	coverOrder      []string
+	coverWanted     string
+	coverPrefetched map[string]bool
+	// coverFetcher replaces Client.FetchCover in tests.
+	coverFetcher func(context.Context, string) (image.Image, error)
+	// Loading spinner clock; see startCoverTick.
+	coverFrame   int
+	coverTicking bool
+	sequence     uint64
+	cache        map[string]bookDetailResultMsg
+	pending      map[string]bool
 }
 
 func (d *bookDetailState) schedule(client *zlib.Client, ref string) tea.Cmd {
 	d.sequence++
 	if client == nil || ref == "" {
-		return nil
-	}
-	if _, loaded := d.cache[ref]; loaded || d.pending[ref] {
 		return nil
 	}
 	sequence := d.sequence
@@ -39,7 +49,7 @@ func (d *bookDetailState) schedule(client *zlib.Client, ref string) tea.Cmd {
 }
 
 func (d *bookDetailState) fetch(client *zlib.Client, ref string) tea.Cmd {
-	if client == nil || ref == "" || d.pending[ref] {
+	if _, loaded := d.cache[ref]; client == nil || ref == "" || loaded || d.pending[ref] {
 		return nil
 	}
 	if d.pending == nil {
@@ -76,7 +86,7 @@ func (d bookDetailState) book(ref string, fallback zlib.Book) zlib.Book {
 		target *string
 		value  string
 	}{
-		{&fallback.Extension, book.Extension}, {&fallback.Size, book.Size},
+		{&fallback.Cover, book.Cover}, {&fallback.Extension, book.Extension}, {&fallback.Size, book.Size},
 		{&fallback.Year, book.Year}, {&fallback.Edition, book.Edition},
 		{&fallback.Pages, book.Pages}, {&fallback.Language, book.Language},
 		{&fallback.Publisher, book.Publisher}, {&fallback.Categories, book.Categories},
@@ -103,7 +113,7 @@ func (m searchSelectModel) selectedBook() zlib.Book {
 }
 
 func (m *searchSelectModel) queueSelectedDetail() tea.Cmd {
-	return m.details.schedule(m.client, m.selectedBookRef())
+	return tea.Batch(m.details.schedule(m.client, m.selectedBookRef()), m.queueSelectedCover())
 }
 
 func (m historySelectModel) selectedBookRef() string {
@@ -114,5 +124,5 @@ func (m historySelectModel) selectedBookRef() string {
 }
 
 func (m *historySelectModel) queueSelectedDetail() tea.Cmd {
-	return m.details.schedule(m.client, m.selectedBookRef())
+	return tea.Batch(m.details.schedule(m.client, m.selectedBookRef()), m.queueSelectedCover())
 }

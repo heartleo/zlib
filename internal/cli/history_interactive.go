@@ -24,6 +24,7 @@ type historySelectModel struct {
 	client          *zlib.Client
 	items           []zlib.DownloadHistoryItem
 	details         bookDetailState
+	detailOpen      bool
 	page            int
 	totalPages      int
 	hasNext         bool
@@ -123,7 +124,7 @@ func (m historySelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.ensureCursorVisible()
-		return m, nil
+		return m, m.queueSelectedDetail()
 
 	case listLoadError:
 		m.err = msg.err
@@ -145,13 +146,21 @@ func (m historySelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case bookDetailReadyMsg:
 		if msg.sequence == m.details.sequence && msg.ref == m.selectedBookRef() && m.state == historyStateResults {
-			return m, m.details.fetch(m.client, msg.ref)
+			return m, tea.Batch(m.details.fetch(m.client, msg.ref), m.queueSelectedCover())
 		}
 		return m, nil
 
 	case bookDetailResultMsg:
 		m.details.store(msg)
-		return m, nil
+		return m, m.queueSelectedCover()
+
+	case bookCoverResultMsg:
+		m.details.storeCover(msg)
+		return m, m.queueSelectedCover()
+
+	case coverTickMsg:
+		ref, url := m.selectedCoverKey()
+		return m, m.details.advanceCoverTick(m.client, m.width, m.height, ref, url)
 
 	case tea.KeyPressMsg:
 		if m.err != nil && msg.String() != "r" && msg.String() != "esc" && msg.String() != "q" && msg.String() != "ctrl+c" {
@@ -172,6 +181,19 @@ func (m historySelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, nil
+		}
+		if m.detailOpen {
+			switch msg.String() {
+			case "esc", "i":
+				m.detailOpen = false
+				return m, nil
+			case "enter", "ctrl+c":
+			default:
+				return m, nil
+			}
+		} else if msg.String() == "i" && m.state == historyStateResults && len(m.items) > 0 {
+			m.detailOpen = true
+			return m, m.queueSelectedDetail()
 		}
 		switch m.state {
 		case historyStateConfirmDelete:
@@ -284,7 +306,7 @@ func (m historySelectModel) View() tea.View {
 	if m.err != nil {
 		return screenView(m.width, m.height, "Download history", "Could not load history", bookCell(m.err.Error()), "", uiKey("esc", "back"), uiKey("r", "retry"))
 	}
-	list := searchSelectModel{feedTitle: "Download history", width: m.width, height: m.height, cursor: m.cursor, listOffset: m.listOffset, listAction: "d delete", inShell: m.inShell, spinner: m.spinner, state: searchStateResults, details: m.details}
+	list := searchSelectModel{detailOpen: m.detailOpen, feedTitle: "Download history", width: m.width, height: m.height, cursor: m.cursor, listOffset: m.listOffset, listAction: "d delete", inShell: m.inShell, spinner: m.spinner, state: searchStateResults, details: m.details}
 	if m.state == historyStateLoading {
 		list.state = searchStateLoading
 	}

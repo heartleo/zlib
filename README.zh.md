@@ -173,6 +173,7 @@ codex mcp add zlib -- zlib mcp
 | [安装指南](docs/installation.md)    | 安装方式、源码编译、`zlib update`   |
 | [使用指南](docs/usage.md)           | 搜索、下载、收藏、历史              |
 | [终端界面](docs/tui.md)             | 命令和快捷键                        |
+| [封面显示](docs/covers.md)          | 支持的终端、限制和缓存              |
 | [配置指南](docs/configuration.md)   | 域名、代理、目录、配置路径          |
 | [主题指南](docs/themes.md)          | 配色列表和预览操作                  |
 | [Kindle](docs/kindle.md)            | SMTP 配置与发送                     |
