@@ -95,11 +95,17 @@ also use the dot spinner while waiting for a response.
 Search results appear together when the request completes; rows do not fill in
 over several frames. Search loading and empty states keep their controls at the
 bottom of the page. An empty search shows its page and offers a query edit.
-Doctor shows only the Charm dot spinner while checking domains; Esc returns.
+Doctor checks all domains at once and adds each available one to the list as
+soon as it answers. One Charm dot spinner with a count ("Checking domains… 3 of
+12") shows progress; rows never read "Checking". Esc returns.
 `zlib doctor` opens the same page in an interactive terminal. Results contain
 only available domains, without a status label on each row. The accent border
 marks the focused row; `Current domain` marks the configured domain, which gets
-initial focus when available. Moving the focus does not change configuration.
+initial focus when it answers, until you move the focus. Moving the focus does
+not change configuration. The Settings domain page fills each row's result the
+same way, with the same single spinner and count; pending rows stay blank.
+Available domains show a green `✓`; unavailable domains show a red `✗`,
+including on the focused row. Redirects keep `via <host>` beside the check mark.
 Redirected output uses a single-column table; `--json` keeps the probe fields.
 The status row below the list title is the only position indicator: it reads
 `Page 1 of 10 · Book 5 of 50` (feeds without pages show only `Book 5 of 50`).
@@ -189,6 +195,29 @@ may still be delivered.
 After a Kindle send error, the file and error remain visible. Check the Kindle
 inbox before starting another send; the error page does not resend automatically.
 Download errors hide signed URLs in the terminal view.
+
+## Connection errors
+
+A timeout, TLS handshake timeout, refused or dropped connection, DNS failure or
+DiamWall block is shown as "Can't reach `<host>`" with one sentence on the cause
+and what to do next. Request URLs and raw `net/http` text never appear; the
+transport cause is one muted `Details:` line.
+
+| Page | Keys on a connection error |
+| --- | --- |
+| Search, Favorites, Recommended, Most popular, History, Profile (in the shell) | `d` change domain, `r` retry, `esc` back |
+| Same pages from a direct command such as `zlib history` | `r` retry, `esc` back; the screen names `zlib config domain` |
+| Download | `r` retry, `esc` back; the screen names `/config domain` |
+
+`d` opens the domain page. When it closes, the shell reruns the command that
+failed, so you land on the same page using the domain you chose. Search resumes
+with its query but not its filters. Other errors, such as an expired session,
+keep their own message and have no `d` key.
+
+The code is in `internal/cli/neterr.go`; add new pages by calling
+`loadErrorView` and, for the `d` key, implementing `domainSwitcher`. Tests:
+`TestHistoryConnectionErrorOffersDomainSwitch` and
+`TestShellDomainSwitchOpensDomainPageThenResumes`.
 
 ## Implementation references
 

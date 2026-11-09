@@ -25,6 +25,7 @@ type historySelectModel struct {
 	items           []zlib.DownloadHistoryItem
 	details         bookDetailState
 	detailOpen      bool
+	switchDomain    bool // the user asked to change domain from a connection error
 	page            int
 	totalPages      int
 	hasNext         bool
@@ -163,6 +164,10 @@ func (m historySelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.details.advanceCoverTick(m.client, m.width, m.height, ref, url)
 
 	case tea.KeyPressMsg:
+		if msg.String() == "d" && m.err != nil && offersDomainSwitch(m.err, m.inShell, "/history") {
+			m.switchDomain = true
+			return m, tea.Quit
+		}
 		if m.err != nil && msg.String() != "r" && msg.String() != "esc" && msg.String() != "q" && msg.String() != "ctrl+c" {
 			return m, nil
 		}
@@ -302,9 +307,15 @@ func (m *historySelectModel) ensureCursorVisible() {
 	m.listOffset = visibleListOffset(m.listOffset, m.cursor, len(m.items), rows)
 }
 
+func (m historySelectModel) domainSwitchRequest() (string, bool) {
+	return "/history", m.switchDomain
+}
+
 func (m historySelectModel) View() tea.View {
 	if m.err != nil {
-		return screenView(m.width, m.height, "Download history", "Could not load history", bookCell(m.err.Error()), "", uiKey("esc", "back"), uiKey("r", "retry"))
+		body, subtitle, bindings := loadErrorView(m.err, m.width, offersDomainSwitch(m.err, m.inShell, "/history"),
+			"Could not load history", uiKey("r", "retry"), uiKey("esc", "back"))
+		return screenView(m.width, m.height, "Download history", subtitle, body, "", bindings...)
 	}
 	list := searchSelectModel{detailOpen: m.detailOpen, feedTitle: "Download history", width: m.width, height: m.height, cursor: m.cursor, listOffset: m.listOffset, listAction: "d delete", inShell: m.inShell, spinner: m.spinner, state: searchStateResults, details: m.details}
 	if m.state == historyStateLoading {

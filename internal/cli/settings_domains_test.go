@@ -2,6 +2,8 @@ package cli
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -46,17 +48,54 @@ func TestDomainPageListsMirrorsFirstWhileChecking(t *testing.T) {
 	if m.domains[0] != "https://mirror.example" || !slices.Contains(m.domains, "https://z-lib.gd") {
 		t.Fatalf("domains = %v, want the mirror first, then built-ins", m.domains)
 	}
+	m, _ = settingsStep(t, m, settingsStartProbeMsg{}) // the check starts on open
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"YOUR MIRRORS", "BUILT-IN", "mirror.example", "Checking…"} {
+	for _, want := range []string{"YOUR MIRRORS", "BUILT-IN", "mirror.example", "Checking domains… 0 of "} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view lacks %q:\n%s", want, view)
 		}
+	}
+	if n := strings.Count(view, "Checking"); n != 1 {
+		t.Errorf("one loading indicator expected, got %d:\n%s", n, view)
 	}
 	if strings.Index(view, "mirror.example") > strings.Index(view, "BUILT-IN") {
 		t.Error("mirror is not listed above the built-in section")
 	}
 	if _, ok := m.Init()().(settingsStartProbeMsg); !ok {
 		t.Error("domain page does not start its check on open")
+	}
+}
+
+// Each row shows its result the moment that domain answers; the others stay
+// blank, and one footer animation covers the rest.
+func TestDomainPageShowsResultsAsTheyArrive(t *testing.T) {
+	m := domainPage(t, "https://mirror.example")
+	m.busy = true
+	total := len(m.domains)
+	var next tea.Cmd
+	followed := false
+	m, next = settingsStep(t, m, settingsDomainCheckMsg{
+		generation: m.generation, domain: "https://mirror.example", check: healthy("https://mirror.example"),
+		next: func() tea.Msg { followed = true; return nil },
+	})
+	if next == nil || next() != nil || !followed {
+		t.Fatal("the page did not continue reading results")
+	}
+	view := ansi.Strip(m.View().Content)
+	if !regexp.MustCompile(`mirror\.example\s+✓`).MatchString(view) {
+		t.Errorf("finished row missing its result:\n%s", view)
+	}
+	if want := fmt.Sprintf("Checking domains… 1 of %d", total); !strings.Contains(view, want) {
+		t.Errorf("progress %q missing:\n%s", want, view)
+	}
+	if strings.Count(view, "Checking") != 1 || strings.Contains(view, "✗") {
+		t.Errorf("pending rows must stay quiet:\n%s", view)
+	}
+
+	// A late result from an earlier check must not touch the page.
+	m, _ = settingsStep(t, m, settingsDomainCheckMsg{generation: m.generation - 1, domain: "https://z-lib.gd", check: healthy("https://z-lib.gd")})
+	if _, ok := m.checks["https://z-lib.gd"]; ok {
+		t.Error("a stale result was applied")
 	}
 }
 
@@ -79,7 +118,7 @@ func TestDomainPageShowsEveryResultAndUsesOnlyAvailableRows(t *testing.T) {
 	m, _ = settingsStep(t, m, settingsProbeMsg{generation: m.generation, checks: checks})
 
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"Available", "Unavailable", "Available via zlib.bz", "2 of "} {
+	for _, want := range []string{"✓", "✗", "✓ via zlib.bz", "2 of "} {
 		if !strings.Contains(view, want) {
 			t.Errorf("view lacks %q:\n%s", want, view)
 		}

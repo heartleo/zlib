@@ -440,17 +440,24 @@ func TestSettingsProbeFailureAndCancel(t *testing.T) {
 	m, _ := newSettingsModel(t.Context(), testSettingsStore(t), "domain")
 	cmd := m.probe("http://127.0.0.1:1", "domain")
 	batch := cmd().(tea.BatchMsg)
+	// Results stream one by one; follow each next command until the final message.
 	msg := batch[1]()
-	next, _ := m.Update(msg)
-	m = next.(settingsModel)
+	for {
+		next, follow := m.Update(msg)
+		m = next.(settingsModel)
+		if _, done := msg.(settingsProbeMsg); done || follow == nil {
+			break
+		}
+		msg = follow()
+	}
 	view := m.View().Content
-	if m.busy || len(m.domains) == 0 || !strings.Contains(view, "0 of ") || !strings.Contains(view, "Unavailable") {
+	if m.busy || len(m.domains) == 0 || !strings.Contains(view, "0 of ") || !strings.Contains(view, "✗") {
 		t.Fatal("failed probe has no recovery state")
 	}
 	m.probe("http://127.0.0.1:1", "domain")
 	old := m.generation
 	m.back()
-	next, _ = m.Update(settingsProbeMsg{generation: old, checks: map[string]zlib.DomainCheck{"stale": {}}})
+	next, _ := m.Update(settingsProbeMsg{generation: old, checks: map[string]zlib.DomainCheck{"stale": {}}})
 	m = next.(settingsModel)
 	if _, stale := m.checks["stale"]; m.page != "network" || stale {
 		t.Fatal("cancelled probe updated page")

@@ -1,9 +1,13 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -119,6 +123,109 @@ func TestDoctorPageScrollsLongDomainList(t *testing.T) {
 	m = next.(doctorPageModel)
 	if m.list.Index() == 0 || !strings.Contains(ansi.Strip(m.View().Content), checks[m.list.Index()].Domain) {
 		t.Fatal("doctor list did not page through available domains")
+	}
+}
+
+// Available domains join the list the moment they answer, in candidate order,
+// under one loading animation; unavailable ones never appear.
+func TestDoctorPageShowsDomainsAsTheyAnswer(t *testing.T) {
+	candidates := []string{"https://z-lib.gd", "https://z-lib.sk", "https://z-lib.gl", "https://2.z-lib.gd"}
+	m := newDoctorPageModel(candidates, "", "https://z-lib.gl", nil)
+	defer m.stop()
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = next.(doctorPageModel)
+	step := func(index int, check zlib.DomainCheck) {
+		t.Helper()
+		next, _ := m.Update(doctorCheckMsg{sequence: m.sequence, index: index, check: check, next: func() tea.Msg { return nil }})
+		m = next.(doctorPageModel)
+	}
+	text := func() string { return ansi.Strip(m.View().Content) }
+
+	if v := text(); !strings.Contains(v, "Checking domains… 0 of 4") {
+		t.Fatalf("no loading animation before the first result:\n%s", v)
+	}
+	step(3, doctorAvailable("https://2.z-lib.gd")) // answers first
+	step(1, zlib.DomainCheck{Domain: "https://z-lib.sk", Status: zlib.DomainStatusChallenged})
+	step(0, doctorAvailable("https://z-lib.gd"))
+	v := text()
+	if !m.loading || strings.Count(v, "Checking") != 1 || !strings.Contains(v, "Checking domains… 3 of 4") {
+		t.Fatalf("one progress line expected while checking:\n%s", v)
+	}
+	if strings.Contains(v, "z-lib.sk") || strings.Index(v, "https://z-lib.gd") > strings.Index(v, "https://2.z-lib.gd") || strings.Contains(v, "No available") {
+		t.Fatalf("list must show only available domains, in candidate order:\n%s", v)
+	}
+
+	// The current domain takes the cursor when it arrives, until the user moves.
+	step(2, doctorAvailable("https://z-lib.gl"))
+	if item := m.list.SelectedItem().(doctorDomainItem); item.check.Domain != "https://z-lib.gl" {
+		t.Fatalf("cursor on %q, want the current domain", item.check.Domain)
+	}
+	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	m = next.(doctorPageModel)
+	moved := m.list.SelectedItem().(doctorDomainItem).check.Domain
+	next, _ = m.Update(doctorCheckMsg{sequence: m.sequence, index: 9, check: doctorAvailable("https://9.z-lib.gd"), next: func() tea.Msg { return nil }})
+	m = next.(doctorPageModel)
+	if got := m.list.SelectedItem().(doctorDomainItem).check.Domain; got != moved {
+		t.Fatalf("a late result stole the cursor: %q -> %q", moved, got)
+	}
+
+	next, _ = m.Update(doctorDoneMsg{sequence: m.sequence})
+	m = next.(doctorPageModel)
+	if v := text(); m.loading || strings.Contains(v, "Checking") || !strings.Contains(v, "check again") {
+		t.Fatalf("finished page still looks busy:\n%s", v)
+	}
+
+	// A result from an earlier run is ignored.
+	next, _ = m.Update(doctorCheckMsg{sequence: m.sequence - 1, index: 0, check: doctorAvailable("https://old.z-lib.gd")})
+	if strings.Contains(ansi.Strip(next.(doctorPageModel).View().Content), "old.z-lib.gd") {
+		t.Fatal("stale result shown")
+	}
+}
+
+// Drives the page like the runtime: results land at different times and the
+// list grows step by step instead of appearing all at once.
+func TestDoctorPageListGrowsWhileChecksRun(t *testing.T) {
+	candidates := []string{"https://z-lib.gd", "https://z-lib.gl", "https://z-lib.sk"}
+	delays := []time.Duration{40 * time.Millisecond, 160 * time.Millisecond, 280 * time.Millisecond}
+	probe := func(ctx context.Context, domains []string, _ string) <-chan domainCheckEvent {
+		ch := make(chan domainCheckEvent, len(domains))
+		var wg sync.WaitGroup
+		for i, d := range domains {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				time.Sleep(delays[i])
+				ch <- domainCheckEvent{i, doctorAvailable(d)}
+			}()
+		}
+		go func() { wg.Wait(); close(ch) }()
+		return ch
+	}
+	m := newDoctorPageModel(candidates, "", "", probe)
+	defer m.stop()
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = next.(doctorPageModel)
+
+	var counts []int
+	sawOneIndicator := true
+	observe := func(model tea.Model) {
+		page := model.(doctorPageModel)
+		if n := len(page.list.Items()); len(counts) == 0 || counts[len(counts)-1] != n {
+			counts = append(counts, n)
+		}
+		if page.loading && strings.Count(ansi.Strip(page.View().Content), "Checking") != 1 {
+			sawOneIndicator = false
+		}
+	}
+	final := pumpCmds(t, m, m.Init(), 5*time.Second, observe).(doctorPageModel)
+	if final.loading || len(final.list.Items()) != 3 {
+		t.Fatalf("finished with loading=%v items=%d", final.loading, len(final.list.Items()))
+	}
+	if !slices.Equal(counts, []int{0, 1, 2, 3}) && !slices.Equal(counts, []int{1, 2, 3}) {
+		t.Fatalf("list sizes over time = %v, want 1, 2, 3 as results arrive", counts)
+	}
+	if !sawOneIndicator {
+		t.Fatal("more or fewer than one loading indicator while checking")
 	}
 }
 

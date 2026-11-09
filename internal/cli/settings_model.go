@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -99,6 +100,15 @@ func wereadAccount() (weread.Credentials, []settingValue) {
 type settingsProbeMsg struct {
 	generation int
 	checks     map[string]zlib.DomainCheck
+}
+
+// settingsDomainCheckMsg is one domain's finished check, sent while the rest
+// are still running. next reads the following result.
+type settingsDomainCheckMsg struct {
+	generation int
+	domain     string
+	check      zlib.DomainCheck
+	next       tea.Cmd
 }
 type settingsModel struct {
 	store          settingsStore
@@ -340,16 +350,31 @@ func (m *settingsModel) probe(proxy string, page string) tea.Cmd {
 	if page == "domain" {
 		m.domains = candidates
 	}
-	return tea.Batch(m.spinner.Tick, func() tea.Msg {
-		results := zlib.ProbeDomainsWithOptions(ctx, candidates, zlib.DomainProbeOptions{ProxyURL: proxy, Path: "/eapi/info/domains"})
-		checks := make(map[string]zlib.DomainCheck, len(results))
-		if ctx.Err() == nil {
-			for i, result := range results {
-				checks[candidates[i]] = result
+	ch := streamDomainChecks(ctx, candidates, proxy)
+	return tea.Batch(m.spinner.Tick, nextDomainCheck(ctx, generation, candidates, ch, map[string]zlib.DomainCheck{}))
+}
+
+// nextDomainCheck reads one finished probe and hands the page a message for it
+// together with the command that reads the next, so each row fills in as its
+// check completes. When the stream closes it sends the complete settingsProbeMsg
+// (empty if the probe was cancelled). The collected map is only touched by the
+// one outstanding command at a time.
+func nextDomainCheck(ctx context.Context, generation int, candidates []string, ch <-chan domainCheckEvent, collected map[string]zlib.DomainCheck) tea.Cmd {
+	return func() tea.Msg {
+		event, ok := <-ch
+		if !ok {
+			if ctx.Err() != nil {
+				collected = map[string]zlib.DomainCheck{}
 			}
+			return settingsProbeMsg{generation, collected}
 		}
-		return settingsProbeMsg{generation, checks}
-	})
+		domain := candidates[event.index]
+		collected[domain] = event.check
+		return settingsDomainCheckMsg{
+			generation: generation, domain: domain, check: event.check,
+			next: nextDomainCheck(ctx, generation, candidates, ch, collected),
+		}
+	}
 }
 
 func (m *settingsModel) effectiveProxy() string {
@@ -499,6 +524,18 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.input.SetWidth(max(1, min(56, m.width-ansi.StringWidth(m.input.Prompt)-4)))
 		return m, nil
+	case settingsDomainCheckMsg:
+		if msg.generation != m.generation {
+			return m, nil
+		}
+		// The proxy test only counts results; the domain page shows each row now.
+		if m.probeReturn != "edit" {
+			checks := make(map[string]zlib.DomainCheck, len(m.checks)+1)
+			maps.Copy(checks, m.checks)
+			checks[msg.domain] = msg.check
+			m.checks = checks
+		}
+		return m, msg.next
 	case settingsProbeMsg:
 		if msg.generation != m.generation {
 			return m, nil

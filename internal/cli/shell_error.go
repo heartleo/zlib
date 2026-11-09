@@ -45,7 +45,7 @@ func (m shellErrorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m shellErrorModel) View() tea.View {
 	message := lipgloss.NewStyle().Foreground(currentTheme.Error).Render(m.title)
-	body := "  " + message + "\n\n  " + bookCell(m.detail)
+	body := "  " + message + "\n\n" + strings.Join(wrapIndented(bookCell(m.detail), m.width, "  ", lipgloss.NewStyle()), "\n")
 	if m.retry {
 		return screenView(m.width, m.height, "Download", m.subtitle, body, "", uiKey("r", "retry"), uiKey("esc", "back"))
 	}
@@ -85,6 +85,9 @@ func shellErrorText(err error) string {
 	}
 	if hint := wereadErrorHint(err, wereadLoginShell); hint != "" {
 		return err.Error() + ". " + hint
+	}
+	if f, ok := describeNetworkError(err); ok {
+		return f.summary(true)
 	}
 	return err.Error()
 }

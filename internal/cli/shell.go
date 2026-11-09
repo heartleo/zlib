@@ -64,6 +64,9 @@ type shellModel struct {
 	standalone      bool
 	standaloneTitle string // info title when a standalone command ends with a message
 	commandErr      error
+	// resume is the command to rerun once the domain page closes, after the
+	// user chose to change domain from a connection error.
+	resume string
 }
 
 const shellNoticeTTL = 5 * time.Second
@@ -168,6 +171,13 @@ func (m *shellModel) open(kind string, page tea.Model) tea.Cmd {
 			list.inShell = true
 			page = list
 		}
+	}
+	if profile, ok := page.(profilePageModel); ok {
+		profile.inShell = true
+		page = profile
+	}
+	if kind != "config" {
+		m.resume = ""
 	}
 	if kind == "download" {
 		if download, ok := page.(downloadModel); ok {
@@ -688,7 +698,44 @@ func (m *shellModel) chooseDirectory() tea.Cmd {
 	}
 	return m.open("directory", newDownloadDirectoryModel(dir))
 }
+
+// switchDomain opens the domain page for a page that hit a connection error.
+// When it closes, completed reruns resume so the user lands back where they
+// were, now talking to the chosen domain.
+func (m *shellModel) switchDomain(resume string) tea.Cmd {
+	store, err := newSettingsStore()
+	if err != nil {
+		m.setError(err.Error())
+		m.restore()
+		return nil
+	}
+	model, err := newSettingsModel(context.Background(), store, "domain")
+	if err != nil {
+		m.setError(err.Error())
+		m.restore()
+		return nil
+	}
+	cmd := m.open("config", model)
+	// open saved the failed page as previous. It is flagged switchDomain, so
+	// restoring it later would reopen this page and loop; the resumed command
+	// replaces it instead.
+	m.previous = nil
+	m.resume = resume
+	return cmd
+}
+
 func (m *shellModel) completed() tea.Cmd {
+	if page, ok := m.page.(domainSwitcher); ok {
+		if resume, wanted := page.domainSwitchRequest(); wanted {
+			return m.switchDomain(resume)
+		}
+	}
+	if m.kind == "config" && m.resume != "" {
+		resume := m.resume
+		m.resume, m.previous = "", nil
+		m.home()
+		return m.dispatch(resume)
+	}
 	switch page := m.page.(type) {
 	case searchFilterForm:
 		if !page.accepted {
@@ -744,7 +791,12 @@ func (m *shellModel) completed() tea.Cmd {
 			if book == "" {
 				book = page.id
 			}
-			return m.open("download-error", shellErrorModel{title: "Download failed", subtitle: bookCell(book), detail: downloadFailureDetail(page.err), retry: true})
+			title, detail := "Download failed", downloadFailureDetail(page.err)
+			if f, ok := describeNetworkError(page.err); ok {
+				title = f.title()
+				detail = f.reason + " Press r to retry, or esc and use /config domain to pick another domain."
+			}
+			return m.open("download-error", shellErrorModel{title: title, subtitle: bookCell(book), detail: detail, retry: true})
 		} else if page.state == stateCancelled {
 			m.deliveryReturn = nil
 			m.restore()

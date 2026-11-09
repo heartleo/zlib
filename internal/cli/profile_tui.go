@@ -28,7 +28,12 @@ type profilePageModel struct {
 	err      error
 	width    int
 	height   int
+
+	inShell      bool
+	switchDomain bool // the user asked to change domain from a connection error
 }
+
+func (m profilePageModel) domainSwitchRequest() (string, bool) { return "/profile", m.switchDomain }
 
 func newProfilePageModel(client *zlib.Client) profilePageModel {
 	return profilePageModel{client: client, spinner: newLoadingSpinner(), viewport: viewport.New(viewport.WithWidth(80), viewport.WithHeight(18)), width: 80, height: 24}
@@ -68,6 +73,11 @@ func (m profilePageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc", "q", "ctrl+c":
 			return m, tea.Quit
+		case "d":
+			if m.err != nil && offersDomainSwitch(m.err, m.inShell, "/profile") {
+				m.switchDomain = true
+				return m, tea.Quit
+			}
 		case "r":
 			if m.err != nil {
 				m.err, m.loaded = nil, false
@@ -83,9 +93,7 @@ func (m profilePageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *profilePageModel) updateContent() {
 	content := ""
-	if m.err != nil {
-		content = "Could not load profile: " + m.err.Error()
-	} else if m.loaded {
+	if m.loaded && m.err == nil {
 		content = renderProfilePage(m.profile, m.width)
 	}
 	m.viewport.SetContent(content)
@@ -95,11 +103,13 @@ func (m profilePageModel) View() tea.View {
 	if !m.loaded {
 		return screenView(m.width, m.height, "Profile", "", m.spinner.View(), "", uiKey("esc", "back"))
 	}
+	if m.err != nil {
+		body, subtitle, bindings := loadErrorView(m.err, m.width, offersDomainSwitch(m.err, m.inShell, "/profile"),
+			"Could not load profile", uiKey("r", "retry"), uiKey("esc", "back"))
+		return screenView(m.width, m.height, "Profile", subtitle, body, "", bindings...)
+	}
 	status := ""
 	bindings := []keys.Binding{uiKey("esc", "back")}
-	if m.err != nil {
-		bindings = append([]keys.Binding{uiKey("r", "retry")}, bindings...)
-	}
 	if m.viewport.TotalLineCount() > m.viewport.Height() {
 		status = fmt.Sprintf("%d%%", int(m.viewport.ScrollPercent()*100))
 		bindings = append([]keys.Binding{uiKey("↑/↓", "scroll")}, bindings...)

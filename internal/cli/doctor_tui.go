@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"fmt"
+	"slices"
 
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/spinner"
@@ -10,12 +12,25 @@ import (
 	zlib "github.com/heartleo/zlib/internal/zlib"
 )
 
-type doctorProbeFunc func(context.Context, []string, string) []zlib.DomainCheck
+// doctorProbeFunc starts the checks and yields each result as it finishes.
+type doctorProbeFunc func(context.Context, []string, string) <-chan domainCheckEvent
 
+// doctorResultMsg carries a complete set of checks at once.
 type doctorResultMsg struct {
 	sequence uint64
 	checks   []zlib.DomainCheck
 }
+
+// doctorCheckMsg is one domain's finished check, sent while the others still
+// run. next reads the following result, or reports doctorDoneMsg at the end.
+type doctorCheckMsg struct {
+	sequence uint64
+	index    int
+	check    zlib.DomainCheck
+	next     tea.Cmd
+}
+
+type doctorDoneMsg struct{ sequence uint64 }
 
 type doctorDomainItem struct {
 	check   zlib.DomainCheck
@@ -44,11 +59,18 @@ type doctorPageModel struct {
 	loading    bool
 	width      int
 	height     int
+
+	// Results arrive one at a time. found keeps the available ones in
+	// candidate order, checked counts every finished probe, and moved records
+	// that the user chose a row, so later arrivals no longer steal the cursor.
+	found   map[int]zlib.DomainCheck
+	checked int
+	moved   bool
 }
 
 func newDoctorPageModel(candidates []string, proxy, current string, probe doctorProbeFunc) doctorPageModel {
 	if probe == nil {
-		probe = checkAvailableDomains
+		probe = streamDomainChecks
 	}
 	items := list.New(nil, doctorListDelegate(80), 80, 18)
 	items.SetShowTitle(false)
@@ -91,10 +113,44 @@ func (m doctorPageModel) Init() tea.Cmd {
 }
 
 func (m doctorPageModel) check() tea.Cmd {
-	ctx, candidates, proxy, sequence := m.ctx, m.candidates, m.proxy, m.sequence
+	return nextDoctorCheck(m.sequence, m.probe(m.ctx, m.candidates, m.proxy))
+}
+
+func nextDoctorCheck(sequence uint64, ch <-chan domainCheckEvent) tea.Cmd {
 	return func() tea.Msg {
-		return doctorResultMsg{sequence: sequence, checks: m.probe(ctx, candidates, proxy)}
+		event, ok := <-ch
+		if !ok {
+			return doctorDoneMsg{sequence}
+		}
+		return doctorCheckMsg{sequence: sequence, index: event.index, check: event.check, next: nextDoctorCheck(sequence, ch)}
 	}
+}
+
+// showFound rebuilds the list from the available results in candidate order.
+// The cursor stays on the same domain once the user has moved it; until then
+// it follows the current domain as soon as that one is found.
+func (m *doctorPageModel) showFound() tea.Cmd {
+	indexes := make([]int, 0, len(m.found))
+	for i := range m.found {
+		indexes = append(indexes, i)
+	}
+	slices.Sort(indexes)
+	previous := ""
+	if item, ok := m.list.SelectedItem().(doctorDomainItem); ok {
+		previous = item.check.Domain
+	}
+	items := make([]list.Item, 0, len(indexes))
+	selected := 0
+	for _, i := range indexes {
+		check := m.found[i]
+		if (m.moved && check.Domain == previous) || (!m.moved && check.Domain == m.current) {
+			selected = len(items)
+		}
+		items = append(items, doctorDomainItem{check: check, current: check.Domain == m.current})
+	}
+	cmd := m.list.SetItems(items)
+	m.list.Select(selected)
+	return cmd
 }
 
 func (m *doctorPageModel) stop() {
@@ -109,6 +165,27 @@ func (m doctorPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.list.SetSize(max(1, msg.Width), max(1, msg.Height-6))
 		m.list.SetDelegate(doctorListDelegate(max(1, msg.Width)))
+		return m, nil
+	case doctorCheckMsg:
+		if msg.sequence != m.sequence || !m.loading {
+			return m, nil
+		}
+		m.checked++
+		if len(availableDomains([]zlib.DomainCheck{msg.check})) == 1 {
+			if m.found == nil {
+				m.found = map[int]zlib.DomainCheck{}
+			}
+			m.found[msg.index] = msg.check
+			// Call before returning: the returned m is copied before its
+			// operands to the right are evaluated.
+			show := m.showFound()
+			return m, tea.Batch(show, msg.next)
+		}
+		return m, msg.next
+	case doctorDoneMsg:
+		if msg.sequence == m.sequence {
+			m.loading = false
+		}
 		return m, nil
 	case doctorResultMsg:
 		if msg.sequence != m.sequence || !m.loading {
@@ -144,11 +221,14 @@ func (m doctorPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ctx, m.cancel = context.WithCancel(context.Background())
 			m.sequence++
 			m.loading = true
+			m.found, m.checked, m.moved = nil, 0, false
 			m.list.SetItems(nil)
 			return m, tea.Batch(m.spinner.Tick, m.check())
+		case "up", "down", "k", "j", "pgup", "pgdown", "home", "end":
+			m.moved = true
 		}
 	}
-	if !m.loading && len(m.list.Items()) > 0 {
+	if len(m.list.Items()) > 0 {
 		var cmd tea.Cmd
 		m.list, cmd = m.list.Update(msg)
 		return m, cmd
@@ -157,15 +237,19 @@ func (m doctorPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m doctorPageModel) View() tea.View {
-	body := ""
-	switch {
-	case m.loading:
-		return screenView(m.width, m.height, "Doctor", "", m.spinner.View(), "",
-			uiKey("esc", "back"))
-	case len(m.list.Items()) == 0:
+	if m.loading {
+		// One animation for the whole check; available domains appear above it
+		// the moment they answer.
+		progress := fmt.Sprintf("%s Checking domains… %d of %d", m.spinner.View(), m.checked, len(m.candidates))
+		if len(m.list.Items()) == 0 {
+			return screenView(m.width, m.height, "Doctor", "", "  "+progress, "", uiKey("esc", "back"))
+		}
+		return screenView(m.width, m.height, "Doctor", "", m.list.View(), progress,
+			uiKey("↑/↓", "select"), uiKey("esc", "back"))
+	}
+	body := m.list.View()
+	if len(m.list.Items()) == 0 {
 		body = "No available EAPI domains."
-	default:
-		body = m.list.View()
 	}
 	return screenView(m.width, m.height, "Doctor", "", body, "",
 		uiKey("↑/↓", "select"), uiKey("r", "check again"), uiKey("esc", "back"))

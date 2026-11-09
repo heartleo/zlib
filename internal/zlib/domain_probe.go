@@ -82,16 +82,24 @@ func ProbeDomains(ctx context.Context, domains []string) []DomainCheck {
 // ProbeDomainsWithOptions checks domains concurrently using opts.
 func ProbeDomainsWithOptions(ctx context.Context, domains []string, opts DomainProbeOptions) []DomainCheck {
 	results := make([]DomainCheck, len(domains))
+	ProbeDomainsEach(ctx, domains, opts, func(i int, check DomainCheck) { results[i] = check })
+	return results
+}
+
+// ProbeDomainsEach checks domains concurrently and calls each with a domain's
+// index and result as soon as that domain finishes, so a caller can show
+// results as they arrive. each runs on the probing goroutines, in completion
+// order, and must be safe for concurrent use. It returns when every probe is done.
+func ProbeDomainsEach(ctx context.Context, domains []string, opts DomainProbeOptions, each func(index int, check DomainCheck)) {
 	var wg sync.WaitGroup
 	for i, domain := range domains {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results[i] = ProbeDomainWithOptions(ctx, domain, opts)
+			each(i, ProbeDomainWithOptions(ctx, domain, opts))
 		}()
 	}
 	wg.Wait()
-	return results
 }
 
 // ProbeDomain checks whether an unauthenticated GET to a domain reaches a

@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestKnownDomains(t *testing.T) {
@@ -21,6 +23,42 @@ func TestKnownDomains(t *testing.T) {
 	}
 	if got := KnownDomains(); !reflect.DeepEqual(got, want) {
 		t.Errorf("KnownDomains() = %v, want %v", got, want)
+	}
+}
+
+// A fast domain is reported while a slow one is still running.
+func TestProbeDomainsEachReportsInCompletionOrder(t *testing.T) {
+	respond := func(delay time.Duration) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(delay)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"success":1,"domains":[]}`))
+		}))
+	}
+	slow, fast := respond(300*time.Millisecond), respond(0)
+	defer slow.Close()
+	defer fast.Close()
+
+	var mu sync.Mutex
+	var order []int
+	start := time.Now()
+	var fastAt time.Duration
+	ProbeDomainsEach(t.Context(), []string{slow.URL, fast.URL}, DomainProbeOptions{Path: "/eapi/info/domains"}, func(i int, check DomainCheck) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, i)
+		if i == 1 {
+			fastAt = time.Since(start)
+		}
+		if check.Domain == "" {
+			t.Error("empty check reported")
+		}
+	})
+	if len(order) != 2 || order[0] != 1 || order[1] != 0 {
+		t.Fatalf("completion order = %v, want fast (1) before slow (0)", order)
+	}
+	if fastAt > 250*time.Millisecond {
+		t.Fatalf("fast result waited %v for the slow one", fastAt)
 	}
 }
 

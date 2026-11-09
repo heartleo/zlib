@@ -115,21 +115,23 @@ func (m *settingsModel) sortDomains() {
 	}
 }
 
-// domainStatus words a check result and reports whether it is good news.
-// Every failure reads "Unavailable": the reason does not change what the user
+// domainStatus marks a check result and reports whether it is good news.
+// Every failure uses a cross: the reason does not change what the user
 // can do, which is to pick another domain; `zlib doctor --json` has the detail.
 func domainStatus(domain string, check zlib.DomainCheck, checked bool) (string, bool) {
 	if !checked {
-		return "Checking…", false
+		// Rows fill in as their checks finish; the footer carries the one
+		// loading animation, so a pending row stays quiet.
+		return "", false
 	}
 	origin, ok := usableOrigin(check)
 	if !ok {
-		return "Unavailable", false
+		return "✗", false
 	}
 	if origin != domain {
-		return "Available via " + strings.TrimPrefix(origin, "https://"), true
+		return "✓ via " + strings.TrimPrefix(origin, "https://"), true
 	}
-	return "Available", true
+	return "✓", true
 }
 
 func (m *settingsModel) openDomains() tea.Cmd {
@@ -142,7 +144,7 @@ func (m *settingsModel) openDomains() tea.Cmd {
 }
 
 // resumeDomainCheck restarts the check when leaving the add form interrupted
-// it, so no row is left reading "Checking…".
+// it, so no row is left without a result.
 func (m *settingsModel) resumeDomainCheck() tea.Cmd {
 	if m.busy {
 		return nil
@@ -397,14 +399,18 @@ func (m settingsModel) domainView(w, h int) tea.View {
 		}
 		name := ansi.Truncate(strings.TrimPrefix(d, "https://"), domainWidth, "…")
 		pad := strings.Repeat(" ", max(0, domainWidth-ansi.StringWidth(name))+2)
+		statusStyle := muted
+		if checked {
+			statusStyle = lipgloss.NewStyle().Foreground(currentTheme.Error)
+			if good {
+				statusStyle = statusStyle.Foreground(currentTheme.Success)
+			}
+		}
 		if i == m.cursor {
 			selected = len(lines)
-			lines = append(lines, styledListRow(marker+name+pad+label, true, w, currentTheme))
+			statusStyle = statusStyle.Background(currentTheme.Surface)
+			lines = append(lines, styledListRow(marker+name+pad+statusStyle.Render(label), true, w, currentTheme))
 			continue
-		}
-		statusStyle := muted
-		if good {
-			statusStyle = lipgloss.NewStyle().Foreground(currentTheme.Success)
 		}
 		row := "  " + lipgloss.NewStyle().Foreground(currentTheme.Accent).Render(marker) +
 			lipgloss.NewStyle().Foreground(currentTheme.Title).Render(name) + pad + statusStyle.Render(label)
@@ -425,7 +431,7 @@ func (m settingsModel) domainView(w, h int) tea.View {
 				checked++
 			}
 		}
-		status = fmt.Sprintf("%s Checking %d domains…", m.spinner.View(), len(m.domains)-checked)
+		status = fmt.Sprintf("%s Checking domains… %d of %d", m.spinner.View(), checked, len(m.domains))
 	}
 	controls := []keys.Binding{uiKey("esc", "back"), uiKey("enter", "use"), uiKey("a", "add mirror"), uiKey("d", "remove"), uiKey("r", "check again")}
 	v := screenView(w, h, "Settings / Domains", subtitle, strings.Join(lines, "\n"), status, controls...)
