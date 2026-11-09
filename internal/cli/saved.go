@@ -45,7 +45,9 @@ func runSavedBooks(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		deliver := deliveryFlags(cmd)
-		return runDownload(newDownloadModel(selected.selectedID, dir, c), deliver, cmd)
+		model := newDownloadModel(selected.selectedID, dir, c)
+		model.autoKindle = selected.kindleShortcut
+		return runDownload(model, deliver, cmd)
 	}
 
 	page, _ := cmd.Flags().GetInt("page")

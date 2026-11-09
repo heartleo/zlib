@@ -76,3 +76,11 @@ func destDirFlag(cmd *cobra.Command) (string, error) {
 	}
 	return expandTilde(dir)
 }
+
+func defaultDownloadDirectory() (string, error) {
+	dir := strings.TrimSpace(os.Getenv(downloadDirEnvVar))
+	if dir == "" {
+		dir = "."
+	}
+	return expandTilde(dir)
+}

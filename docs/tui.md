@@ -188,6 +188,15 @@ selection style.
 
 Passwords are masked. Invalid field values stay in the editor with an error.
 
+On Search, Favorites, Recommended, Most popular and History lists, `s` sends
+the selected book to Kindle: it downloads to the default directory, then sends
+with the saved Kindle settings, without a directory picker or send confirmation.
+The shortcut also works in book details. Set the directory in Config / Downloads;
+an unset directory uses the current directory. Missing SMTP passwords open the
+masked password form in the shell. Failed downloads can be retried with `r`;
+failed or uncertain email sends require an explicit resend. Unsupported files
+stay on the saved-file page with an error.
+
 Config / Search sets default formats from a checklist. Arrow keys move and
 Space toggles a format and Ctrl+A checks every format, or clears them all when
 every format is already checked. Enter saves (Ctrl+S too) and Esc discards the

@@ -46,6 +46,7 @@ type searchSelectModel struct {
 	spinner         spinner.Model
 	reducedMotion   bool
 	selectedID      string // set when user presses Enter
+	kindleShortcut  bool   // download to the default directory, then send
 	confirmDownload bool
 	downloadFocused bool
 	err             error
@@ -246,7 +247,7 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc", "i":
 				m.detailOpen = false
 				return m, nil
-			case "enter", "ctrl+c":
+			case "enter", "s", "ctrl+c":
 			default:
 				return m, nil
 			}
@@ -299,6 +300,13 @@ func (m searchSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.state = searchStateLoading
 					m.loadingPage = m.page + 1
 					return m, m.loadPage(m.loadingPage)
+				}
+			case "s":
+				if len(m.books) > 0 && m.cursor < len(m.books) {
+					if id := bookCommandID(m.books[m.cursor]); id != "" {
+						m.selectedID, m.kindleShortcut = id, true
+						return m, tea.Quit
+					}
 				}
 			case "enter":
 				if len(m.books) > 0 && m.cursor < len(m.books) {
@@ -429,27 +437,27 @@ func (m searchSelectModel) listView() tea.View {
 
 // interactiveSearch runs the filter form and then the result list. The caller
 // loads c first, so a signed-out user never fills in the form for nothing.
-func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool) (string, error) {
+func interactiveSearch(c *zlib.Client, opts *zlib.SearchOptions, fullTitle bool) (searchSelectModel, error) {
 	form, err := runSearchFilterForm(newSearchFilterForm("", opts))
 	if err != nil {
-		return "", err
+		return searchSelectModel{}, err
 	}
 	if !form.accepted {
-		return "", nil
+		return searchSelectModel{}, nil
 	}
 	query := form.query
 	opts = form.searchOptions()
 
 	result, err := runCoverProgram(newSearchSelectModel(query, c, opts, fullTitle))
 	if err != nil {
-		return "", err
+		return searchSelectModel{}, err
 	}
 
 	sm := result.(searchSelectModel)
 	if sm.err != nil {
-		return "", sm.err
+		return sm, sm.err
 	}
-	return sm.selectedID, nil
+	return sm, nil
 }
 
 // errorBody wraps a request error to the terminal width instead of cutting

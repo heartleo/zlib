@@ -81,11 +81,14 @@ type kindleResult struct {
 // feed commands. With --json the plain path always runs, progress goes to
 // stderr, and stdout carries only the downloadResult document.
 func runDownload(m downloadModel, deliver deliveries, cmd *cobra.Command) error {
+	if m.autoKindle {
+		deliver.kindle = true
+	}
 	jsonOut := false
 	if cmd.Flags().Lookup("json") != nil {
 		jsonOut, _ = cmd.Flags().GetBool("json")
 	}
-	if !jsonOut {
+	if !jsonOut && !m.autoKindle {
 		dir, proceed, err := chooseDownloadDirectory(cmd, m.dir)
 		if err != nil {
 			return err
@@ -271,6 +274,7 @@ type downloadModel struct {
 	completeOffset int
 	completeAction int
 	sendToKindle   bool
+	autoKindle     bool // explicit list shortcut; skip directory and send dialogs
 	sendToWeRead   bool
 	// completeMessage reports a delivery outcome on the completion page.
 	completeMessage string
@@ -449,6 +453,10 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.savedSize = msg.size
 		m.state = stateComplete
+		if m.autoKindle {
+			m.sendToKindle = true
+			return m, tea.Quit
+		}
 		if m.stayOnComplete {
 			return m, nil
 		}

@@ -50,7 +50,9 @@ func newBookFeedCommand(name, description, summary string, load func(*zlib.Clien
 					return err
 				}
 				deliver := deliveryFlags(cmd)
-				return runDownload(newDownloadModel(selected.selectedID, dir, c), deliver, cmd)
+				download := newDownloadModel(selected.selectedID, dir, c)
+				download.autoKindle = selected.kindleShortcut
+				return runDownload(download, deliver, cmd)
 			}
 
 			books, err := fetch()

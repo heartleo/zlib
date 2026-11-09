@@ -74,13 +74,17 @@ var historyCmd = &cobra.Command{
 			}
 			item := hm.selected
 			if item.DownloadURL == "" {
-				return runDownload(newDownloadModel(historyCommandID(*item), dir, c), deliver, cmd)
+				model := newDownloadModel(historyCommandID(*item), dir, c)
+				model.autoKindle = hm.kindleShortcut
+				return runDownload(model, deliver, cmd)
 			}
 			bookName := item.Name
 			if bookName == "" {
 				bookName = bookIDFromURL(item.URL)
 			}
-			return runDownload(historyDirectDownload(*item, bookName, dir, c), deliver, cmd)
+			model := historyDirectDownload(*item, bookName, dir, c)
+			model.autoKindle = hm.kindleShortcut
+			return runDownload(model, deliver, cmd)
 		}
 
 		result, err := loadHistoryPage(cmd.Context(), c, page, formatFilter)

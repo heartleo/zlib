@@ -697,11 +697,25 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 }
 
 func (m *shellModel) chooseDirectory() tea.Cmd {
-	dir := os.Getenv(downloadDirEnvVar)
-	if dir == "" {
+	dir, err := defaultDownloadDirectory()
+	if err != nil {
 		dir = "."
 	}
 	return m.open("directory", newDownloadDirectoryModel(dir))
+}
+
+func (m *shellModel) startSelectedDownload(shortcut bool) tea.Cmd {
+	if !shortcut {
+		return m.chooseDirectory()
+	}
+	dir, err := defaultDownloadDirectory()
+	if err != nil {
+		m.restore()
+		m.setError(err.Error())
+		return nil
+	}
+	m.download.dir, m.download.autoKindle = dir, true
+	return m.open("download", m.download)
 }
 
 // switchDomain opens the domain page for a page that hit a connection error.
@@ -757,6 +771,8 @@ func (m *shellModel) completed() tea.Cmd {
 		return m.open("list", newSearchSelectModel(page.query, c, page.searchOptions(), false))
 	case searchSelectModel:
 		if page.selectedID != "" {
+			shortcut := page.kindleShortcut
+			page.kindleShortcut = false
 			id := page.selectedID
 			page.selectedID = ""
 			page.confirmDownload = false
@@ -772,16 +788,21 @@ func (m *shellModel) completed() tea.Cmd {
 				}
 			}
 			m.download = newDownloadModel(id, "", client)
-			return m.chooseDirectory()
+			return m.startSelectedDownload(shortcut)
 		}
 	case historySelectModel:
 		if page.selected != nil {
+			shortcut := page.kindleShortcut
+			page.kindleShortcut = false
 			item := *page.selected
 			page.selected = nil
 			page.confirmDownload = false
 			m.previous = page
 			m.download = newDownloadModel(historyCommandID(item), "", page.client)
-			return m.chooseDirectory()
+			if item.DownloadURL != "" {
+				m.download = historyDirectDownload(item, item.Name, "", page.client)
+			}
+			return m.startSelectedDownload(shortcut)
 		}
 	case downloadDirectoryModel:
 		if page.accepted {
@@ -807,12 +828,17 @@ func (m *shellModel) completed() tea.Cmd {
 			m.restore()
 			m.setNotice("Download cancelled")
 		} else if page.sendToKindle {
+			autoKindle := page.autoKindle
+			page.autoKindle = false
 			page.sendToKindle = false
 			page.completeAction = 0
 			m.deliveryReturn = new(page)
 			m.kindlePath = page.savedPath
 			if !slices.Contains(kindleAllowedTypes, strings.ToLower(filepath.Ext(page.savedPath))) {
 				return m.returnToDownloadCompletion(noticeError, "Kindle does not support this file type")
+			}
+			if autoKindle {
+				return m.sendKindle(page.savedPath)
 			}
 			return m.open("kindle-confirm", shellConfirm{title: "Send to Kindle?", detail: filepath.Base(page.savedPath), action: "Send"})
 		} else if page.sendToWeRead {
@@ -832,7 +858,11 @@ func (m *shellModel) completed() tea.Cmd {
 		return nil
 	case shellErrorModel:
 		if page.selectedRetry && page.retry {
+			autoKindle := m.download.autoKindle
+			directURL, bookName := m.download.directURL, m.download.bookName
 			m.download = newDownloadModel(m.download.id, m.download.dir, m.download.client)
+			m.download.autoKindle = autoKindle
+			m.download.directURL, m.download.bookName = directURL, bookName
 			return m.open("download", m.download)
 		}
 		if m.deliveryReturn != nil {

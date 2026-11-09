@@ -36,6 +36,7 @@ type historySelectModel struct {
 	state           historyState
 	spinner         spinner.Model
 	selected        *zlib.DownloadHistoryItem // set when user presses Enter
+	kindleShortcut  bool
 	err             error
 	retryPage       int
 	quitting        bool
@@ -192,7 +193,7 @@ func (m historySelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc", "i":
 				m.detailOpen = false
 				return m, nil
-			case "enter", "ctrl+c":
+			case "enter", "s", "ctrl+c":
 			default:
 				return m, nil
 			}
@@ -259,6 +260,14 @@ func (m historySelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.hasNext {
 					m.state = historyStateLoading
 					return m, tea.Batch(m.spinner.Tick, m.fetchPage(m.page+1))
+				}
+			case "s":
+				if len(m.items) > 0 && m.cursor < len(m.items) {
+					item := m.items[m.cursor]
+					if item.DownloadURL != "" || historyCommandID(item) != "" {
+						m.selected, m.kindleShortcut = &item, true
+						return m, tea.Quit
+					}
 				}
 			case "enter":
 				if len(m.items) > 0 && m.cursor < len(m.items) {

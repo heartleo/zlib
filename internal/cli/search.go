@@ -36,11 +36,11 @@ var searchCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			selectedID, err := interactiveSearch(c, opts, fullTitle)
+			selected, err := interactiveSearch(c, opts, fullTitle)
 			if err != nil {
 				return err
 			}
-			if selectedID == "" {
+			if selected.selectedID == "" {
 				return nil
 			}
 			dir, err := destDirFlag(cmd)
@@ -49,7 +49,9 @@ var searchCmd = &cobra.Command{
 			}
 			deliver := deliveryFlags(cmd)
 
-			return runDownload(newDownloadModel(selectedID, dir, c), deliver, cmd)
+			model := newDownloadModel(selected.selectedID, dir, c)
+			model.autoKindle = selected.kindleShortcut
+			return runDownload(model, deliver, cmd)
 		}
 
 		query := strings.Join(args, " ")
@@ -204,8 +206,6 @@ func searchOptsFromFlags(cmd *cobra.Command) (*zlib.SearchOptions, error) {
 	exts, _ := cmd.Flags().GetStringArray("ext")
 	formats, _ := cmd.Flags().GetStringArray("format")
 	exts = append(exts, formats...)
-	from, _ := cmd.Flags().GetInt("from-year")
-	to, _ := cmd.Flags().GetInt("to-year")
 	if !cmd.Flags().Changed("ext") && !cmd.Flags().Changed("format") {
 		defaults, err := defaultSearchOptions()
 		if err != nil {
@@ -217,6 +217,8 @@ func searchOptsFromFlags(cmd *cobra.Command) (*zlib.SearchOptions, error) {
 			}
 		}
 	}
+	from, _ := cmd.Flags().GetInt("from-year")
+	to, _ := cmd.Flags().GetInt("to-year")
 	langs, _ := cmd.Flags().GetStringArray("language")
 	exact, _ := cmd.Flags().GetBool("exact")
 	orderRaw, _ := cmd.Flags().GetString("order")

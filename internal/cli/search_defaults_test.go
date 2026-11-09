@@ -97,3 +97,25 @@ func TestSearchFlagsOverrideDefaultFormats(t *testing.T) {
 		t.Fatalf("explicit empty extension did not clear defaults: %+v, %v", opts, err)
 	}
 }
+
+func TestDefaultDownloadDirectorySettingAppliesImmediately(t *testing.T) {
+	t.Setenv(downloadDirEnvVar, "")
+	store := testSettingsStore(t)
+	m, err := newSettingsModel(t.Context(), store, "download")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	m.edit(downloadDirEnvVar)
+	m.input.SetValue(dir)
+	m, _ = settingsStep(t, m, key("enter"))
+	if got, err := defaultDownloadDirectory(); err != nil || got != dir {
+		t.Fatalf("default directory = %q, %v", got, err)
+	}
+	m.edit(downloadDirEnvVar)
+	m.input.SetValue("")
+	m, _ = settingsStep(t, m, key("enter"))
+	if got, err := defaultDownloadDirectory(); err != nil || got != "." {
+		t.Fatalf("cleared directory = %q, %v", got, err)
+	}
+}

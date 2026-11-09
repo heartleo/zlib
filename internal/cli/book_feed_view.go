@@ -129,7 +129,7 @@ func (m searchSelectModel) feedViewWith(column, empty, status, navigation string
 
 	if m.detailOpen {
 		book := m.selectedBook()
-		return "Book details\n\n" + selectedBookCardWithCover(book, width, height, m.details.coverView(m.selectedBookRef(), book.Cover)) + "\n\n" + "Enter download · Esc back"
+		return "Book details\n\n" + selectedBookCardWithCover(book, width, height, m.details.coverView(m.selectedBookRef(), book.Cover)) + "\n\n" + "Enter download · s Send to Kindle · Esc back"
 	}
 	showCard := m.hasBookCard()
 	if showCard {
@@ -193,13 +193,13 @@ func (m searchSelectModel) feedViewWith(column, empty, status, navigation string
 		lines = append(lines, muted.Render(ansi.Truncate(bookCell(strings.Join(book.Authors, ", ")), width, "…")))
 		lines = append(lines, ansi.Truncate(feedBookMetadata(book), width, "…"), "")
 	}
-	help := "↑/↓ select · PgUp/PgDn scroll · i details · enter download · " + m.exitHint()
+	help := "↑/↓ select · PgUp/PgDn scroll · i details · enter download · s Kindle · " + m.exitHint()
 	lines[0] = accent.Render(ansi.Truncate(title, width, "…"))
 	if navigation != "" {
-		help = "↑/↓ select · ←/→ page · i details · enter download · " + m.exitHint()
+		help = "↑/↓ select · ←/→ page · i details · enter download · s Kindle · " + m.exitHint()
 	}
 	if strings.Contains(navigation, "/ search") {
-		help = "↑/↓ select · ←/→ page · / search · i details · enter download · " + m.exitHint()
+		help = "↑/↓ select · ←/→ page · / search · i details · enter download · s Kindle · " + m.exitHint()
 		if m.inShell {
 			help = strings.Replace(help, "/ search", "Ctrl+F search", 1)
 		}
@@ -207,20 +207,34 @@ func (m searchSelectModel) feedViewWith(column, empty, status, navigation string
 	if width < 70 {
 		switch {
 		case strings.Contains(navigation, "/ search") && m.inShell:
-			help = "↑↓ · enter · Ctrl+F · " + m.exitHint()
+			help = "↑↓ · enter · s Kindle · Ctrl+F · " + m.exitHint()
 		case strings.Contains(navigation, "/ search"):
-			help = "↑↓ · enter · / · " + m.exitHint()
+			help = "↑↓ · enter · s Kindle · / · " + m.exitHint()
 		case navigation != "":
-			help = "↑↓ · ←→ · enter · " + m.exitHint()
+			help = "↑↓ · ←→ · enter · s Kindle · " + m.exitHint()
 		default:
-			help = "↑↓ · enter · " + m.exitHint()
+			help = "↑↓ · enter · s Kindle · " + m.exitHint()
 		}
 	}
 	if m.listAction != "" {
 		if width < 70 {
-			help = "↑↓ · enter · " + m.listAction + " · " + m.exitHint()
+			help = "↑↓ · enter · s Kindle · " + m.listAction + " · " + m.exitHint()
 		} else {
-			help = "↑/↓ select · ←/→ page · i details · enter download · " + m.listAction + " · " + m.exitHint()
+			help = "↑/↓ select · ←/→ page · i details · enter download · s Kindle · " + m.listAction + " · " + m.exitHint()
+		}
+	}
+	if ansi.StringWidth(help) > width {
+		if width >= 70 {
+			help = strings.ReplaceAll(help, "PgUp/PgDn scroll · ", "")
+			help = strings.ReplaceAll(help, " select", "")
+			help = strings.ReplaceAll(help, " page", "")
+		} else {
+			// Keep Kindle and the exit key visible on the narrowest screens.
+			help = "↑↓ enter s Kindle "
+			if m.listAction != "" {
+				help += m.listAction + " "
+			}
+			help += "q"
 		}
 	}
 	if m.state == searchStateFilter {
