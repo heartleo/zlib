@@ -216,9 +216,6 @@ func resizeCover(img image.Image, w, h int) image.Image {
 	}
 	return out
 }
-func (d *bookDetailState) queueCover(client *zlib.Client, book zlib.Book, width, height int) tea.Cmd {
-	return d.queueCoverAt(client, book, width, height, false)
-}
 
 func (d *bookDetailState) queueCoverAt(client *zlib.Client, book zlib.Book, width, height int, urgent bool) tea.Cmd {
 	if client == nil || !coverFits(width, height) || book.Cover == "" {

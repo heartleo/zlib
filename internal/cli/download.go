@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	keys "charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/progress"
@@ -263,6 +264,7 @@ type downloadModel struct {
 	progress       progress.Model
 	written        int64
 	total          int64
+	started        time.Time
 	savedPath      string
 	savedSize      int64
 	stayOnComplete bool
@@ -277,6 +279,8 @@ type downloadModel struct {
 	downloadCh      chan tea.Msg
 	cancel          context.CancelFunc
 }
+
+const downloadProgressInterval = 66 * time.Millisecond
 
 type fetchDoneMsg struct{ book zlib.Book }
 type progressMsg struct{ written, total int64 }
@@ -361,6 +365,7 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.bookName = msg.book.Name
 		ch := make(chan tea.Msg, 64)
 		m.downloadCh = ch
+		m.started = time.Now()
 		ctx, cancel := context.WithCancel(context.Background())
 		m.cancel = cancel
 		go func() {
@@ -370,8 +375,13 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case <-ctx.Done():
 				}
 			}
+			var last time.Time
 			result, err := m.client.DownloadWithContext(ctx, msg.book.DownloadURL, m.dir, func(w, t int64) {
-				emit(progressMsg{w, t})
+				// Reads arrive per buffer; redraw at most ~15 times a second.
+				if now := time.Now(); now.Sub(last) >= downloadProgressInterval || (t > 0 && w >= t) {
+					last = now
+					emit(progressMsg{w, t})
+				}
 			})
 			if err != nil {
 				emit(errMsg{err})
@@ -380,6 +390,10 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			close(ch)
 		}()
+		if m.directURL != "" {
+			// No fetch phase ran, so no spinner tick chain exists yet.
+			return m, tea.Batch(waitForMsg(ch), m.spinner.Tick)
+		}
 		return m, waitForMsg(ch)
 
 	case tea.KeyPressMsg:
@@ -446,7 +460,7 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case spinner.TickMsg:
-		if m.state == stateFetching {
+		if m.state == stateFetching || (m.state == stateDownloading && m.written == 0) {
 			sm, cmd := m.spinner.Update(msg)
 			m.spinner = sm
 			return m, cmd
@@ -527,26 +541,49 @@ func (m downloadModel) completeView() tea.View {
 		bindings...)
 }
 
+func (m downloadModel) percentLabel() string {
+	if m.total <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%3d%%", min(100, int(m.written*100/m.total)))
+}
+
+// transferDetail reads "12.3 MiB / 29.0 MiB · 3.1 MiB/s · 5s left"; the rate
+// and ETA appear once enough time has passed for a stable figure.
+func (m downloadModel) transferDetail() string {
+	parts := []string{formatBytes(m.written)}
+	if m.total > 0 {
+		parts[0] += " / " + formatBytes(m.total)
+	}
+	if m.state != stateDownloading || m.started.IsZero() {
+		return parts[0]
+	}
+	elapsed := time.Since(m.started)
+	if rate := transferRate(m.written, elapsed); rate != "" {
+		parts = append(parts, rate)
+		if m.total > m.written {
+			remaining := time.Duration(float64(m.total-m.written) / (float64(m.written) / elapsed.Seconds()) * float64(time.Second))
+			parts = append(parts, remaining.Round(time.Second).String()+" left")
+		}
+	}
+	return strings.Join(parts, " · ")
+}
+
 func (m downloadModel) viewContent() string {
 	switch m.state {
 	case stateFetching:
-		return fmt.Sprintf("  %s Fetching book %s...\n",
+		return fmt.Sprintf("  %s Looking up book %s…\n",
 			m.spinner.View(), colorCyan(m.id))
 	case stateDownloading, stateComplete, stateCancelled:
-		writtenMB := float64(m.written) / 1024 / 1024
-		totalMB := float64(m.total) / 1024 / 1024
-		var sizeInfo string
-		if m.total > 0 {
-			sizeInfo = fmt.Sprintf("  %.1f MB / %.1f MB", writtenMB, totalMB)
-		} else {
-			sizeInfo = fmt.Sprintf("  %.1f MB", writtenMB)
+		if m.state == stateDownloading && m.written == 0 {
+			return fmt.Sprintf("  %s Connecting to the download server…\n", m.spinner.View())
 		}
 		bar := m.progress.View()
 		if m.state == stateComplete {
 			bar = m.progress.ViewAs(1.0)
 		}
-		out := fmt.Sprintf("  Downloading: %s\n  %s%s\n",
-			m.bookName, bar, colorFaint(sizeInfo))
+		out := fmt.Sprintf("  Downloading: %s\n  %s %s\n  %s\n",
+			m.bookName, bar, m.percentLabel(), colorFaint(m.transferDetail()))
 		if m.state == stateCancelled {
 			out += fmt.Sprintf("\n  %s %s\n",
 				colorRed(symbolError),
