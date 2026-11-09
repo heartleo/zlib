@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,10 +24,11 @@ func TestSettingsCommandRoutesAndJSON(t *testing.T) {
 		args  []string
 		count int
 	}{
-		{[]string{"config"}, 11}, {[]string{"config", "network"}, 2},
+		{[]string{"config"}, 12}, {[]string{"config", "network"}, 2},
 		{[]string{"config", "network", "domain"}, 1}, {[]string{"config", "network", "proxy"}, 1},
 		{[]string{"config", "download"}, 2}, {[]string{"config", "download", "directory"}, 1},
 		{[]string{"config", "download", "retries"}, 1},
+		{[]string{"config", "search"}, 1}, {[]string{"config", "search", "extensions"}, 1},
 		{[]string{"config", "kindle"}, 5}, {[]string{"config", "kindle", "to"}, 1},
 		{[]string{"config", "kindle", "from"}, 1}, {[]string{"config", "kindle", "host"}, 1},
 		{[]string{"config", "kindle", "port"}, 1}, {[]string{"config", "kindle", "security"}, 1},
@@ -191,7 +193,7 @@ func TestSettingsSourceAndRedaction(t *testing.T) {
 }
 
 func TestSettingsNavigationCancelAndViewport(t *testing.T) {
-	for _, page := range []string{"home", "network", "download", "kindle", "domain"} {
+	for _, page := range []string{"home", "network", "download", "search", "kindle", "domain"} {
 		for _, size := range [][2]int{{80, 24}, {40, 16}, {32, 12}, {20, 5}} {
 			m, err := newSettingsModel(t.Context(), testSettingsStore(t), page)
 			if err != nil {
@@ -285,7 +287,8 @@ func TestSettingsKindleSaveAndNavigation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.cursor = 4
+	m.cursor = slices.Index(settingsPageKeys("home"), kindleToKey)
+	kindleCursor := m.cursor
 	next, _ := m.Update(key("enter"))
 	m = next.(settingsModel)
 	if m.page != "edit" || m.key != kindleToKey {
@@ -294,7 +297,7 @@ func TestSettingsKindleSaveAndNavigation(t *testing.T) {
 	m.input.SetValue("reader@kindle.com")
 	next, _ = m.Update(key("enter"))
 	m = next.(settingsModel)
-	if m.page != "home" || m.cursor != 4 || m.value(kindleToKey).Value != "reader@kindle.com" {
+	if m.page != "home" || m.cursor != kindleCursor || m.value(kindleToKey).Value != "reader@kindle.com" {
 		t.Fatal("Kindle save did not return to selection")
 	}
 	data, err := os.ReadFile(s.kindle)

@@ -80,10 +80,12 @@ func init() {
 	network.AddCommand(settingsCommand("domain", "domain", "", "Set Z-Library domain"), settingsCommand("proxy", "network", zlib.EnvProxy, "Set proxy URL"))
 	download := settingsCommand("download", "download", "", "Set download directory and retries")
 	download.AddCommand(settingsCommand("directory", "download", downloadDirEnvVar, "Set default download directory"), settingsCommand("retries", "download", zlib.EnvRetries, "Set download retry count"))
+	search := settingsCommand("search", "search", "", "Set default search formats")
+	search.AddCommand(settingsCommand("extensions", "search", searchExtensionsEnv, "Set default search extensions; empty allows any format"))
 	kindle := settingsCommand("kindle", "kindle", "", "Set Kindle address and SMTP")
 	kindle.AddCommand(settingsCommand("to", "kindle", kindleToKey, "Set Kindle address"), settingsCommand("from", "kindle", kindleFromKey, "Set sender address"), settingsCommand("host", "kindle", kindleHostKey, "Set SMTP host"), settingsCommand("port", "kindle", kindlePortKey, "Set SMTP port"), settingsCommand("security", "kindle", kindleSecurityKey, "Set SMTP security: tls or starttls"))
 	wereadSettings := settingsCommand("weread", "weread", "", "Show the WeRead login and set its proxy")
 	wereadSettings.AddCommand(settingsCommand("account", "weread", wereadAccountKey, "Log in to or out of WeRead"), settingsCommand("proxy", "weread", wereadProxyEnv, "Set the WeRead proxy: a URL, direct, or empty for the system proxy"))
-	root.AddCommand(network, download, kindle, wereadSettings)
+	root.AddCommand(network, download, search, kindle, wereadSettings)
 	rootCmd.AddCommand(root)
 }

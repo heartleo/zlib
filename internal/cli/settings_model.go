@@ -45,22 +45,24 @@ type settingsSection struct {
 var settingsSections = []settingsSection{
 	{"NETWORK", "network", []string{zlib.EnvDomain, zlib.EnvProxy}},
 	{"DOWNLOADS", "download", []string{downloadDirEnvVar, zlib.EnvRetries}},
+	{"SEARCH", "search", []string{searchExtensionsEnv}},
 	{"KINDLE", "kindle", kindleSettingKeys},
 	{"WEREAD", "weread", []string{wereadAccountKey, wereadProxyEnv}},
 }
 
 var settingLabels = map[string]string{
-	zlib.EnvDomain:    "Domain",
-	zlib.EnvProxy:     "Proxy URL",
-	downloadDirEnvVar: "Default directory",
-	zlib.EnvRetries:   "Download retries",
-	kindleToKey:       "Kindle address",
-	kindleFromKey:     "From address",
-	kindleHostKey:     "SMTP host",
-	kindlePortKey:     "SMTP port",
-	kindleSecurityKey: "SMTP security",
-	wereadAccountKey:  "WeRead account",
-	wereadProxyEnv:    "WeRead proxy",
+	zlib.EnvDomain:      "Domain",
+	zlib.EnvProxy:       "Proxy URL",
+	downloadDirEnvVar:   "Default directory",
+	searchExtensionsEnv: "Default formats",
+	zlib.EnvRetries:     "Download retries",
+	kindleToKey:         "Kindle address",
+	kindleFromKey:       "From address",
+	kindleHostKey:       "SMTP host",
+	kindlePortKey:       "SMTP port",
+	kindleSecurityKey:   "SMTP security",
+	wereadAccountKey:    "WeRead account",
+	wereadProxyEnv:      "WeRead proxy",
 }
 
 // settingsPageKeys lists the setting rows of a list page in display order.
@@ -77,7 +79,7 @@ func settingsPageKeys(page string) []string {
 }
 
 func isSettingsListPage(page string) bool {
-	return page == "home" || page == "network" || page == "download" || page == "kindle" || page == "weread"
+	return page == "home" || page == "network" || page == "download" || page == "search" || page == "kindle" || page == "weread"
 }
 
 // wereadAccount loads the saved WeRead login and its settings row: the
@@ -132,6 +134,8 @@ type settingsModel struct {
 	discard        bool
 	discardFocused bool
 	editAction     int
+	formats        []zlib.Extension
+	formatCursor   int
 	original       string
 	returnPage     string
 	returnCursor   int
@@ -280,6 +284,13 @@ func (m *settingsModel) edit(key string) tea.Cmd {
 		value = v.Saved
 	}
 	m.original = value
+	if key == searchExtensionsEnv {
+		m.page = "formats"
+		m.formats, _ = parseDefaultSearchExtensions(value)
+		m.formatCursor = 0
+		m.input.Blur()
+		return nil
+	}
 	m.input.SetValue(value)
 	m.input.CursorEnd()
 	m.input.Placeholder = ""
@@ -309,7 +320,7 @@ func (m *settingsModel) back() {
 			m.page = "network"
 		}
 		m.cursor = m.returnCursor
-	case "edit":
+	case "edit", "formats":
 		m.page = m.returnPage
 		if m.page == "" {
 			m.page = "home"
@@ -567,6 +578,9 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		k := msg.String()
+		if m.page == "formats" {
+			return m.updateFormats(k)
+		}
 		if k == "ctrl+c" {
 			if m.cancel != nil {
 				m.cancel()
@@ -869,6 +883,9 @@ func settingsCompactView(width, height int, title, subtitle string, lines []stri
 
 func (m settingsModel) View() tea.View {
 	w, h := max(1, m.width), max(1, m.height)
+	if m.page == "formats" {
+		return m.formatsView(w, h)
+	}
 	if m.page == "domain" || m.page == "mirror" {
 		return m.domainView(w, h)
 	}
@@ -878,7 +895,7 @@ func (m settingsModel) View() tea.View {
 	if m.page == "weread-account" && !m.busy {
 		return m.wereadAccountView(w, h)
 	}
-	titles := map[string]string{"home": "Settings", "network": "Settings / Network", "download": "Settings / Downloads", "kindle": "Settings / Kindle", "weread": "Settings / WeRead", "weread-account": "Settings / WeRead account", "browse": "Settings / Choose directory", "edit": "Settings / Edit"}
+	titles := map[string]string{"home": "Settings", "network": "Settings / Network", "download": "Settings / Downloads", "search": "Settings / Search", "kindle": "Settings / Kindle", "weread": "Settings / WeRead", "weread-account": "Settings / WeRead account", "browse": "Settings / Choose directory", "edit": "Settings / Edit"}
 	if m.busy {
 		return screenView(w, h, titles[m.page], "", m.spinner.View(), "", uiKey("esc", "back"))
 	}

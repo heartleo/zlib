@@ -187,6 +187,14 @@ selection style.
 | Download | Esc or Ctrl+C cancels an active transfer. After completion, the page shows the full saved path and Back. Supported file types also show Send to Kindle and Send to WeRead; left/right selects an action and Enter opens it. Up/down scrolls a long path. Kindle sending and WeRead import ask for confirmation and return to the saved-file page; without a WeRead login, the QR login page opens first and the import continues after it. A download failure stays on its own page with r to retry using the same book and directory, or Esc to return. |
 
 Passwords are masked. Invalid field values stay in the editor with an error.
+
+Config / Search sets default formats from a checklist. Arrow keys move and
+Space toggles a format and Ctrl+A checks every format, or clears them all when
+every format is already checked. Enter saves (Ctrl+S too) and Esc discards the
+draft; saving with nothing checked allows any format. The panel has no buttons,
+and its footer lists exactly these keys. The centered panel becomes a scrolling
+full-screen list on narrow terminals. A query's search form can change or clear
+the formats for that query.
 If the SMTP password is missing after Kindle confirmation, a masked form saves
 it to the global `.env` and sets it for the current process before sending.
 Cancel returns to the saved file; a save error keeps the form open.

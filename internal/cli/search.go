@@ -206,6 +206,17 @@ func searchOptsFromFlags(cmd *cobra.Command) (*zlib.SearchOptions, error) {
 	exts = append(exts, formats...)
 	from, _ := cmd.Flags().GetInt("from-year")
 	to, _ := cmd.Flags().GetInt("to-year")
+	if !cmd.Flags().Changed("ext") && !cmd.Flags().Changed("format") {
+		defaults, err := defaultSearchOptions()
+		if err != nil {
+			return nil, err
+		}
+		if defaults != nil {
+			for _, ext := range defaults.Extensions {
+				exts = append(exts, ext.String())
+			}
+		}
+	}
 	langs, _ := cmd.Flags().GetStringArray("language")
 	exact, _ := cmd.Flags().GetBool("exact")
 	orderRaw, _ := cmd.Flags().GetString("order")

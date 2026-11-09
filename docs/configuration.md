@@ -34,6 +34,8 @@ zlib config network proxy
 zlib config download
 zlib config download directory
 zlib config download retries
+zlib config search
+zlib config search extensions
 zlib config kindle
 zlib config kindle to
 zlib config kindle from
@@ -45,7 +47,7 @@ zlib config weread account
 zlib config weread proxy
 ```
 
-`zlib config` shows network, download, Kindle and WeRead settings together. The
+`zlib config` shows network, download, search, Kindle and WeRead settings together. The
 subcommands open the same TUI at a specific section or field. Use arrow keys
 or Tab to select, Enter to edit, and Esc to return to the selected setting.
 The settings list keeps its controls and save feedback next to the fields;
@@ -71,6 +73,13 @@ For Kindle, Reset clears an address or restores the default SMTP host or port.
   are saved as absolute paths. Enter a drive path to switch Windows drives.
 - **Retries:** enter a non-negative integer. Zero disables retries; the default
   is three.
+- **Search formats:** choose formats from a checklist. Arrow keys move; Space
+  toggles a format; Ctrl+A checks every format, or clears them all when every
+  format is already checked. Enter saves (Ctrl+S too) and Esc cancels. Save with
+  nothing checked to allow any format.
+  New TUI searches and CLI searches use this default;
+  the search form or explicit `--ext` / `--format` flags override it.
+  Use `--ext ""` to search all formats for one CLI query.
 - **WeRead account:** shows whether a WeRead login is saved. Enter opens the
   account page: log in by scanning a QR code with WeChat (without leaving
   settings), log in again, or log out after a confirmation.
@@ -79,7 +88,7 @@ For Kindle, Reset clears an address or restores the default SMTP host or port.
   `socks5h` URL. Ctrl+T checks that WeRead answers through the value, without
   logging in. `ZLIB_PROXY` never applies to WeRead.
 
-Network and download changes are saved to `~/.config/zlib/.env`, preserving unrelated settings.
+Network, download and search changes are saved to `~/.config/zlib/.env`, preserving unrelated settings.
 Kindle address and SMTP server settings are saved to `~/.config/zlib/kindle.json`.
 The UI reports when process or working-directory settings override a saved
 network or download value. It does not change login cookies. If the SMTP password
@@ -100,6 +109,7 @@ zlib config network proxy --json
 | `ZLIB_DOMAIN` | EAPI domain | Saved session domain for authenticated commands |
 | `ZLIB_PROXY` | HTTP, HTTPS or SOCKS proxy URL | Standard `HTTP_PROXY` / `HTTPS_PROXY` environment settings |
 | `ZLIB_DOWNLOAD_DIR` | Download destination when `--dir` is omitted | Current directory |
+| `ZLIB_SEARCH_EXTENSIONS` | Default TUI and CLI search extensions, separated by commas | Unset (any format) |
 | `ZLIB_DOWNLOAD_RETRIES` | Retries for interrupted downloads and HTTP 502/503/504 | `3` |
 | `ZLIB_THEME` | Override the saved terminal theme | Saved preference |
 | `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery | Unset |

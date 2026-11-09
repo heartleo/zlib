@@ -15,7 +15,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, wereadProxyEnv}
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv}
 var settingsEnvironment map[string]string
 
 func captureSettingsEnvironment() {
@@ -115,6 +115,8 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Value, v.Source = "Current directory", "Default"
 			case zlib.EnvRetries:
 				v.Value, v.Source = "3", "Default"
+			case searchExtensionsEnv:
+				v.Value, v.Source = "Any format", "Default"
 			}
 		}
 		values = append(values, v)
@@ -187,6 +189,16 @@ func validateSetting(key, value string) (string, error) {
 			return "", fmt.Errorf("enter a non-negative integer")
 		}
 		value = strconv.Itoa(n)
+	case searchExtensionsEnv:
+		extensions, err := parseDefaultSearchExtensions(value)
+		if err != nil {
+			return "", err
+		}
+		formats := make([]string, len(extensions))
+		for i, ext := range extensions {
+			formats[i] = strings.ToLower(ext.String())
+		}
+		value = strings.Join(formats, ",")
 	default:
 		return "", fmt.Errorf("unknown setting")
 	}
