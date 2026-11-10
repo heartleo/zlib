@@ -22,6 +22,8 @@ const (
 type Client struct {
 	httpClient *http.Client
 	domain     string
+	// coverCacheDir holds validated cover bytes; empty disables the disk cache.
+	coverCacheDir string
 	// cookiesMu guards cookies shared by concurrent book-detail requests.
 	cookiesMu sync.RWMutex
 	cookies   map[string]string
