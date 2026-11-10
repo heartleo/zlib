@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -20,7 +21,7 @@ import (
 )
 
 const coverGraphicsID = 5917697
-const coverProbe = "\x1b_Ga=q,i=5917697,s=1,v=1,f=24,t=d;AAAA\x1b\\\x1b[c\x1b[16t\x1b[14t"
+const coverProbe = "\x1b_Ga=q,i=5917697,s=1,v=1,f=24,t=d;AAAA\x1b\\\x1b[c\x1b[16t\x1b[14t" + iTermCellSizeQuery
 const coverDelete = "\x1b_Ga=d,d=I,i=5917697,q=2\x1b\\"
 const syncBegin = "\x1b[?2026h"
 const syncEnd = "\x1b[?2026l"
@@ -30,16 +31,47 @@ type coverCapabilities struct {
 	cellWidth, cellHeight   int
 	pixelWidth, pixelHeight int
 	cols, rows              int
+	// scale converts reported sizes to physical pixels. iTerm2 on a HiDPI Mac
+	// reports cell and window sizes in points but draws images in pixels; it
+	// states the factor through OSC 1337 ReportCellSize. Zero means 1.
+	scale float64
+}
+
+// iTermCellSizeQuery asks iTerm2 for its pixel scale. Other terminals ignore it.
+const iTermCellSizeQuery = "\x1b]1337;ReportCellSize\a"
+
+// parseITermScale reads the scale from the reply
+// "ESC ] 1337;ReportCellSize=<h>;<w>;<scale> ST". The framing may or may not be
+// present, depending on how the input parser hands the sequence over.
+func parseITermScale(osc string) (float64, bool) {
+	osc = strings.TrimPrefix(osc, "\x1b]")
+	osc = strings.TrimSuffix(strings.TrimSuffix(osc, "\x1b\\"), "\a")
+	rest, ok := strings.CutPrefix(osc, "1337;ReportCellSize=")
+	if !ok {
+		return 0, false
+	}
+	parts := strings.Split(rest, ";")
+	if len(parts) < 3 {
+		return 0, false
+	}
+	scale, err := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
+	if err != nil || scale < 1 || scale > 8 {
+		return 0, false
+	}
+	return scale, true
 }
 
 func (c coverCapabilities) cellSize() (int, int) {
+	w, h := 0, 0
 	if c.cellWidth > 0 && c.cellHeight > 0 {
-		return c.cellWidth, c.cellHeight
+		w, h = c.cellWidth, c.cellHeight
+	} else if c.cols > 0 && c.rows > 0 {
+		w, h = c.pixelWidth/c.cols, c.pixelHeight/c.rows
 	}
-	if c.cols > 0 && c.rows > 0 {
-		return c.pixelWidth / c.cols, c.pixelHeight / c.rows
+	if c.scale > 1 {
+		w, h = int(float64(w)*c.scale+0.5), int(float64(h)*c.scale+0.5)
 	}
-	return 0, 0
+	return w, h
 }
 
 func (c coverCapabilities) protocol() string {
@@ -162,6 +194,10 @@ func (m *coverGraphicsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.caps.cellWidth, m.caps.cellHeight = event.Width, event.Height
 	case uv.PixelSizeEvent:
 		m.caps.pixelWidth, m.caps.pixelHeight = event.Width, event.Height
+	case uv.UnknownOscEvent:
+		if scale, ok := parseITermScale(string(event)); ok {
+			m.caps.scale = scale
+		}
 	case coverEncodedMsg:
 		m.encoding = false
 		if event.generation == m.generation {
@@ -176,7 +212,7 @@ func (m *coverGraphicsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.caps.cols, m.caps.rows = size.Width, size.Height
 			m.caps.cellWidth, m.caps.cellHeight = 0, 0
 			m.caps.pixelWidth, m.caps.pixelHeight = 0, 0
-			query = tea.Raw("\x1b[16t\x1b[14t")
+			query = tea.Raw("\x1b[16t\x1b[14t" + iTermCellSizeQuery)
 		}
 		m.inner, cmd = m.inner.Update(msg)
 	}
@@ -242,16 +278,16 @@ func encodeCoverFrame(s coverSource, c coverCapabilities) *coverFrame {
 	if b.Empty() {
 		return nil
 	}
-	// Keep source pixels when they fit. Downsample only to fit the viewport;
-	// never invent detail by enlarging a small source bitmap.
+	// Scale to fit the reserved cells, up or down, keeping the aspect ratio.
+	// Terminals report cell size in physical pixels, so on HiDPI screens such as
+	// macOS Retina a small source shown 1:1 would fill only a fraction of the slot.
 	w, h := b.Dx(), b.Dy()
 	area := s.bounds()
 	maxW, maxH := area.Dx()*cw, area.Dy()*ch
-	if w > maxW {
+	if w*maxH >= h*maxW {
 		h = max(1, h*maxW/w)
 		w = maxW
-	}
-	if h > maxH {
+	} else {
 		w = max(1, w*maxH/h)
 		h = maxH
 	}

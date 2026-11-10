@@ -241,7 +241,7 @@ func TestCoverGraphicsDetectionAndFallback(t *testing.T) {
 }
 
 func TestCoverGraphicsEncodePreservesPixels(t *testing.T) {
-	img := image.NewRGBA(image.Rect(0, 0, 300, 300))
+	img := image.NewRGBA(image.Rect(0, 0, 336, 336))
 	img.SetRGBA(25, 30, color.RGBA{R: 80, G: 120, B: 160, A: 255})
 	s := coverSource{url: "cover", img: img, width: 120, height: 24}
 	for _, protocol := range []string{"Kitty", "Sixel"} {
@@ -289,7 +289,7 @@ func TestCoverGraphicsEncodePreservesPixels(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if decoded.Bounds().Dx() != 300 || decoded.Bounds().Dy() != 300 {
+		if decoded.Bounds().Dx() != 336 || decoded.Bounds().Dy() != 336 {
 			t.Fatal("source resolution lost")
 		}
 		// A smaller pixel viewport must produce a fitted, non-clipped bitmap.
@@ -453,5 +453,55 @@ func TestHistoryCardPixelsAndOverlays(t *testing.T) {
 	m.inner = s
 	if m.sourceKey() != "" {
 		t.Fatal("card image would overlap command dialog")
+	}
+}
+
+func TestEncodeCoverFrameScalesSmallSourceToFillSlot(t *testing.T) {
+	// Retina cells (16x34 physical pixels) with a source smaller than the slot.
+	img := image.NewRGBA(image.Rect(0, 0, 100, 150))
+	src := coverSource{img: img, width: 120, height: 24, area: bookCardCoverBounds()}
+	f := encodeCoverFrame(src, coverCapabilities{kitty: true, cellWidth: 16, cellHeight: 34})
+	if f == nil {
+		t.Fatal("no frame")
+	}
+	maxW, maxH := coverWidth*16, coverRows*34
+	if f.pixelWidth != maxW && f.pixelHeight != maxH {
+		t.Fatalf("cover %dx%d does not fill %dx%d slot on either axis", f.pixelWidth, f.pixelHeight, maxW, maxH)
+	}
+	if f.pixelWidth > maxW || f.pixelHeight > maxH {
+		t.Fatalf("cover %dx%d overflows %dx%d slot", f.pixelWidth, f.pixelHeight, maxW, maxH)
+	}
+	if f.pixelWidth*150 != f.pixelHeight*100 && abs(f.pixelWidth*150-f.pixelHeight*100) > 150 {
+		t.Fatalf("aspect ratio changed: %dx%d", f.pixelWidth, f.pixelHeight)
+	}
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}
+
+func TestITermScaleConvertsPointsToPixels(t *testing.T) {
+	scale, ok := parseITermScale("\x1b]1337;ReportCellSize=18.0;9.0;2.0\x1b\\")
+	if !ok || scale != 2 {
+		t.Fatalf("scale = %v, %v", scale, ok)
+	}
+	for _, bad := range []string{"1337;ReportCellSize=18.0;9.0", "1337;ReportCellSize=a;b;c", "1337;Other=1;2;3", "1337;ReportCellSize=18;9;0"} {
+		if _, ok := parseITermScale(bad); ok {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+	m := &coverGraphicsModel{inner: pixelCoverFixture(), output: &coverOutput{target: &bytes.Buffer{}}}
+	m.Update(uv.CellSizeEvent{Width: 9, Height: 18})
+	m.Update(uv.PrimaryDeviceAttributesEvent{4})
+	m.Update(uv.UnknownOscEvent("\x1b]1337;ReportCellSize=18.0;9.0;2.0\x1b\\"))
+	if w, h := m.caps.cellSize(); w != 18 || h != 36 {
+		t.Fatalf("cell size = %dx%d, want 18x36", w, h)
+	}
+	f := encodeCoverFrame(m.source(), m.caps)
+	if f == nil || f.pixelHeight != coverRows*36 {
+		t.Fatalf("cover not sized in physical pixels: %+v", f)
 	}
 }

@@ -13,7 +13,9 @@ is text only, with no empty column, no placeholder, and no cover requests.
 | Sixel | DA1 attribute 4 |
 
 Both also need the terminal to report its cell size, which zlib uses to fit the
-image. If both protocols are available, Kitty is used.
+image. If both protocols are available, Kitty is used. iTerm2 on a HiDPI Mac
+reports sizes in points, so zlib also asks it for its pixel scale
+(`OSC 1337;ReportCellSize`) to size covers correctly.
 
 Detection is by query, not by terminal name. Terminals that implement Kitty
 graphics include Kitty, WezTerm and Ghostty; Sixel is implemented by foot,
@@ -55,8 +57,8 @@ A failed cover is not retried on every redraw; reopen the list to try again.
 - Requests use HTTPS only, send no account cookies or headers, follow at most
   five redirects that stay on HTTPS, use the configured proxy, and time out
   after 6 seconds.
-- Sources larger than the card are downscaled to fit; smaller ones are not
-  enlarged.
+- Covers are scaled up or down to fill the card, keeping their aspect ratio.
+  This keeps them a consistent size on HiDPI displays such as macOS Retina.
 
 ## Prefetch and cache
 
