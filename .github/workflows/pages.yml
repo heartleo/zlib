@@ -50,7 +50,7 @@ jobs:
       # The script fails loudly if it cannot find what it rewrites, which is
       # what keeps a markup change from silently shipping a stale or
       # half-translated page.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - run: node scripts/build-zh.mjs
