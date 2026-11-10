@@ -34,7 +34,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # enablement defaults to false, which fails with "Get Pages site failed"
       # on a repository that has never had Pages turned on. Setting it true
