@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -17,6 +19,15 @@ import (
 	"github.com/heartleo/zlib/internal/config"
 	"github.com/heartleo/zlib/internal/zlib"
 )
+
+// Real edition covers are kept offline so recordings need no external requests.
+//
+//go:embed testdata/demo-covers/*.jpg
+var demoCovers embed.FS
+
+func demoCoverURL(id string) string {
+	return "https://covers.example/" + id + ".jpg"
+}
 
 // demoBook is one fixture result. The first books match the hero picker on
 // the site (site/index.html), so the README GIF and the page agree.
@@ -71,10 +82,18 @@ func demoSearch(formats []string, page int) ([]demoBook, int) {
 
 func (b demoBook) json() map[string]any {
 	return map[string]any{
-		"id": b.id, "hash": b.hash, "title": b.title, "author": b.author,
+		"cover": demoCoverFor(b.id),
+		"id":    b.id, "hash": b.hash, "title": b.title, "author": b.author,
 		"extension": b.ext, "filesizeString": b.size, "interestScore": b.rating,
 		"year": b.year, "language": "English", "publisher": "Ace",
 	}
+}
+
+func demoCoverFor(id string) string {
+	if _, err := demoCovers.ReadFile("testdata/demo-covers/" + id + ".jpg"); err == nil {
+		return demoCoverURL(id)
+	}
+	return ""
 }
 
 func demoFind(id string) (demoBook, bool) {
@@ -229,9 +248,21 @@ func TestDemo(t *testing.T) {
 
 	server := newDemoServer()
 	defer server.Close()
+	coverCache := t.TempDir()
+	for _, b := range demoCatalogue {
+		data, err := demoCovers.ReadFile("testdata/demo-covers/" + b.id + ".jpg")
+		if err != nil {
+			continue
+		}
+		name := fmt.Sprintf("%x.img", sha256.Sum256([]byte(demoCoverURL(b.id))))
+		if err := os.WriteFile(filepath.Join(coverCache, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	previous := loadClient
 	loadClient = func() (*zlib.Client, error) {
 		c := zlib.NewClient(zlib.WithDomain(server.URL))
+		c.SetCoverCacheDir(coverCache)
 		c.SetCookies(cookies)
 		return c, nil
 	}
