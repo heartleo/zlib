@@ -52,6 +52,11 @@ and terminal context on the
 Feature requests ask for the user problem, proposed behavior and alternatives;
 usage questions have their own form. Security reports go to private advisories.
 
+## Pullfrog automation
+
+Issue triage and PR review comments come from Pullfrog. Setup, settings and
+activation are in [docs/pullfrog.md](../docs/pullfrog.md).
+
 ## Security changes
 
 After changing cookies, EAPI headers, redirects, domain policy, downloads,
