@@ -40,7 +40,7 @@ jobs:
       # on a repository that has never had Pages turned on. Setting it true
       # makes this step create the Pages site with build_type: workflow, so
       # there is nothing to click in Settings beforehand.
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         with:
           enablement: true
 
