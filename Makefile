@@ -1,21 +1,26 @@
-.PHONY: build check fmt hooks tidy vet
+.DEFAULT_GOAL := help
+.PHONY: help build check fmt hooks test tidy vet
 
-build:
-	go build github.com/heartleo/zlib/cmd/zlib
+help: ## Show this help
+	@awk -F ':.*## ' '/^[a-z]+:.*## / { printf "  %-6s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-# Mandatory before every commit; .githooks/pre-commit runs it.
-check:
+build: ## Build ./zlib
+	go build ./cmd/zlib
+
+check: ## Run the pre-commit checks (mandatory; .githooks/pre-commit runs it)
 	sh scripts/check.sh
 
-fmt:
+fmt: ## Format Go code
 	go fmt ./...
 
-# Run once per clone.
-hooks:
+hooks: ## Enable the git hooks (once per clone)
 	git config core.hooksPath .githooks
 
-tidy:
+test: ## Run the tests
+	go test ./...
+
+tidy: ## Tidy go.mod and go.sum
 	go mod tidy
 
-vet:
+vet: ## Run go vet
 	go vet ./...
