@@ -472,7 +472,7 @@ func wereadErrorHint(err error, loginStep string) string {
 	case errors.Is(err, weread.ErrNotLoggedIn):
 		return loginStep + " and scan the QR code with WeChat."
 	case errors.Is(err, weread.ErrSessionExpired):
-		return loginStep + " to sign in again."
+		return "WeRead no longer accepts the saved login. " + loginStep + " to sign in again, then repeat the import."
 	case errors.Is(err, weread.ErrVerificationRequired):
 		return "Open WeRead on your phone, complete any prompt there, then retry later."
 	case errors.Is(err, weread.ErrImportLimit):

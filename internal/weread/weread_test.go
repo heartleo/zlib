@@ -662,3 +662,36 @@ func TestProcessingThenRejectionIsUnconfirmed(t *testing.T) {
 		}
 	})
 }
+
+func TestRejectedRefreshReadsAsSessionExpiredWithoutRawResponse(t *testing.T) {
+	f := newFake(t)
+	f.mux.HandleFunc("GET /expiring", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"errCode": -2012})
+	})
+	f.mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		writeJSON(w, map[string]any{"errCode": -2013, "errMsg": "raw server text"})
+	})
+	err := f.client(WithCredentials(testCreds())).call(context.Background(), http.MethodGet, "/expiring", nil, nil, nil)
+	if !errors.Is(err, ErrSessionExpired) || err.Error() != ErrSessionExpired.Error() {
+		t.Fatalf("err = %q, want only %q", err, ErrSessionExpired)
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != -2013 || apiErr.Status != http.StatusUnauthorized {
+		t.Fatalf("the rejected response is not kept for diagnosis: %v", apiErr)
+	}
+}
+
+func TestAuthFailedCodeOnARequestMeansExpiredSession(t *testing.T) {
+	f := newFake(t)
+	f.mux.HandleFunc("GET /secured", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"errCode": -2013, "errMsg": "raw server text"})
+	})
+	f.mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, map[string]any{"vid": 1001, "accessToken": "token-new", "refreshToken": "refresh-new"})
+	})
+	err := f.client(WithCredentials(testCreds())).call(context.Background(), http.MethodGet, "/secured", nil, nil, nil)
+	if !errors.Is(err, ErrSessionExpired) || strings.Contains(err.Error(), "-2013") {
+		t.Fatalf("err = %v, want a clean expired-session error", err)
+	}
+}

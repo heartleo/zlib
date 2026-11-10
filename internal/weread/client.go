@@ -20,7 +20,10 @@ const (
 	maxResponseBytes = 1 << 20
 
 	errCodeSessionExpired = -2012
-	errCodeVerification   = -2041
+	// errCodeAuthFailed means WeRead no longer accepts the credentials; the
+	// server words it as an authentication failure.
+	errCodeAuthFailed   = -2013
+	errCodeVerification = -2041
 )
 
 // apiTimeout bounds one API request; a var so tests can shorten it.
@@ -156,7 +159,7 @@ func (c *Client) call(ctx context.Context, method, path string, query url.Values
 		var env envelope
 		_ = json.Unmarshal(raw, &env)
 		code := env.code()
-		if status == http.StatusUnauthorized || code == errCodeSessionExpired {
+		if status == http.StatusUnauthorized || code == errCodeSessionExpired || code == errCodeAuthFailed {
 			if attempt == 0 {
 				continue
 			}
@@ -224,7 +227,7 @@ func (c *Client) refreshLocked(ctx context.Context) error {
 		// A rejected refresh token is final; a server error is not.
 		var apiErr *APIError
 		if errors.As(err, &apiErr) && apiErr.Status < http.StatusInternalServerError {
-			return fmt.Errorf("%w: %w", ErrSessionExpired, err)
+			return &sessionError{cause: err}
 		}
 		return err
 	}

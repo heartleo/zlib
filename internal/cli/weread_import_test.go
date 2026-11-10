@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/heartleo/zlib/internal/config"
 	"github.com/heartleo/zlib/internal/weread"
@@ -247,5 +248,61 @@ func TestSettingsWeReadAccountShowsImportRulesWhenTheyFit(t *testing.T) {
 	screen = ansi.Strip(m.View().Content)
 	if strings.Contains(screen, "Import rules") || !strings.Contains(screen, wereadActionLogIn) || !strings.Contains(screen, "esc back") {
 		t.Fatalf("short account page should keep the action and hints, not the rules:\n%s", screen)
+	}
+}
+
+func TestShellWeReadExpiredLoginOffersSignInAndResumes(t *testing.T) {
+	isolateConfigHome(t)
+	path := writeTempFile(t, "Dune.epub")
+	raw := fmt.Errorf("refresh: %w", &weread.APIError{Path: "/login", Status: 401, Code: -2013, Message: "raw server text"})
+	expired := fmt.Errorf("%w: %w", weread.ErrSessionExpired, raw)
+
+	m := newShellModel()
+	m, _ = shellStep(m, tea.WindowSizeMsg{Width: 90, Height: 24})
+	page := newWeReadImportModel(path, weread.NewClient())
+	page.err = expired
+	m.wereadImportDone(page)
+	errPage, ok := m.page.(shellErrorModel)
+	if !ok || errPage.signInPath != path {
+		t.Fatalf("expired import page = %#v", m.page)
+	}
+	view := ansi.Strip(m.View().Content)
+	for _, want := range []string{"WeRead login expired", "Dune.epub", "sign in again", "esc back"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("page lacks %q:\n%s", want, view)
+		}
+	}
+	for _, leak := range []string{"401", "-2013", "errCode", "/login", "raw server text"} {
+		if strings.Contains(view, leak) {
+			t.Errorf("page leaks %q:\n%s", leak, view)
+		}
+	}
+
+	back, cmd := shellStep(m, key("esc"))
+	if cmd == nil {
+		t.Fatal("esc did not leave the page")
+	}
+	back, _ = shellStep(back, cmd())
+	if back.kind == "weread-login" || back.wereadPath != "" {
+		t.Fatalf("esc started a login: kind %q, path %q", back.kind, back.wereadPath)
+	}
+
+	m, cmd = shellStep(m, key("enter"))
+	if cmd == nil {
+		t.Fatal("enter did not leave the page")
+	}
+	m, _ = shellStep(m, cmd())
+	if _, ok := m.page.(wereadLoginModel); !ok || m.kind != "weread-login" || m.wereadPath != path {
+		t.Fatalf("enter did not open the login that resumes the import: %T, kind %q, path %q", m.page, m.kind, m.wereadPath)
+	}
+}
+
+func TestWeReadExpiredHintPointsToSignIn(t *testing.T) {
+	expired := fmt.Errorf("import: %w", weread.ErrSessionExpired)
+	for step, want := range map[string]string{wereadLoginCLI: "`zlib weread login`", wereadLoginShell: "/weread login", wereadLoginAgent: "Ask the user"} {
+		hint := wereadErrorHint(expired, step)
+		if !strings.Contains(hint, want) || !strings.Contains(hint, "no longer accepts the saved login") {
+			t.Errorf("hint for %q = %q", step, hint)
+		}
 	}
 }

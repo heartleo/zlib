@@ -857,6 +857,10 @@ func (m *shellModel) completed() tea.Cmd {
 		}
 		return nil
 	case shellErrorModel:
+		if page.selectedSignIn {
+			m.wereadPath = page.signInPath
+			return m.openWeReadLogin()
+		}
 		if page.selectedRetry && page.retry {
 			autoKindle := m.download.autoKindle
 			directURL, bookName := m.download.directURL, m.download.bookName

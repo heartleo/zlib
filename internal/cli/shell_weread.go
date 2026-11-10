@@ -145,7 +145,31 @@ func (m *shellModel) wereadImportDone(page wereadImportModel) tea.Cmd {
 // download completion page when the import started there.
 func (m *shellModel) wereadFailed(title, path string, err error) tea.Cmd {
 	m.commandErr = err
-	return m.open("weread-error", shellErrorModel{heading: "Send to WeRead", title: title, subtitle: bookCell(filepath.Base(path)), detail: shellErrorText(err)})
+	if errors.Is(err, weread.ErrSessionExpired) && path != "" {
+		// Offer to sign in again and resume this import instead of a bare error.
+		return m.open("weread-error", shellErrorModel{heading: "Send to WeRead", title: "WeRead login expired", subtitle: bookCell(filepath.Base(path)),
+			detail:     "Sign in again with WeChat to continue importing this book.",
+			signInPath: path})
+	}
+	detail := shellErrorText(err)
+	switch {
+	case errors.Is(err, weread.ErrImportUnconfirmed):
+		detail = "This book may already be in your library. Check the WeRead shelf on your phone before importing again."
+	case errors.Is(err, weread.ErrVerificationRequired):
+		title = "WeRead needs verification"
+		detail = "Open WeRead on your phone and complete any verification prompt, then try importing again."
+	case errors.Is(err, weread.ErrRateLimited):
+		title = "WeRead needs a little time"
+		detail = "Too many requests. Wait a while before importing again."
+	case errors.Is(err, weread.ErrImportParseFailed):
+		title = "WeRead could not read this book"
+		detail = "Check that the file opens in an ebook reader, or convert it to EPUB and import it again."
+	}
+	subtitle := ""
+	if path != "" {
+		subtitle = bookCell(filepath.Base(path))
+	}
+	return m.open("weread-error", shellErrorModel{heading: "Send to WeRead", title: title, subtitle: subtitle, detail: detail})
 }
 
 func (m *shellModel) logoutWeRead() tea.Cmd {

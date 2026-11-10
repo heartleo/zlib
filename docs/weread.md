@@ -48,6 +48,13 @@ for a new code. A terminal too small for the code says how large it must be and
 shows no part of it, because a clipped code cannot be scanned. zlib saves the login to `~/.config/zlib/weread.json` and
 refreshes its access token automatically. Logging in again keeps the same device.
 
+WeRead can stop accepting a saved login, for example when it expires or when
+you sign in to WeRead on another device. In the terminal interface, an import
+that hits this shows **WeRead login expired**: press `Enter` to scan a new QR
+code, and the import of the same file continues once you are logged in. Press
+`Esc` to go back instead. Commands such as `zlib weread import` print the error
+and the login command, and exit with code 3.
+
 You can also log in, log in again or log out from the settings:
 `zlib config weread account`, or **WeRead account** in `zlib config` and `/config`.
 
@@ -161,7 +168,7 @@ saved as `ZLIB_WEREAD_PROXY` in the global `.env`.
 | Symptom | Check |
 | --- | --- |
 | `not logged in to WeRead` (exit 3) | Run `zlib weread login` |
-| `WeRead session expired or was revoked` (exit 3) | Run `zlib weread login` again |
+| `WeRead session expired or was revoked` (exit 3) | WeRead no longer accepts the saved login. Run `zlib weread login` again, then repeat the import. In the terminal interface, press `Enter` on the **WeRead login expired** page |
 | `WeRead requires verification in its official app` | Open WeRead on your phone, complete any prompt, wait, then retry. If you use a proxy abroad, try `direct` as the WeRead proxy |
 | `WeRead is unreachable` or a timeout | Check the WeRead proxy setting with its Test action |
 | `WeRead did not confirm the import` | The upload finished but WeRead's answer was lost, it was still reading the book after 90 checks, or a cancellation could not be sent. Check the shelf in the app before retrying, because a retry can count as another import |

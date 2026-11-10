@@ -41,6 +41,14 @@ const (
 	errCodeRateLimited = -2014
 )
 
+// sessionError is ErrSessionExpired with the response that caused it. It reads
+// as the sentinel alone, so a raw status, code and server text never reach a
+// user; errors.As still finds the underlying *APIError for diagnosis.
+type sessionError struct{ cause error }
+
+func (e *sessionError) Error() string   { return ErrSessionExpired.Error() }
+func (e *sessionError) Unwrap() []error { return []error{ErrSessionExpired, e.cause} }
+
 // APIError is a WeRead response that carried an error code or an
 // unexpected HTTP status.
 type APIError struct {

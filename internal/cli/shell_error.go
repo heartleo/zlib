@@ -21,6 +21,10 @@ type shellErrorModel struct {
 	detail        string
 	retry         bool
 	selectedRetry bool
+	// signInPath, when set, makes Enter sign in again and resume importing that
+	// file; selectedSignIn records the choice for the shell.
+	signInPath     string
+	selectedSignIn bool
 }
 
 func (m shellErrorModel) Init() tea.Cmd { return nil }
@@ -36,7 +40,10 @@ func (m shellErrorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selectedRetry = true
 				return m, tea.Quit
 			}
-		case "esc", "q", "enter":
+		case "enter":
+			m.selectedSignIn = m.signInPath != ""
+			return m, tea.Quit
+		case "esc", "q":
 			return m, tea.Quit
 		}
 	}
@@ -55,6 +62,9 @@ func (m shellErrorModel) View() tea.View {
 	}
 	if note != "" {
 		body += "\n\n  " + note
+	}
+	if m.signInPath != "" {
+		return screenView(m.width, m.height, heading, m.subtitle, body, "", uiKey("enter", "sign in again"), uiKey("esc", "back"))
 	}
 	return screenView(m.width, m.height, heading, m.subtitle, body, "", uiKey("esc", "back"))
 }
