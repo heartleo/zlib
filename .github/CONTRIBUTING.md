@@ -42,6 +42,16 @@ detection differ between them. Code that touches one of those must be correct on
 all three. Branch on `runtime.GOOS` behind a parameter, as
 `sanitizeFilenameFor` does, so every platform's branch is tested on any OS.
 
+## Issue forms
+
+Issue forms follow [GitHub's form syntax](https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms).
+Their version/reproduction fields draw on the
+[GitHub CLI bug template](https://github.com/cli/cli/blob/trunk/.github/ISSUE_TEMPLATE/bug_report.md)
+and terminal context on the
+[Bubble Tea bug form](https://github.com/charmbracelet/bubbletea/blob/main/.github/ISSUE_TEMPLATE/bug.yml).
+Feature requests ask for the user problem, proposed behavior and alternatives;
+usage questions have their own form. Security reports go to private advisories.
+
 ## Security changes
 
 After changing cookies, EAPI headers, redirects, domain policy, downloads,

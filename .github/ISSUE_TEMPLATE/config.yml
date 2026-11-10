@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/heartleo/zlib#documentation
+    about: Installation, CLI commands, TUI, Kindle, WeRead, MCP, and agent setup.
+  - name: Report a security vulnerability privately
+    url: https://github.com/heartleo/zlib/security/advisories/new
+    about: Use a private advisory for credential exposure or other security vulnerabilities.

@@ -1,0 +1,42 @@
+name: Usage question
+description: Ask about setup, commands, the TUI, or integrations.
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [documentation](https://github.com/heartleo/zlib#documentation) and existing issues first. For reproducible defects, use Bug report. Report vulnerabilities [privately](https://github.com/heartleo/zlib/security/advisories/new).
+  - type: textarea
+    id: question
+    attributes:
+      label: What do you need help with?
+      description: Describe your goal, the command or screen involved, and what you have already tried.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: zlib version
+      description: Output of `zlib version`, or say that installation has not completed.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS and terminal
+      placeholder: macOS, Linux, or Windows; terminal name and version
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: Share only the redacted command and error lines needed to explain the question, not full configuration or session files.
+      render: text
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed credentials, personal details, signed download links and private paths from text and screenshots.
+          required: true

@@ -6,11 +6,35 @@ body:
     attributes:
       value: |
         Issues are public. Report security vulnerabilities privately as described in [SECURITY.md](https://github.com/heartleo/zlib/blob/main/.github/SECURITY.md).
+        Share only redacted output, never session files or complete configuration files. Check the [docs](https://github.com/heartleo/zlib#documentation) and search open and closed issues first.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before reporting
+      options:
+        - label: I searched existing issues and did not find the same problem.
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Terminal interface (TUI)
+        - Login or connectivity
+        - Search or book details
+        - Downloads or saved books
+        - Kindle delivery
+        - WeRead login or import
+        - Installation or update
+        - MCP server or agent plugin
+        - Other
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
       label: zlib version
-      description: Output of `zlib version`.
+      description: Output of `zlib version`. If possible, retry on the latest release; if updating is blocked, say so.
     validations:
       required: true
   - type: input
@@ -24,14 +48,34 @@ body:
     id: steps
     attributes:
       label: Command and what happened
-      description: The command you ran, the full error, and what you expected.
-      render: text
+      description: Give the smallest reproduction, including the redacted command or TUI keys. Use placeholder accounts and file names.
+      placeholder: |
+        1. Start zlib with ...
+        2. Run ... or press ...
+        3. The problem occurs ...
     validations:
       required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: What should happen, and what happens instead? Include the exact redacted error text if available.
+    validations:
+      required: true
+  - type: input
+    id: installation
+    attributes:
+      label: Installation method
+      placeholder: Homebrew, WinGet, install script, release archive, go install, or source build
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: For TUI bugs, include terminal version, window size and SSH/tmux use. For network bugs, mention proxy or VPN use without addresses or credentials. Attach only cropped, redacted screenshots or relevant diagnostic lines; do not attach raw HTTP logs.
   - type: checkboxes
     id: redaction
     attributes:
       label: Redaction
       options:
-        - label: I removed passwords, Cookie headers, `remix_userkey`, session files, signed download links, email addresses and local paths that show my username.
+        - label: I removed passwords, Cookie headers, session credentials and files, signed download links, email addresses and local paths that show my username, including from screenshots.
           required: true

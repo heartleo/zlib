@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement to zlib.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search open and closed issues first. Describe the user problem so we can evaluate different solutions. Changes are maintained directly; please open an issue rather than a pull request.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before requesting
+      options:
+        - label: I searched existing issues and did not find the same request.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what is difficult with zlib today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the CLI command, TUI interaction, MCP behavior or documentation improvement you want, and what a successful result looks like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or current workaround
+      description: Include existing commands or workflows you tried. Leave blank if none.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Include relevant OS or terminal constraints and redacted mockups if useful. Use placeholder accounts and files; omit credentials, personal details and signed links.
