@@ -31,6 +31,8 @@ Required tools: Go (the `go.mod` release), Node.js 22+,
 `go install golang.org/x/vuln/cmd/govulncheck@v1.9.0`, and
 [gitleaks](https://github.com/gitleaks/gitleaks#installing) 8.19 or later.
 
+`.githooks/commit-msg` also rejects a commit subject longer than 50 characters.
+
 Do not bypass the hook with `git commit --no-verify`. If a step fails, fix the
 cause. When govulncheck reports a vulnerability, follow
 [the security-scan skill](../.agents/skills/security-scan/SKILL.md). Network

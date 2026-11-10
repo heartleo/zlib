@@ -1,0 +1,13 @@
+#!/bin/sh
+# Enabled by `make hooks` (git config core.hooksPath .githooks).
+# Rejects a commit whose subject line is longer than 50 characters.
+set -eu
+
+max=50
+subject=$(grep -m1 -v '^#' "$1" || true)
+len=$(printf %s "$subject" | wc -m | tr -d ' ')
+
+if [ "$len" -gt "$max" ]; then
+	printf 'commit-msg: subject is %s characters, the limit is %s:\n  %s\n' "$len" "$max" "$subject" >&2
+	exit 1
+fi
