@@ -58,7 +58,7 @@ jobs:
       # site/ is served verbatim: no Jekyll runs on this path, so there is
       # nothing to escape and no .nojekyll to add. A CNAME file is ignored
       # for custom-workflow deploys; the domain lives in Pages settings.
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
