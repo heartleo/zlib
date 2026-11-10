@@ -36,9 +36,11 @@ and do not mention repository-level skills such as `repo-readme` or
 
 ## Wording
 
-Keep feature bullets about user tasks. Describe observed behavior; omit speed,
-quality, popularity, and completeness claims without evidence. Use named
-commands and concrete keys. A prompt that runs on Enter is not live search.
+Keep feature bullets about what zlib does, without commands or keys (see
+[the copy rules](copy.md#feature-bullets)). Describe observed behavior; omit
+speed, quality, popularity, and completeness claims without evidence. Use named
+commands and concrete keys in the other sections. A prompt that runs on Enter
+is not live search.
 Do not state counts that drift (number of themes, mirrors, formats).
 
 Use short headings and fenced command blocks. Label Bash and PowerShell blocks

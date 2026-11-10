@@ -2,6 +2,8 @@
 
 - The tagline and description match the locked hero copy in `copy.md`, or the
   maintainer approved the change. Bullets pass the line gate.
+- Feature bullets say what zlib does and contain no command, flag, key, or menu
+  path.
 - Both languages show a purpose, a short description, installation, first-use
   commands, the terminal key table, commands, and agent setup.
 - The first-use sequence includes account and domain prerequisites.

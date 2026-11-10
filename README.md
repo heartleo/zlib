@@ -28,12 +28,12 @@ English | [简体中文](README.zh.md)
 
 🔍 **Search** — filter by year, language, and format; sort results\
 📚 **Browse** — favorites, recommendations, popular books, and download history\
-📥 **Download** — view book details and choose a download directory\
+📥 **Download** — view book details and [covers](docs/covers.md), choose a download directory\
 📖 **Send to Kindle** — deliver files to your [Kindle address](docs/kindle.md)\
 🌏 **Send to WeRead** — import books into your [WeRead](docs/weread.md) shelf\
 🕒 **Profile** — check your daily download quota\
-🎨 **Themes** — switch color themes with `/theme`\
-🌐 **Network** — find working mirrors with `zlib doctor`, trust [your own mirror](docs/configuration.md#your-own-mirrors), or use a proxy\
+🎨 **Themes** — change the color theme\
+🌐 **Network** — check which mirrors work, trust [your own mirror](docs/configuration.md#your-own-mirrors), or use a proxy\
 🤖 **AI Agent Integration** — integrate with Claude Code and Codex through [Agent plugins](#agent-setup)
 
 ## Install
@@ -101,7 +101,7 @@ these cover a first session:
 | `Esc`          | Go back                                                                      |
 | `/quit`        | Exit                                                                         |
 
-Settings live under `/config` (network, downloads, Kindle). See
+Settings live under `/config` (network, downloads, search formats, Kindle, WeRead). See
 [Terminal interface](docs/tui.md) for every screen and key.
 
 ## Commands

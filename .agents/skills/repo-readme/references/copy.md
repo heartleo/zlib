@@ -52,7 +52,10 @@ same features in the same order.
 
 - One user task per bullet, starting with a verb. Do not pair unrelated
   features in one bullet.
-- Describe what the reader does, not how the UI is built ("in one list layout").
+- Say what zlib does, not how to use it. A bullet has no command, flag, key,
+  or menu path (`zlib doctor`, `/theme`, `s`, `/config`) and no UI layout
+  detail. Operating steps belong in Quick start, Terminal interface, Commands,
+  and `docs/`.
 - No unprovable scope words ("everything", "all", "any").
 - Do not repeat the hero sentence; a bullet adds detail the hero left out.
 

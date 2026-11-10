@@ -28,12 +28,12 @@ Z-Library 命令行工具，你和 AI Agent 都能用。
 
 🔍 **搜索** — 按年份、语言和格式筛选，结果可排序\
 📚 **浏览** — 收藏、推荐、热门图书和下载历史\
-📥 **下载** — 查看书籍详情，选择下载目录\
+📥 **下载** — 查看书籍详情和[封面](docs/covers.md)，选择下载目录\
 📖 **发送到 Kindle** — 把文件投递到你的 [Kindle 邮箱](docs/kindle.md)\
 🌏 **导入微信读书** — 把书导入你的[微信读书](docs/weread.md)书架\
 🕒 **用量查看** — 查看每日下载配额\
-🎨 **主题** — 用 `/theme` 切换配色\
-🌐 **网络** — 用 `zlib doctor` 找到可用镜像，可[添加自己信任的镜像](docs/configuration.md#your-own-mirrors)，也支持代理\
+🎨 **主题** — 切换配色\
+🌐 **网络** — 检测可用镜像，可[添加自己信任的镜像](docs/configuration.md#your-own-mirrors)，也支持代理\
 🤖 **AI Agent 集成** — 通过 [Agent 插件](#agent-接入)集成 Claude Code 和 Codex
 
 ## 安装
@@ -99,7 +99,7 @@ zlib tui
 | `Esc`          | 返回                                             |
 | `/quit`        | 退出                                             |
 
-设置在 `/config` 下（网络、下载、Kindle）。全部页面和按键见[终端界面说明](docs/tui.md)。
+设置在 `/config` 下（网络、下载、搜索格式、Kindle、微信读书）。全部页面和按键见[终端界面说明](docs/tui.md)。
 
 ## 常用命令
 
