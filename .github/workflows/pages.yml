@@ -10,7 +10,8 @@ on:
       - "scripts/build-zh.mjs"
       - ".github/workflows/pages.yml"
   # The site shows the latest release version, so publishing a release
-  # redeploys it.
+  # redeploys it. The run's ref is the tag, so the github-pages environment
+  # must allow tags matching v* besides main (site/README.md).
   release:
     types: [published]
   workflow_dispatch:
