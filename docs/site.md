@@ -74,7 +74,8 @@ Copy is never invented. Each piece has a source to check when it changes:
 
 | Content | Source |
 | --- | --- |
-| Picker columns, card, keys | `internal/cli/book_feed_view.go` (`bookColumnWidths`), `search_interactive.go` |
+| Picker columns, card, keys, help line | `internal/cli/book_feed_view.go` (`bookColumnWidths`, `selectedBookCardWithCover`, the help strings), `book_cover.go` (`coverWidth`, `coverRows`), `search_interactive.go` |
+| Picker covers | Open Library edition covers in `site/covers/`, one per sample book, named by book ID; editions and sources in `site/covers/README.md` |
 | `SCREENS` (login, profile, config, doctor, recommended) | The CLI's own views, captured with a temporary Go test on sample data and converted from ANSI |
 | `tui-demo.js` frames | The shell's `View()` at 80x24, driven by real key presses through `shellStep` |
 | Transcripts and `update` line | Strings the CLI prints (`internal/cli`) |
@@ -91,12 +92,15 @@ domains) stay out of the copy.
   form change. The markup carries the home frame for visitors without
   script, and the key list beside it highlights the step on screen.
 - **The Commands list** covers the everyday commands in three groups (find,
-  get, set up). `most-popular` and `favorites` ride on the `recommended` row;
+  get, set up); `weread` sits beside `kindle` under "get". `most-popular` and `favorites` ride on the `recommended` row;
   `tui` and `mcp` have their own sections. A command that opens a page in a
   terminal (`recommended`, `profile`, `config`, `doctor`) shows that page
   with no prompt, `login` shows its inline form under the prompt (doctor at
   56 columns, the rest at 80), and the rest show a prompt and plain output.
-  The `update` line is the "already up to date" message.
+  The `update` line is the "is up to date" message. Its version is never written
+  in the page: `pages.yml` stamps the latest published release into
+  `{{ZLIB_VERSION}}` at deploy time and redeploys when a release is published.
+  A local preview shows `vX.Y.Z`.
 - **`og.png`** (1200x630) is a screenshot of a small standalone HTML card;
   regenerate it by rendering that card again. `og:image` and
   `twitter:image` point at it by absolute URL, as scrapers require.

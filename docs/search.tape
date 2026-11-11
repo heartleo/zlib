@@ -4,9 +4,9 @@
 # themes are the site's pair: catppuccin-latte (light), catppuccin-mocha (dark).
 #
 # Recorded against fixture data, never a real account: internal/cli/demo_test.go
-# serves the same catalogue as the site's hero picker from an in-process fake
-# EAPI, with a throwaway session, home directory (/home/you) and download
-# folder (/home/books).
+# serves a catalogue from an in-process fake EAPI whose first six books match
+# the site's hero picker, with a throwaway session, home directory (/home/you)
+# and download folder (/home/books).
 #
 #   GOOS=linux go test -c ./internal/cli -o /tmp/zlib-demo
 #   vhs docs/search.tape        # VHS_NO_SANDBOX=true when run as root

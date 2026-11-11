@@ -16,7 +16,9 @@ It is the same arrangement as
 [hn-cli](https://github.com/heartleo/hn-cli) uses for hndigest.heartleo.dev.
 
 `.github/workflows/pages.yml` deploys on every push to `main` that touches
-`site/**`. The first run also switches the repository's Pages source to
+`site/**`, and again when a release is published, because the page shows the
+latest release version (the workflow stamps it in; a local preview shows
+`vX.Y.Z`). The first run also switches the repository's Pages source to
 "GitHub Actions", so there is nothing to set up in Settings beforehand.
 
 ### Cloudflare DNS

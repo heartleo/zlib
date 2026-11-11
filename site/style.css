@@ -330,6 +330,10 @@ pre.code { background-color: var(--t-bg); background-image:
 /* the TUI's detail card above the list */
 .card-tui { border: 1px solid var(--t-rule); border-radius: 6px; padding: var(--space-xs) var(--space-md); margin-bottom: var(--space-md); }
 .card-tui div { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.card-tui { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 2ch; align-items: flex-start; border-color: var(--t-mauve); }
+.card-tui .card-text { min-width: 0; flex: 1 1 0; }
+.card-slot { flex: none; width: 18ch; height: calc(9 * 1lh); display: flex; align-items: center; justify-content: center; }
+.card-slot img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
 /* lipgloss rounded-border tables: CSS lines in ch-sized cells, since the web
    font has no box-drawing glyphs and fallbacks differ in width */

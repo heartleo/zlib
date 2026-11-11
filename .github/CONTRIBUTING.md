@@ -89,7 +89,8 @@ request per branch, one squashed commit on `main` per pull request.
 
 Tag the squashed commit on `main` as described in
 [docs/versioning.md](../docs/versioning.md#releasing), check the draft
-release, then publish it.
+release, then publish it. Publishing redeploys the site, which shows the
+latest published release version (`.github/workflows/pages.yml`).
 
 ## Pre-commit checks
 

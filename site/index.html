@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>zlib: a Z-Library CLI for your terminal and AI agents</title>
-<meta name="description" content="Search, download, and send books to Kindle from the terminal. An open-source Z-Library client with an MCP server and plugins for Claude Code and Codex.">
+<meta name="description" content="Search, download, and send books to Kindle or WeRead from the terminal. An open-source Z-Library client with an MCP server and plugins for Claude Code and Codex.">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <link rel="canonical" href="https://zlib.heartleo.dev/">
 <link rel="alternate" hreflang="en" href="https://zlib.heartleo.dev/">
@@ -13,7 +13,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://zlib.heartleo.dev/">
 <meta property="og:title" content="zlib: a Z-Library CLI for your terminal and AI agents">
-<meta property="og:description" content="Search, download, and send books to Kindle from the terminal, or hand the same binary to Claude Code or Codex.">
+<meta property="og:description" content="Search, download, and send books to Kindle or WeRead from the terminal, or hand the same binary to Claude Code or Codex.">
 <meta property="og:site_name" content="zlib">
 <meta property="og:locale" content="en_US">
 <meta property="og:locale:alternate" content="zh_CN">
@@ -31,7 +31,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "zlib",
-  "description": "A command-line client for Z-Library. Search the catalogue, download books, and mail them to a Kindle address from the terminal, or drive the same binary from an AI coding agent through its MCP server or the bundled Claude Code and Codex plugins.",
+  "description": "A command-line client for Z-Library. Search the catalogue, download books, and send them to Kindle or WeRead from the terminal, or drive the same binary from an AI coding agent through its MCP server or the bundled Claude Code and Codex plugins.",
   "url": "https://zlib.heartleo.dev/",
   "applicationCategory": "UtilitiesApplication",
   "applicationSubCategory": "Command Line Utility",
@@ -109,8 +109,8 @@
         <span data-i18n="zh"><span class="nowrap">终端里的</span> <span class="nowrap">Z-Library。</span></span>
       </h1>
       <p class="lead rise d1">
-        <span data-i18n="en"><span class="ln">Search, download, and send books to Kindle.</span> <span class="ln">Or hand it to Claude Code and Codex.</span></span>
-        <span data-i18n="zh"><span class="ln">搜书、下载、发送到 Kindle，</span><span class="ln">也能交给 Claude Code 和 Codex。</span></span>
+        <span data-i18n="en"><span class="ln">Search, download, and send books to Kindle or WeRead.</span> <span class="ln">Or hand it to Claude Code and Codex.</span></span>
+        <span data-i18n="zh"><span class="ln">搜书、下载、发送到 Kindle 或微信读书，</span><span class="ln">也能交给 Claude Code 和 Codex。</span></span>
       </p>
       <div class="cmdline rise d2">
         <span class="p" aria-hidden="true">$</span>
@@ -219,8 +219,8 @@
         <span data-i18n="zh">一个界面，用上全部功能。</span>
       </h2>
       <p class="lead">
-        <span data-i18n="en"><code>zlib tui</code> puts search, downloads, history, Kindle and settings in one terminal app.</span>
-        <span data-i18n="zh"><code>zlib tui</code> 把搜索、下载、历史、Kindle 和设置放进同一个终端应用。</span>
+        <span data-i18n="en"><code>zlib tui</code> puts search, downloads, history, Kindle, WeRead and settings in one terminal app.</span>
+        <span data-i18n="zh"><code>zlib tui</code> 把搜索、下载、历史、Kindle、微信读书和设置放进同一个终端应用。</span>
       </p>
       <ul class="keys">
         <li data-key="slash"><kbd>/</kbd><span data-i18n="en">Open the commands</span><span data-i18n="zh">打开命令</span></li>
@@ -262,10 +262,11 @@
         <button type="button" role="tab" aria-selected="false" data-cmd="download"><span class="k">download</span><span class="d"><span data-i18n="en">Fetch a book by ID</span><span data-i18n="zh">按 ID 下载</span></span></button>
         <button type="button" role="tab" aria-selected="false" data-cmd="history"><span class="k">history</span><span class="d"><span data-i18n="en">Re-download or delete</span><span data-i18n="zh">重新下载或删除</span></span></button>
         <button type="button" role="tab" aria-selected="false" data-cmd="kindle"><span class="k">kindle</span><span class="d"><span data-i18n="en">Send a file to Kindle</span><span data-i18n="zh">发送文件到 Kindle</span></span></button>
+        <button type="button" role="tab" aria-selected="false" data-cmd="weread"><span class="k">weread</span><span class="d"><span data-i18n="en">Import a file into WeRead</span><span data-i18n="zh">导入文件到微信读书</span></span></button>
         <p class="cmd-group" aria-hidden="true"><span data-i18n="en">Set up</span><span data-i18n="zh">设置</span></p>
         <button type="button" role="tab" aria-selected="false" data-cmd="login"><span class="k">login</span><span class="d"><span data-i18n="en">Password or cookie file</span><span data-i18n="zh">用密码或 Cookie 文件登录</span></span></button>
         <button type="button" role="tab" aria-selected="false" data-cmd="profile"><span class="k">profile</span><span class="d"><span data-i18n="en">Today’s download quota</span><span data-i18n="zh">今日下载额度</span></span></button>
-        <button type="button" role="tab" aria-selected="false" data-cmd="config"><span class="k">config</span><span class="d"><span data-i18n="en">Network, download and Kindle</span><span data-i18n="zh">网络、下载和 Kindle 设置</span></span></button>
+        <button type="button" role="tab" aria-selected="false" data-cmd="config"><span class="k">config</span><span class="d"><span data-i18n="en">Network, download, search, Kindle, WeRead</span><span data-i18n="zh">网络、下载、搜索、Kindle、微信读书</span></span></button>
         <button type="button" role="tab" aria-selected="false" data-cmd="doctor"><span class="k">doctor</span><span class="d"><span data-i18n="en">Find domains that work</span><span data-i18n="zh">找出可用域名</span></span></button>
         <button type="button" role="tab" aria-selected="false" data-cmd="mirrors"><span class="k">mirrors</span><span class="d"><span data-i18n="en">Trust your own mirror</span><span data-i18n="zh">添加并信任自己的镜像</span></span></button>
         <button type="button" role="tab" aria-selected="false" data-cmd="theme"><span class="k">theme</span><span class="d"><span data-i18n="en">Pick a color theme</span><span data-i18n="zh">选择配色</span></span></button>
@@ -337,8 +338,8 @@
       </div>
 
       <p class="note" data-r>
-        <span data-i18n="en"><span class="ln">Then ask for a book by name.</span> <span class="ln">Add <code>--read-only</code> to <code>zlib mcp</code> to hide downloads and Kindle.</span></span>
-        <span data-i18n="zh"><span class="ln">之后告诉它书名即可。</span><span class="ln">给 <code>zlib mcp</code> 加上 <code>--read-only</code>，会隐藏下载和发送到 Kindle 的功能。</span></span>
+        <span data-i18n="en"><span class="ln">Then ask for a book by name.</span> <span class="ln">Add <code>--read-only</code> to <code>zlib mcp</code> to hide downloads, Kindle and WeRead.</span></span>
+        <span data-i18n="zh"><span class="ln">之后告诉它书名即可。</span><span class="ln">给 <code>zlib mcp</code> 加上 <code>--read-only</code>，会隐藏下载，以及发送到 Kindle 和微信读书的功能。</span></span>
       </p>
     </div>
   </div>
@@ -571,27 +572,28 @@
   const G     = '<span class="gap"> </span>';
 
   /* ── hero: a replica of the `zlib search` picker ─────── */
-  /* id, hash, title, author, format, size, rating, year (sample data) */
+  /* id, hash, title, author, format, size, rating, year of first
+     publication (sample data). Every book has an edition cover in /covers. */
   const PAGES = [
     [
-      ["115066162", "e9f13b", "Dune",                    "Frank Herbert", "EPUB",  "2.8 MB", "5.0", "1965"],
-      ["27462851",  "4c0a7d", "Dune Messiah",            "Frank Herbert", "EPUB",  "1.4 MB", "4.6", "1969"],
-      ["38104421",  "b81e22", "Children of Dune",        "Frank Herbert", "PDF",   "3.1 MB", "4.4", "1976"],
-      ["19288013",  "07d9fa", "God Emperor of Dune",     "Frank Herbert", "EPUB",  "1.9 MB", "4.2", "1981"],
-      ["55519037",  "a3c615", "Heretics of Dune",        "Frank Herbert", "MOBI",  "2.2 MB", "4.1", "1984"],
-      ["88214470",  "5f2e90", "Chapterhouse: Dune",      "Frank Herbert", "EPUB",  "2.0 MB", "4.0", "1985"],
-      ["41003377",  "c47b08", "The Dune Encyclopedia",   "W. E. McNelly", "PDF",  "24.6 MB", "4.7", "1984"],
-      ["76620518",  "19ad53", "Dune: The Graphic Novel", "Brian Herbert", "PDF",  "61.3 MB", "4.3", "2020"]
+      ["115066162", "e9f13b", "Dune",                   "Frank Herbert", "EPUB", "2.8 MB", "5.0", "1965"],
+      ["27462851",  "4c0a7d", "Dune Messiah",           "Frank Herbert", "EPUB", "1.4 MB", "4.6", "1969"],
+      ["38104421",  "b81e22", "Children of Dune",       "Frank Herbert", "PDF",  "3.1 MB", "4.4", "1976"],
+      ["19288013",  "07d9fa", "God Emperor of Dune",    "Frank Herbert", "EPUB", "1.9 MB", "4.2", "1981"],
+      ["55519037",  "a3c615", "Heretics of Dune",       "Frank Herbert", "MOBI", "2.2 MB", "4.1", "1984"],
+      ["88214470",  "5f2e90", "Chapterhouse: Dune",     "Frank Herbert", "EPUB", "2.0 MB", "4.0", "1985"],
+      ["41003377",  "c47b08", "The Dosadi Experiment",  "Frank Herbert", "PDF",  "3.6 MB", "4.1", "1977"],
+      ["76620518",  "19ad53", "Whipping Star",          "Frank Herbert", "EPUB", "1.2 MB", "3.9", "1970"]
     ],
     [
-      ["90135520",  "e2b4c1", "The Road to Dune",        "Frank Herbert", "EPUB",  "1.6 MB", "4.0", "2005"],
-      ["62884051",  "7a90de", "Sisterhood of Dune",      "Brian Herbert", "EPUB",  "2.4 MB", "3.9", "2012"],
-      ["11390745",  "d05f37", "Mentats of Dune",         "Brian Herbert", "EPUB",  "2.3 MB", "3.8", "2014"],
-      ["47712806",  "3be812", "Navigators of Dune",      "Brian Herbert", "EPUB",  "2.5 MB", "3.8", "2016"],
-      ["30948117",  "f61c4a", "Dune: House Atreides",    "Brian Herbert", "PDF",   "4.8 MB", "4.1", "1999"],
-      ["88230948",  "8e27b5", "Dune: House Harkonnen",   "Brian Herbert", "PDF",   "4.6 MB", "4.0", "2000"],
-      ["71204458",  "2d93f0", "Dune: House Corrino",     "Brian Herbert", "EPUB",  "2.7 MB", "4.0", "2001"],
-      ["55190322",  "c1e86b", "Paul of Dune",            "Brian Herbert", "EPUB",  "2.6 MB", "3.9", "2008"]
+      ["90135520",  "e2b4c1", "The Dragon in the Sea",  "Frank Herbert", "EPUB", "1.3 MB", "3.9", "1956"],
+      ["62884051",  "7a90de", "The Green Brain",        "Frank Herbert", "EPUB", "1.1 MB", "3.6", "1966"],
+      ["11390745",  "d05f37", "Destination: Void",      "Frank Herbert", "PDF",  "2.9 MB", "3.7", "1966"],
+      ["47712806",  "3be812", "The Eyes of Heisenberg", "Frank Herbert", "EPUB", "1.2 MB", "3.6", "1966"],
+      ["30948117",  "f61c4a", "The Santaroga Barrier",  "Frank Herbert", "MOBI", "1.5 MB", "3.8", "1968"],
+      ["88230948",  "8e27b5", "Soul Catcher",           "Frank Herbert", "EPUB", "1.0 MB", "3.6", "1972"],
+      ["71204458",  "2d93f0", "Hellstrom's Hive",       "Frank Herbert", "PDF",  "3.3 MB", "3.7", "1973"],
+      ["55190322",  "c1e86b", "The White Plague",       "Frank Herbert", "EPUB", "2.1 MB", "3.9", "1982"]
     ]
   ];
   const TOTAL_PAGES = 12;
@@ -604,8 +606,10 @@
 
   function head() {
     return (
-      '<div>  <span class="mauve">Search:</span> <span class="q">dune</span>' +
-      '  <span class="muted">Page ' + (page + 1) + " / " + TOTAL_PAGES + "</span></div><div>&nbsp;</div>"
+      // title row, then the status row of search_interactive.go
+      '<div>  <span class="mauve">Search:</span> <span class="q">frank herbert</span></div>' +
+      '<div>  <span class="muted">Page ' + (page + 1) + " of " + TOTAL_PAGES +
+      " · Book " + (cur + 1) + " of " + PAGES[page].length + "</span></div>"
     );
   }
 
@@ -654,28 +658,41 @@
       const on = i === cur;
       h += row(on ? " on" : "", on ? "❯ " : "  ", String(i + 1), b[2], b[3]);
     });
-    // the narrow help line the TUI switches to under 70 columns
-    h += width < 70
-      ? '<div class="help">  <b>↑↓</b> · <b>enter</b> · <b>/</b> · <b>q</b> quit</div>'
-      : '<div class="help">  <b>↑/↓</b> select · <b>←/→</b> page · <b>/</b> search' +
-        " · <b>enter</b> download · <b>q</b> quit</div>";
+    // the help lines of book_feed_view.go: full, shortened to fit, and the
+    // narrow one the TUI switches to under 70 columns
+    const full = "↑/↓ select · ←/→ page · / search · i details · enter download · s Kindle · q quit";
+    let help;
+    if (width < 70) help = '<b>↑↓</b> · <b>enter</b> · <b>s</b> Kindle · <b>/</b> · <b>q</b> quit';
+    else if (full.length <= width) help = '<b>↑/↓</b> select · <b>←/→</b> page · <b>/</b> search · <b>i</b> details · <b>enter</b> download · <b>s</b> Kindle · <b>q</b> quit';
+    else help = '<b>↑/↓</b> · <b>←/→</b> · <b>/</b> search · <b>i</b> details · <b>enter</b> download · <b>s</b> Kindle · <b>q</b> quit';
+    h += '<div class="help">' + help + "</div>";
     return h;
   }
 
-  /* The card above the list in book_feed_view.go: title, author, format and
-     size, year, then the reference download accepts. */
+  /* The card above the list in book_feed_view.go: nine rows, the same for
+     every book. Title (two rows), author, format and size, year, language,
+     two rows for fields the sample data lacks, then the reference download
+     accepts. The cover sits in an 18 x 9 cell slot (coverWidth, coverRows),
+     scaled to fit and centred, with two cells before the text. */
   function card() {
     const b = PAGES[page][cur];
     return (
       '<div class="card-tui">' +
+      // the TUI drops the slot under 100 columns; the page keeps it at every
+      // width so the cover always sits left of the details, narrowing the
+      // slot to 12 cells in a phone-sized window
+      '<div class="card-slot" style="width:' + (cols() < 60 ? 12 : 18) + 'ch">' +
+        '<img src="/covers/' + b[0] + '.jpg" alt="">' + "</div>" +
+      '<div class="card-text">' +
       '<div><b class="title">' + esc(b[2]) + "</b></div>" +
       "<div>&nbsp;</div>" +
       '<div><span class="au">' + esc(b[3]) + "</span></div>" +
       '<div><span class="f-' + b[4].toLowerCase() + '">' + b[4] + '</span><span class="muted"> · ' + b[5] + "</span></div>" +
       '<div><span class="muted">Year: ' + b[7] + "</span></div>" +
-      "<div>&nbsp;</div>" +
+      '<div><span class="muted">Language: English</span></div>' +
+      "<div>&nbsp;</div><div>&nbsp;</div>" +
       '<div><span class="muted">ID: </span><span class="id">' + ref(b) + "</span></div>" +
-      "</div>"
+      "</div></div>"
     );
   }
 
@@ -826,12 +843,17 @@
      views at 80 columns (catppuccin-mocha) on sample data: the login form,
      the doctor page, the profile page, the settings home and the
      recommended-books picker. Regenerate them when those views change. */
-  const SCREENS = {"config": "<div class=\"screen\" style=\"--cols:80\"><div class=\"bx\"><span class=\"mauve hb\">Settings</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  NETWORK</span></div><div class=\"bx\"><span class=\"tui-surface hb\">&gt; Domain              https://z-lib.gd</span><span class=\"tui-surface\">                                          </span></div><div class=\"bx\"><span>  Proxy URL           System proxy environment</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  DOWNLOADS</span></div><div class=\"bx\"><span>  Default directory   Current directory</span></div><div class=\"bx\"><span>  Download retries    3</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  KINDLE</span></div><div class=\"bx\"><span>  Kindle address      Add address</span></div><div class=\"bx\"><span>  From address        Add address</span></div><div class=\"bx\"><span>  SMTP host           smtp.gmail.com</span></div><div class=\"bx\"><span>  SMTP port           587</span></div><div class=\"bx\"><span>  SMTP security       starttls</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">back</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">enter</span><span> </span><span class=\"muted\">edit</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">↑/↓</span><span> </span><span class=\"muted\">select</span></div></div>", "doctor": "<div class=\"screen\" style=\"--cols:54\"><div class=\"bx\"><span class=\"mauve hb\">Doctor</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span>  </span><span>https://article.sk</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span class=\"tui-surface\"> </span><span class=\"mauve tui-surface hb\">https://z-lib.gd  · Current domain</span><span class=\"tui-surface\">                  </span></div><div class=\"bx\"> </div><div class=\"bx\"><span>  </span><span>https://z-lib.gl</span></div><div class=\"bx\"> </div><div class=\"bx\"><span>  </span><span>https://zlib.bz</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">↑/↓</span><span> </span><span class=\"muted\">select</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">r</span><span> </span><span class=\"muted\">check again</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">back</span></div></div>", "login": "<div class=\"screen\" style=\"--cols:79\"><div class=\"bx\"><span class=\"mauve hb\">Log in</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span>Email</span></div><div class=\"bx\"><span>&gt; </span><span>you@example.com</span><span> </span><span>                                                             </span></div><div class=\"bx\"> </div><div class=\"bx\"><span>Password</span></div><div class=\"bx\"><span>&gt; </span><span>*************</span><span class=\"tui-cursor\"> </span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"tui-surface\">  </span><span class=\"tui-surface\">Log in</span><span class=\"tui-surface\">  </span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">cancel</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">tab</span><span> </span><span class=\"muted\">next</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">shift+tab</span><span> </span><span class=\"muted\">previous</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">enter</span><span> </span><span class=\"muted\">continue</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">ctrl+s</span><span> </span><span class=\"muted\">log in</span></div></div>", "profile": "<div class=\"screen\" style=\"--cols:80\"><div class=\"bx\"><span class=\"mauve hb\">Profile</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"hb\">Reader</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">DAILY DOWNLOADS</span><span>                                                      </span><span class=\"hb\">6 / 10 used</span></div><div class=\"bx\"><span class=\"green-ramp\" style=\"--mix:100%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:99%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:98%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:96%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:95%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:94%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:92%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:91%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:90%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:88%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:87%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:86%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:84%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:83%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:82%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:81%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:79%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:78%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:77%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:75%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:74%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:73%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:71%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:70%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:69%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:67%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:66%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:65%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:63%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:62%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:61%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:60%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:58%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:57%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:56%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:55%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:54%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:52%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:51%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:50%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:49%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:47%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:46%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:45%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:43%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:42%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:41%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:40%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"tui-dim\"><span class=\"h\" style=\"width:32ch\"></span></span></div><div class=\"bx\"><span class=\"muted\">Resets at </span><span>2026-10-19 00:00</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">ACCOUNT</span><span> </span><span class=\"tui-dim\"><span class=\"h\" style=\"width:72ch\"></span></span></div><div class=\"bx\"><span class=\"muted\">Email</span><span>                                    </span><span class=\"muted\">Kindle email</span></div><div class=\"bx\"><span>you@example.com</span><span>                          </span><span>you@kindle.com</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"muted\">Plan</span></div><div class=\"bx\"><span>Standard</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">back</span></div></div>", "recommended": "<div class=\"screen\" style=\"--cols:80\"><div class=\"bx\"><span class=\"mauve hb\">Recommended books</span></div><div class=\"bx\"><span class=\"muted\">Book 1 of 5</span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"tl\"></i><span class=\"h\" style=\"width:76ch\"></span><i class=\"tr\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"mauve hb\">Dune</span><span>                                                                       </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span>                                                                           </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span>Frank Herbert</span><span>                                                              </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"muted\">EPUB · 2.8 MB</span><span>                                                              </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"muted\">Year: 1965</span><span>                                                                 </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span>                                                                           </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span>                                                                           </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span>                                                                           </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"muted\">ID: 115066162:e9f13b</span><span>                                                       </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"bl\"></i><span class=\"h\" style=\"width:76ch\"></span><i class=\"br\"></i></span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"muted\">  #   Title                 Author                                              </span></div><div class=\"bx\"><span class=\"tui-surface hb\">&gt; 1   Dune                  Frank Herbert                                       </span></div><div class=\"bx\"><span>  2   Dune Messiah          Frank Herbert                                       </span></div><div class=\"bx\"><span>  3   Children of Dune      Frank Herbert                                       </span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"muted\">↑/↓ select · PgUp/PgDn scroll · enter download · q quit</span></div></div>"};
+  const SCREENS = {"config":"<div class=\"screen\" style=\"--cols:80\"><div class=\"bx\"><span class=\"mauve hb\">Settings</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  NETWORK</span></div><div class=\"bx\"><span class=\"tui-surface hb\">&gt; Domain              https://z-lib.gd</span><span class=\"tui-surface\">                                          </span></div><div class=\"bx\"><span>  Proxy URL           System proxy environment</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  DOWNLOADS</span></div><div class=\"bx\"><span>  Default directory   Current directory</span></div><div class=\"bx\"><span>  Download retries    3</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  SEARCH</span></div><div class=\"bx\"><span>  Default formats     Any format</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  KINDLE</span></div><div class=\"bx\"><span>  Kindle address      Add address</span></div><div class=\"bx\"><span>  From address        Add address</span></div><div class=\"bx\"><span>  SMTP host           smtp.gmail.com</span></div><div class=\"bx\"><span>  SMTP port           587</span></div><div class=\"bx\"><span>  SMTP security       starttls</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">  WEREAD</span></div><div class=\"bx\"><span>  WeRead account      Not logged in</span></div><div class=\"bx\"><span>  WeRead proxy        System proxy environment</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">back</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">enter</span><span> </span><span class=\"muted\">open</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">↑/↓</span><span> </span><span class=\"muted\">select</span></div></div>","doctor":"<div class=\"screen\" style=\"--cols:54\"><div class=\"bx\"><span class=\"mauve hb\">Doctor</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span>  https://article.sk</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span class=\"tui-surface\"> </span><span class=\"mauve tui-surface hb\">https://z-lib.gd  · Current domain</span><span class=\"tui-surface\">                </span></div><div class=\"bx\"> </div><div class=\"bx\"><span>  https://z-lib.gl</span></div><div class=\"bx\"> </div><div class=\"bx\"><span>  https://zlib.bz</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">↑/↓</span><span> </span><span class=\"muted\">select</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">r</span><span> </span><span class=\"muted\">check again</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">back</span></div></div>","login":"<div class=\"screen\" style=\"--cols:79\"><div class=\"bx\"><span class=\"mauve hb\">Log in</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span>Email</span></div><div class=\"bx\"><span>&gt; </span><span>you@example.com</span><span> </span><span>                                                             </span></div><div class=\"bx\"> </div><div class=\"bx\"><span>Password</span></div><div class=\"bx\"><span>&gt; </span><span>*************</span><span class=\"tui-cursor\"> </span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"tui-surface\">  </span><span class=\"tui-surface\">Log in</span><span class=\"tui-surface\">  </span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">cancel</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">tab</span><span> </span><span class=\"muted\">next</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">shift+tab</span><span> </span><span class=\"muted\">previous</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">enter</span><span> </span><span class=\"muted\">continue</span><span class=\"tui-dim\"> • </span><span class=\"mauve\">ctrl+s</span><span> </span><span class=\"muted\">log in</span></div></div>","profile":"<div class=\"screen\" style=\"--cols:80\"><div class=\"bx\"><span class=\"mauve hb\">Profile</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"hb\">Reader</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">DAILY DOWNLOADS</span><span>                                                      </span><span class=\"hb\">6 / 10 used</span></div><div class=\"bx\"><span class=\"green-ramp\" style=\"--mix:100%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:99%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:98%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:96%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:95%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:94%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:92%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:91%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:90%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:88%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:87%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:86%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:84%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:83%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:82%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:81%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:79%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:78%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:77%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:75%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:74%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:73%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:71%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:70%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:69%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:67%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:66%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:65%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:63%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:62%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:61%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:60%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:58%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:57%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:56%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:55%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:54%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:52%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:51%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:50%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:49%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:47%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:46%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:45%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:43%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:42%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:41%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"green-ramp\" style=\"--mix:40%\"><span class=\"hh\" style=\"width:1ch\"></span></span><span class=\"tui-dim\"><span class=\"h\" style=\"width:32ch\"></span></span></div><div class=\"bx\"><span class=\"muted\">Resets at </span><span>2026-10-19 00:00</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve hb\">ACCOUNT</span><span> </span><span class=\"tui-dim\"><span class=\"h\" style=\"width:72ch\"></span></span></div><div class=\"bx\"><span class=\"muted\">Email</span><span>                                    </span><span class=\"muted\">Kindle email</span></div><div class=\"bx\"><span>you@example.com</span><span>                          </span><span>you@kindle.com</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"muted\">Plan</span></div><div class=\"bx\"><span>Standard</span></div><div class=\"bx\"> </div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"mauve\">esc</span><span> </span><span class=\"muted\">back</span></div></div>","recommended":"<div class=\"screen\" style=\"--cols:80\"><div class=\"bx\"><span class=\"mauve hb\">Recommended books</span></div><div class=\"bx\"><span class=\"muted\">Book 1 of 3</span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"tl\"></i><span class=\"h\" style=\"width:76ch\"></span><i class=\"tr\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"mauve hb\">Dune</span><span>                                                                       </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span>                                                                            </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> Frank Herbert                                                              </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"muted\">EPUB · 2.8 MB</span><span>                                                              </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"muted\">Year: 1965</span><span>                                                                 </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span>                                                                            </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span>                                                                            </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span>                                                                            </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"v\"></i></span><span> </span><span class=\"muted\">ID: 115066162:e9f13b</span><span>                                                       </span><span class=\"mauve\"><i class=\"v\"></i></span></div><div class=\"bx\"><span class=\"mauve\"><i class=\"bl\"></i><span class=\"h\" style=\"width:76ch\"></span><i class=\"br\"></i></span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"muted\">  #   Title              Author</span></div><div class=\"bx\"><span class=\"tui-surface hb\">&gt; 1   Dune               Frank Herbert                                          </span></div><div class=\"bx\"><span>  2   Dune Messiah       Frank Herbert</span></div><div class=\"bx\"><span>  3   Children of Dune   Frank Herbert</span></div><div class=\"bx\"> </div><div class=\"bx\"><span class=\"muted\">↑/↓ select · PgUp/PgDn scroll · i details · enter download · s Kindle · q quit</span></div></div>"};
+
+  // The latest published release, stamped by .github/workflows/pages.yml at
+  // deploy time. A local preview shows the placeholder version instead.
+  const STAMPED = "{{ZLIB_VERSION}}";
+  const RELEASE = STAMPED.startsWith("{{") ? "vX.Y.Z" : STAMPED;
 
   const TRANSCRIPTS = {
     login: P("zlib login --domain https://z-lib.gd") + SCREENS.login,
 
-    search: P('zlib search "dune" --ext epub --count 5') +
+    search: P('zlib search "frank herbert" --ext epub --count 5') +
       OK('Found <b class="title">5 results</b> · Page 1 / 10') + BLANK +
       box(["#", "ID", "Title", "Authors", "Year", "Format", "Size", "Rating"],
         EPUBS.map((b, i) => [String(i + 1), ref(b), b[2], b[3], b[7], b[4], b[5], b[6]]),
@@ -839,7 +861,7 @@
 
     download: P("zlib download 115066162:e9f13b --dir ~/books") + BLANK +
       '<div>  Downloading: <span class="title">Dune</span></div>' +
-      '<div>  <span class="bar">' + "█".repeat(34) + '</span><span class="muted">  2.8 MB / 2.8 MB</span></div>' + BLANK +
+      '<div>  <span class="bar">' + "█".repeat(34) + '</span><span class="muted">  2.8 MiB / 2.8 MiB</span></div>' + BLANK +
       OK('Saved to: <span class="title">/home/you/books/Dune.epub</span> <span class="muted">(2936013 bytes)</span>'),
 
     history: P("zlib history --page 1") +
@@ -847,7 +869,7 @@
       box(["#", "ID", "Title", "Format", "Size", "Date"], [
         ["1", ref(PAGES[0][0]), "Dune",                  "epub", "2.8 MB",  "2026-10-18"],
         ["2", ref(PAGES[0][1]), "Dune Messiah",          "epub", "1.4 MB",  "2026-10-17"],
-        ["3", ref(PAGES[0][6]), "The Dune Encyclopedia", "pdf",  "24.6 MB", "2026-09-12"]
+        ["3", ref(PAGES[0][6]), "The Dosadi Experiment", "pdf",  "3.6 MB",  "2026-09-12"]
       ], ["n", "id", "ti", "muted", "sz", "muted"]),
 
     // full-screen pages: the terminal shows the page, not the prompt
@@ -857,6 +879,11 @@
       L("muted", "  Sending to Kindle...") +
       OK('Email sent to Kindle address: <span class="blue">you@kindle.com</span>') +
       INFO("Final delivery depends on Amazon approval and file compatibility."),
+
+    weread: P("zlib weread import ./dune.epub") +
+      L("muted", "Importing to WeRead: dune.epub") + BLANK +
+      OK('Imported to WeRead: <span class="title">dune.epub</span> <span class="muted">(book ID 1234567)</span>') +
+      INFO("Open WeRead on your phone to find it on the shelf."),
 
     doctor: SCREENS.doctor,
 
@@ -876,19 +903,20 @@
     config: SCREENS.config,
 
     update: P("zlib update") +
-      L("", "zlib v0.0.12 is already up to date (latest release: v0.0.12).")
+      OK("zlib " + RELEASE + " is up to date")
   };
 
   /* the line under the window: how to go further, in both languages */
   const NOTES = {
     login: ["Logged in through a browser? Use <code>--cookies FILE</code>.", "在浏览器里登录过？用 <code>--cookies FILE</code> 导入。"],
     search: ["No query? <code>search</code> opens a filter form.", "不带关键词时，<code>search</code> 会打开筛选表单。"],
-    download: ["Add <code>--send-to-kindle</code> to mail it when it lands.", "加上 <code>--send-to-kindle</code>，下载完成后发送到 Kindle。"],
+    download: ["Add <code>--send-to-kindle</code> or <code>--send-to-weread</code> to deliver it when it lands.", "加上 <code>--send-to-kindle</code> 或 <code>--send-to-weread</code>，下载完成后直接发送。"],
+    weread: ["First time? Run <code>zlib weread login</code> and scan the QR code with WeChat.", "第一次使用？先运行 <code>zlib weread login</code>，用微信扫码。"],
     history: ["Run it bare to browse: enter downloads, d deletes.", "不带参数运行可以浏览：回车下载，d 删除。"],
     kindle: ["First time? Run <code>zlib kindle config</code>.", "第一次使用？先运行 <code>zlib kindle config</code>。"],
     theme: ["No name? Pick from a live preview.", "不带主题名时，可以边预览边选择。"],
     recommended: ["<code>zlib most-popular</code> and <code>zlib favorites</code> open the same list.", "<code>zlib most-popular</code> 和 <code>zlib favorites</code> 打开同样的列表。"],
-    config: ["<code>zlib config network</code>, <code>download</code> or <code>kindle</code> opens one page.", "<code>zlib config network</code>、<code>download</code> 或 <code>kindle</code> 直接打开对应页面。"],
+    config: ["<code>zlib config network</code>, <code>download</code>, <code>search</code>, <code>kindle</code> or <code>weread</code> opens one page.", "<code>zlib config network</code>、<code>download</code>、<code>search</code>、<code>kindle</code> 或 <code>weread</code> 直接打开对应页面。"],
     doctor: ["Pass one to <code>zlib login --domain</code>.", "把其中一个传给 <code>zlib login --domain</code>。"],
     update: ["Installed with brew, winget or <code>go install</code>? It updates through that.", "用 brew、winget 或 <code>go install</code> 安装的，会通过同样的方式更新。"],
   };
