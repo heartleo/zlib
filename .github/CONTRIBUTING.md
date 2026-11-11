@@ -71,6 +71,11 @@ request per branch, one squashed commit on `main` per pull request.
 
 - Merge with **Squash and merge** only, after every required check passes:
   `build`, `test` (Linux, macOS, Windows), `govulncheck` and `gitleaks`.
+- The squashed commit is the title alone, with no ` (#123)` suffix (GitHub
+  adds one by default, which breaks the 50-character limit) and no body:
+  `gh pr merge 123 --squash --subject "<title>" --body ""`, or edit both
+  fields in the web form. The pull request number is still linked from the
+  commit on GitHub.
 - Before merging, rebase on `main` if it moved, so the checks ran on what
   will land.
 - Dependabot pull requests follow the same rules; adjust the title to the
@@ -82,7 +87,7 @@ request per branch, one squashed commit on `main` per pull request.
 
 Tag the squashed commit on `main` as described in
 [docs/versioning.md](../docs/versioning.md#releasing), check the draft
-release, then publish it. Publishing redeploys the site with the new version.
+release, then publish it.
 
 ## Pre-commit checks
 
