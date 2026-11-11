@@ -34,8 +34,8 @@ New PRs receive comment-only reviews, with re-reviews on new commits. Maintainer
 mentions can request additional analysis; outside mentions cannot start runs.
 Automatic implementation, CI fixes, approvals and merging are disabled. Code
 pushes are disabled in the repository settings, consistent with the
-repository's contribution policy. Reviews state that the repository
-does not merge pull requests.
+repository's contribution policy. Reviews are advice; the maintainer
+squash-merges pull requests after the required checks pass.
 
 The script also unsets keys it does not manage (environment allowlist, hooks,
 mention and label instructions, and the build, plan, address-reviews and fix-ci

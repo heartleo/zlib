@@ -1,6 +1,7 @@
-This repository does not merge pull requests. Begin the review by saying so in
-one sentence: the findings are advice for the maintainer, who may reimplement
-the change directly. Do not imply the PR will be merged.
+Pull requests here come from the maintainer and are squash-merged once the
+required checks pass. The review is advice for that decision. Also check the
+rules in .github/CONTRIBUTING.md: the title is a Conventional Commit of at most
+50 characters, and the PR holds one logical change with its tests and docs.
 
 Review correctness, regressions and credential boundaries in the changed code.
 Read surrounding call sites and tests; report actionable findings introduced by
