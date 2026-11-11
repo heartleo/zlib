@@ -35,6 +35,17 @@ func TestDownloadTransferDetail(t *testing.T) {
 	}
 }
 
+// The bar animates toward the real fraction, so a percentage of its own would
+// lag behind percentLabel and show two different numbers.
+func TestDownloadProgressShowsOnePercentage(t *testing.T) {
+	m := newDownloadModel("1:abc", t.TempDir(), nil)
+	m.state, m.written, m.total = stateDownloading, 5<<20, 20<<20
+	m.started = time.Now().Add(-5 * time.Second)
+	if got := ansi.Strip(m.viewContent()); strings.Count(got, "%") != 1 || !strings.Contains(got, " 25%") {
+		t.Fatalf("viewContent() = %q, want exactly one percentage, 25%%", got)
+	}
+}
+
 func TestDownloadConnectingState(t *testing.T) {
 	m := newDownloadModel("1:abc", t.TempDir(), nil)
 	m.state = stateDownloading
