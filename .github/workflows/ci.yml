@@ -9,8 +9,50 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels its older run. Runs on main are keyed by
+# commit, so every commit that lands is checked and none is cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build:
+  # Whether the change can affect the Go build or tests. The Go jobs below are
+  # skipped, not left unrun, when it cannot, so `ci-ok` still reports a result;
+  # workflow-level `paths` filters would leave required checks pending.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # scripts/ci-changes.mjs holds the rule and its tests. Without a range to
+      # compare, or if git cannot read it, the Go jobs run.
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          case "$EVENT" in
+            pull_request) range="$BASE...$HEAD" ;;
+            push) range="$BEFORE..$AFTER" ;;
+            *) range="" ;;
+          esac
+          if [ -n "$range" ] && files=$(git diff --name-only "$range"); then
+            printf '%s\n' "$files" | node scripts/ci-changes.mjs >> "$GITHUB_OUTPUT"
+          else
+            echo "Go jobs run: no comparable range for this $EVENT event" >&2
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Fast checks that cover docs, skills and the node scripts; they run on every
+  # change.
+  checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +68,14 @@ jobs:
         run: node scripts/check-docs.mjs
 
       - name: Test scripts
-        run: node --test scripts/configure-pullfrog.test.mjs
+        run: node --test scripts/*.test.mjs
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
@@ -56,6 +105,8 @@ jobs:
   # Path handling, file names and terminal detection differ per OS, so the
   # tests run natively on each platform zlib is released for.
   test:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -71,7 +122,11 @@ jobs:
       - name: Test
         run: go test ./...
 
+  # A change without Go skips this; govulncheck.yml still scans main daily for
+  # newly published advisories.
   govulncheck:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -87,3 +142,32 @@ jobs:
 
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  # The one check to require before merging. A skipped matrix job reports as
+  # `test`, not `test (ubuntu-latest)`, so requiring the jobs themselves would
+  # wait forever on a docs change. This passes only if `changes` and `checks`
+  # succeeded and, unless the change was found not to need them, the Go jobs
+  # succeeded too.
+  ci-ok:
+    if: always()
+    needs: [changes, checks, build, test, govulncheck]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every job's result
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          GO: ${{ needs.changes.outputs.go }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          required="changes checks"
+          if [ "$GO" != "false" ]; then required="$required build test govulncheck"; fi
+          failed=""
+          for job in $required; do
+            result=$(echo "$NEEDS" | jq -r --arg job "$job" '.[$job].result')
+            [ "$result" = "success" ] || failed="$failed $job($result)"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::required jobs did not succeed:$failed"
+            exit 1
+          fi
+          echo "go=$GO; all required jobs succeeded"

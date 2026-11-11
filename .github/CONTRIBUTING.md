@@ -69,8 +69,11 @@ request per branch, one squashed commit on `main` per pull request.
 
 ### Merging
 
-- Merge with **Squash and merge** only, after every required check passes:
-  `build`, `test` (Linux, macOS, Windows), `govulncheck` and `gitleaks`.
+- Merge with **Squash and merge** only, after the required checks pass:
+  `ci-ok` and `gitleaks`. `ci-ok` succeeds only when every `ci` job it needs
+  succeeded; it is the one to require, because a skipped matrix job reports
+  as `test` rather than `test (ubuntu-latest)` and would never satisfy a rule
+  that names the platform jobs.
 - The squashed commit is the title alone, with no ` (#123)` suffix (GitHub
   adds one by default, which breaks the 50-character limit) and no body:
   `gh pr merge 123 --squash --subject "<title>" --body ""`, or edit both
@@ -111,7 +114,7 @@ make hooks   # git config core.hooksPath .githooks
 | `go mod tidy -diff` | `go.mod` and `go.sum` are tidy |
 | `sync-plugin-skills.mjs --check` | Plugin skills match `.agents/skills` |
 | `check-docs.mjs` | `docs/` is English; docs and skills contain no local paths, usernames, emails or credentials ([rules](../AGENTS.md#documentation-privacy)) |
-| `node --test scripts/configure-pullfrog.test.mjs` | The Pullfrog settings script: diffing, retries and the refusal to apply unmerged files |
+| `node --test scripts/*.test.mjs` | The node scripts: the Pullfrog settings script, and the rule that decides which changes need the Go jobs in CI |
 | `go vet` × 6 | Type-checks linux, darwin and windows on amd64 and arm64, including build-tagged files and tests |
 | `go test -race ./...` | Tests on your OS (without `-race` when cgo is off) |
 | `govulncheck ./...` | Known vulnerabilities in reachable code, standard library included |
@@ -128,11 +131,21 @@ cause. When govulncheck reports a vulnerability, follow
 [the security-scan skill](../.agents/skills/security-scan/SKILL.md). Network
 errors from govulncheck are not a pass: retry.
 
-CI repeats these checks on every push and pull request. It also runs the tests natively on
-Linux, macOS and Windows, because path handling, file names and terminal
-detection differ between them. Code that touches one of those must be correct on
-all three. Branch on `runtime.GOOS` behind a parameter, as
+CI repeats these checks on pull requests and on `main`. It also runs the tests
+natively on Linux, macOS and Windows, because path handling, file names and
+terminal detection differ between them. Code that touches one of those must be
+correct on all three. Branch on `runtime.GOOS` behind a parameter, as
 `sanitizeFilenameFor` does, so every platform's branch is tested on any OS.
+
+The Go jobs (`build`, `test`, `govulncheck`) run only when a change can affect
+the Go build or tests. `scripts/ci-changes.mjs` decides: they are skipped only
+if every changed file is on its list of paths that no Go code or test reads
+(docs, the site, skills, plugin manifests, the other workflows, the node
+tooling). Anything else, including a new directory or file, runs them. When a
+Go test starts reading a file, take that path off the list. The `checks` job
+(skills, docs privacy, script tests) runs on every change, and
+`govulncheck.yml` still scans `main` daily. A new push to a pull request
+cancels its older run; runs on `main` are never cancelled.
 
 ## Issue forms
 
