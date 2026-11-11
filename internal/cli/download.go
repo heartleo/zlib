@@ -299,9 +299,12 @@ func newDownloadModel(id, dir string, c *zlib.Client) downloadModel {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(currentTheme.Accent)
 
+	// percentLabel shows the real fraction; the bar's own percentage would
+	// follow its animation and lag behind it.
 	p := progress.New(
 		progress.WithDefaultBlend(),
 		progress.WithWidth(40),
+		progress.WithoutPercentage(),
 	)
 
 	return downloadModel{
