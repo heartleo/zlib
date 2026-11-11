@@ -1,7 +1,9 @@
 name: govulncheck
 
 # New vulnerabilities are published without any change to this repository,
-# so scan main daily. Pushes and pull requests run the same scan in ci.yml.
+# so scan main daily. ci.yml runs the same scan on pushes and pull requests
+# that can affect the Go build (scripts/ci-changes.mjs decides); this daily
+# run also covers the changes that skipped it.
 on:
   schedule:
     - cron: "17 3 * * *"
