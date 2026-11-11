@@ -39,7 +39,7 @@ Some formats are owned by other tools, so the rule does not apply to them.
 | --- | --- | --- |
 | Release asset names | `zlib_0.0.10_linux_x86_64.tar.gz` | GoReleaser's default name. `zlib update` in every released version builds this name from the tag, so renaming the assets would break updates from those versions. |
 | winget and Homebrew manifests | `0.0.10` | These package managers require bare versions. GoReleaser writes them. |
-| Plugin manifests (`plugins/zlib/.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`) | `0.2.0` | The plugin has its own version, separate from the CLI. The manifest schemas expect bare SemVer. |
+| Plugin manifests (`plugins/zlib/.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`) | `0.2.1` | The plugin has its own version, separate from the CLI. The manifest schemas expect bare SemVer. |
 | `go.mod` `go` line, `@version` module queries and third-party versions | `go 1.26.11`, `govulncheck@v1.9.0` | These follow the upstream tool's syntax. |
 
 ## Releasing
