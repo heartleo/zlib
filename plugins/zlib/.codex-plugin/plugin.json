@@ -1,6 +1,6 @@
 {
   "name": "zlib",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Search and download Z-Library books, browse saved books and recommendations, and send local files to Kindle with the zlib CLI.",
   "author": {
     "name": "heartleo"
