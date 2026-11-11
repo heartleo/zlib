@@ -21,6 +21,17 @@ latest release version (the workflow stamps it in; a local preview shows
 `vX.Y.Z`). The first run also switches the repository's Pages source to
 "GitHub Actions", so there is nothing to set up in Settings beforehand.
 
+The `github-pages` environment allows deployments from the branch `main` and
+from tags matching `v*`. A release run's ref is its tag, so without the tag
+rule GitHub rejects it with "Tag ... is not allowed to deploy to github-pages";
+the workflow still builds `main`, not the tagged commit. The rules are a
+repository setting (Settings > Environments > github-pages), not code. List
+them with:
+
+```bash
+gh api repos/heartleo/zlib/environments/github-pages/deployment-branch-policies
+```
+
 ### Cloudflare DNS
 
 Add one record under `heartleo.dev`:
