@@ -110,6 +110,7 @@ make hooks   # git config core.hooksPath .githooks
 | `go mod tidy -diff` | `go.mod` and `go.sum` are tidy |
 | `sync-plugin-skills.mjs --check` | Plugin skills match `.agents/skills` |
 | `check-docs.mjs` | `docs/` is English; docs and skills contain no local paths, usernames, emails or credentials ([rules](../AGENTS.md#documentation-privacy)) |
+| `node --test scripts/configure-pullfrog.test.mjs` | The Pullfrog settings script: diffing, retries and the refusal to apply unmerged files |
 | `go vet` × 6 | Type-checks linux, darwin and windows on amd64 and arm64, including build-tagged files and tests |
 | `go test -race ./...` | Tests on your OS (without `-race` when cgo is off) |
 | `govulncheck ./...` | Known vulnerabilities in reachable code, standard library included |

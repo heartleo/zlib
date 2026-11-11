@@ -8,18 +8,53 @@ needed.
 
 ## Repository settings
 
-With GitHub CLI authentication available, apply the checked-in configuration:
+Pullfrog keeps settings in its console. It has no configuration file, bulk
+apply or export, so `scripts/configure-pullfrog.mjs` is the single source of
+them in this repository: one `pullfrog config` call per key, with prompt text
+read from `.github/pullfrog/`. Pullfrog stores that text in the console rather
+than reading these files on each run, so a changed prompt must be applied.
 
 ```sh
-node scripts/configure-pullfrog.mjs --apply
+node scripts/configure-pullfrog.mjs --print   # settings as text; no network, no login
+node scripts/configure-pullfrog.mjs --check   # read the console, report differences
+node scripts/configure-pullfrog.mjs --apply   # write only the differences
 ```
 
-This writes settings for `heartleo/zlib` only. It does not publish files, enable
-the repository, or start runs. Settings are applied sequentially; a failure stops
-the script and leaves earlier writes in place. Re-running applies the same
-configuration. Changes to `.github/pullfrog/` prompts require reapplying it;
-Pullfrog stores their text in the console rather than reading these files on
-each run.
+`--apply` writes settings for `heartleo/zlib` only. It does not publish files,
+enable the repository, or start runs. It reads every key first, writes only
+those that differ, and retries a failed call up to five times with a growing
+wait, so a dropped connection costs one call rather than the run. If it still
+stops, it says how many settings were written; run it again and only the
+remainder is written.
+
+Behind an HTTP proxy the script sets `NODE_USE_ENV_PROXY=1` for the CLI. Node's
+`fetch` otherwise ignores `HTTPS_PROXY`, and direct connections to Pullfrog
+timed out in bursts (21 of 40 requests in one measurement, none through the
+proxy). Set the variable yourself to override this.
+
+### Authentication and permissions
+
+The script holds no credential and never reads one. The `pullfrog` CLI it starts
+acts as the GitHub user signed in to the GitHub CLI (`gh auth login`, scopes
+`repo` and `read:org`), so nothing can be applied without that login and the
+repository's admin role: `push`, `shell`, `auto-merge`, signing and OSS funding
+need admin; reading needs write access. Someone who forks the repository gets
+the script but not these permissions, and `--print` and the tests need none.
+The CLI is pinned in the script because it runs with your token; the API
+rejects a CLI whose contract version it no longer supports, in which case
+raise the pin after reading the release notes.
+
+`--apply` refuses to run unless `HEAD` is `origin/main` and `.github/pullfrog/`
+and the script have no uncommitted changes. The prompts steer an agent that
+reads public issues, so only merged, reviewed text may reach the console. Run
+`--check` anywhere; it only reads.
+
+### Without the script
+
+Run `--print` and enter the values in the
+[console](https://pullfrog.com/console/heartleo?repo=zlib), pasting each text
+block into its field. Then run `--check`, which reads the values back through
+the CLI and reports any that differ.
 
 The configuration uses the OSS-funded DeepSeek Flash alias with High reasoning.
 Model and effort live only in the console settings; the workflow sets neither,
