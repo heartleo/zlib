@@ -4,6 +4,11 @@ Edition covers from Open Library for the sample books in the landing page's
 search picker. Each file is the cover of the edition listed beside it. Cover
 artwork belongs to its respective rights holders; it is not project artwork.
 
+These come from each edition's own cover record. The CLI demo fixtures in
+`internal/cli/testdata/demo-covers/` were fetched by ISBN instead, which can
+return another edition's cover: Dune is the same picture in both, but
+Chapterhouse: Dune differs.
+
 | File | Book | Edition | ISBN | Open Library | Source |
 | --- | --- | --- | --- | --- | --- |
 | `115066162.jpg` | Dune | Ace Books, 1987 | 9780441172719 | [OL22597282M](https://openlibrary.org/books/OL22597282M) | https://covers.openlibrary.org/b/id/15166231-M.jpg |
