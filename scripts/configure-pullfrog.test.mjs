@@ -1,9 +1,25 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { applyProblem, childEnv, normalize, plan, render, retry, settings, unset, wanted } from './configure-pullfrog.mjs';
+import {
+  applyProblem,
+  childEnv,
+  isEntryPoint,
+  normalize,
+  plan,
+  proxyNote,
+  render,
+  retry,
+  settings,
+  supportsEnvProxy,
+  unset,
+  wanted,
+} from './configure-pullfrog.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const load = (file) => `text of ${file}\n`;
@@ -135,6 +151,47 @@ test('without a proxy the environment is left alone', () => {
   const env = { PATH: '/bin' };
   assert.equal(childEnv(env), env);
   assert.equal('NODE_USE_ENV_PROXY' in childEnv({ ALL_PROXY: 'socks5://proxy.example:1080' }), false);
+});
+
+test('the proxy opt-in needs Node 22.21 or 24 and up', () => {
+  for (const version of ['24.0.0', '24.5.1', '25.9.0', '22.21.0', '22.22.3']) assert.equal(supportsEnvProxy(version), true, version);
+  for (const version of ['22.20.9', '22.0.0', '23.11.0', '20.19.0']) assert.equal(supportsEnvProxy(version), false, version);
+});
+
+test('an old Node behind a proxy is told the opt-in has no effect', () => {
+  const proxied = { HTTPS_PROXY: 'http://proxy.example:8080' };
+  assert.match(proxyNote(proxied, '22.12.0'), /ignores NODE_USE_ENV_PROXY/);
+  assert.equal(proxyNote(proxied, '24.1.0'), null);
+  assert.equal(proxyNote({}, '22.12.0'), null, 'no proxy, nothing to say');
+  assert.equal(proxyNote({ ...proxied, NODE_USE_ENV_PROXY: '0' }, '22.12.0'), null, 'the caller chose');
+});
+
+test('the entry point is recognised through a differing path', () => {
+  // Paths built with the platform's own helpers, so the test holds on Windows too.
+  const real = join(root, 'real', 's.mjs');
+  const linked = join(root, 'link', 's.mjs');
+  const other = join(root, 'other.mjs');
+  const moduleUrl = pathToFileURL(real).href;
+  const realpath = (path) => (path === linked ? real : path);
+  assert.equal(isEntryPoint(linked, moduleUrl, realpath), true);
+  assert.equal(isEntryPoint(real, moduleUrl, realpath), true);
+  assert.equal(isEntryPoint(other, moduleUrl, realpath), false);
+  assert.equal(isEntryPoint(undefined, moduleUrl, realpath), false);
+});
+
+// The case that once printed nothing and exited 0: run the real script through
+// a junction (a directory symlink elsewhere), as a symlinked checkout would.
+test('--print produces output when started through a symlink', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'configure-pullfrog-'));
+  try {
+    const link = join(dir, 'scripts');
+    symlinkSync(join(root, 'scripts'), link, 'junction');
+    const run = spawnSync(process.execPath, [join(link, 'configure-pullfrog.mjs'), '--print'], { encoding: 'utf8' });
+    assert.equal(run.status, 0);
+    assert.match(run.stdout, /push = disabled/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('normalize drops whitespace runs and surrounding quotes', () => {

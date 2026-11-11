@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Prints, checks or applies repository settings only; never installs or pushes the workflow.
@@ -154,13 +154,27 @@ const failure = (key, result) => {
   return new Error(`${key}: ${said ? `${reason}: ${said.slice(0, 120)}` : reason}`);
 };
 
+const proxyNames = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'];
+
 // Node's fetch ignores HTTP(S)_PROXY unless NODE_USE_ENV_PROXY is set, so behind
 // a proxy the CLI connects directly and its requests time out in bursts. Opt in
-// when a proxy is configured and the caller has not chosen. Older Node ignores
-// the variable.
+// when a proxy is configured and the caller has not chosen.
 export function childEnv(env) {
-  const proxied = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].some((name) => env[name]);
+  const proxied = proxyNames.some((name) => env[name]);
   return proxied && env.NODE_USE_ENV_PROXY === undefined ? { ...env, NODE_USE_ENV_PROXY: '1' } : env;
+}
+
+// NODE_USE_ENV_PROXY exists from Node 24.0.0 and 22.21.0 (nodejs.org/api/cli.html);
+// other versions ignore it without saying so.
+export function supportsEnvProxy(version) {
+  const [major, minor] = version.split('.').map(Number);
+  return major >= 24 || (major === 22 && minor >= 21);
+}
+
+// A note for the user when the proxy opt-in cannot take effect, else null.
+export function proxyNote(env, version) {
+  if (!proxyNames.some((name) => env[name]) || env.NODE_USE_ENV_PROXY !== undefined || supportsEnvProxy(version)) return null;
+  return `Node ${version} ignores NODE_USE_ENV_PROXY (it needs 22.21 or 24+), so the Pullfrog CLI will connect directly and may time out through your proxy; calls are retried.`;
 }
 
 function pullfrog(args, options) {
@@ -215,6 +229,9 @@ async function main(mode) {
     }
   }
 
+  const note = proxyNote(process.env, process.versions.node);
+  if (note) console.error(note);
+
   let changes;
   try {
     changes = await plan({ read });
@@ -247,7 +264,20 @@ async function main(mode) {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// True when this file is the script being run, not an import. Node reports
+// import.meta.url as the real path while argv[1] keeps the path as typed, so a
+// symlink, junction or subst drive makes them differ; compare real paths, or the
+// script would exit 0 and print nothing.
+export function isEntryPoint(argv1, moduleUrl, realpath = realpathSync) {
+  if (!argv1) return false;
+  try {
+    return realpath(argv1) === realpath(fileURLToPath(moduleUrl));
+  } catch {
+    return moduleUrl === pathToFileURL(argv1).href;
+  }
+}
+
+if (isEntryPoint(process.argv[1], import.meta.url)) {
   const mode = process.argv[2];
   if (process.argv.length !== 3 || !['--print', '--check', '--apply'].includes(mode)) {
     usage();

@@ -30,7 +30,9 @@ remainder is written.
 Behind an HTTP proxy the script sets `NODE_USE_ENV_PROXY=1` for the CLI. Node's
 `fetch` otherwise ignores `HTTPS_PROXY`, and direct connections to Pullfrog
 timed out in bursts (21 of 40 requests in one measurement, none through the
-proxy). Set the variable yourself to override this.
+proxy). The variable exists from Node 24.0.0 and 22.21.0; on any other version
+the script prints a note and the CLI still connects directly, relying on the
+retries. Set the variable yourself to override the script's choice.
 
 ### Authentication and permissions
 
