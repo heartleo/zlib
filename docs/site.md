@@ -97,7 +97,10 @@ domains) stay out of the copy.
   terminal (`recommended`, `profile`, `config`, `doctor`) shows that page
   with no prompt, `login` shows its inline form under the prompt (doctor at
   56 columns, the rest at 80), and the rest show a prompt and plain output.
-  The `update` line is the "is up to date" message with the version being prepared.
+  The `update` line is the "is up to date" message. Its version is never written
+  in the page: `pages.yml` stamps the latest published release into
+  `{{ZLIB_VERSION}}` at deploy time and redeploys when a release is published.
+  A local preview shows `vX.Y.Z`.
 - **`og.png`** (1200x630) is a screenshot of a small standalone HTML card;
   regenerate it by rendering that card again. `og:image` and
   `twitter:image` point at it by absolute URL, as scrapers require.

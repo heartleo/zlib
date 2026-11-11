@@ -9,6 +9,10 @@ on:
       - "site/**"
       - "scripts/build-zh.mjs"
       - ".github/workflows/pages.yml"
+  # The site shows the latest release version, so publishing a release
+  # redeploys it.
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -34,7 +38,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # A release event would check out the tagged commit; deploy the default
+      # branch instead, so a release never rolls back newer site changes.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
 
       # enablement defaults to false, which fails with "Get Pages site failed"
       # on a repository that has never had Pages turned on. Setting it true
@@ -50,6 +58,23 @@ jobs:
       # The script fails loudly if it cannot find what it rewrites, which is
       # what keeps a markup change from silently shipping a stale or
       # half-translated page.
+      # The `zlib update` transcript names the latest published release.
+      # Stamp it before build-zh.mjs so the Chinese page gets it too. A
+      # missing placeholder or an odd tag fails the deploy rather than
+      # shipping a wrong version.
+      - name: Stamp the latest release version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+          if ! printf '%s\n' "$version" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "unexpected latest release tag: '$version'" >&2
+            exit 1
+          fi
+          grep -q '{{ZLIB_VERSION}}' site/index.html
+          sed -i "s/{{ZLIB_VERSION}}/$version/g" site/index.html
+          echo "stamped $version"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
