@@ -40,6 +40,9 @@ node scripts/sync-plugin-skills.mjs --check
 step "docs privacy"
 node scripts/check-docs.mjs
 
+step "script tests"
+node --test scripts/configure-pullfrog.test.mjs
+
 # Cross-platform: type-check every release target, including files behind
 # build tags and tests. Tests themselves run natively here and on Linux,
 # macOS and Windows in CI.
