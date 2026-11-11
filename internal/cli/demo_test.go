@@ -29,8 +29,9 @@ func demoCoverURL(id string) string {
 	return "https://covers.example/" + id + ".jpg"
 }
 
-// demoBook is one fixture result. The first books match the hero picker on
-// the site (site/index.html), so the README GIF and the page agree.
+// demoBook is one fixture result. The first six books match the hero picker
+// on the site (site/index.html), so the README GIF and the page open on the
+// same list; the picker's later rows differ.
 type demoBook struct {
 	id, hash, title, author, ext, size, rating, year string
 }
