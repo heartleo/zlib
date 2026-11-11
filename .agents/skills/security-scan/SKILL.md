@@ -43,9 +43,11 @@ Fix by layer:
 A "your code doesn't appear to call" result still needs the upgrade when one
 exists, but it does not block a release.
 
-CI runs the same scan on pushes and pull requests (`govulncheck` job in
-`.github/workflows/ci.yml`) and daily on main (`govulncheck.yml`). Keep the
-pinned govulncheck version the same in both and in this file.
+CI runs the same scan on pull requests and pushes to main that can affect the
+Go build (`govulncheck` job in `.github/workflows/ci.yml`; `scripts/ci-changes.mjs`
+decides, and docs or site changes skip it), and daily on main
+(`govulncheck.yml`), which also catches advisories published between changes.
+Keep the pinned govulncheck version the same in both and in this file.
 
 ## 2. Secrets
 
