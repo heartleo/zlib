@@ -75,7 +75,9 @@ request per branch, one squashed commit on `main` per pull request.
   adds one by default, which breaks the 50-character limit) and no body:
   `gh pr merge 123 --squash --subject "<title>" --body ""`, or edit both
   fields in the web form. The pull request number is still linked from the
-  commit on GitHub.
+  commit on GitHub. The one exception is credit: when a contributor's design
+  is used, the body holds their `Co-authored-by: Name <email>` trailer and
+  nothing else.
 - Before merging, rebase on `main` if it moved, so the checks ran on what
   will land.
 - Dependabot pull requests follow the same rules; adjust the title to the
