@@ -32,9 +32,9 @@ const PAGES = [
     path: "/",
     title: "zlib：终端里的 Z-Library 客户端，也能交给 AI Agent",
     description:
-      "搜书、下载、发送到 Kindle。开源的 Z-Library 命令行客户端，自带 MCP 服务器，并提供 Claude Code 和 Codex 插件。",
+      "搜书、下载、发送到 Kindle 或微信读书。开源的 Z-Library 命令行客户端，自带 MCP 服务器，并提供 Claude Code 和 Codex 插件。",
     ogTitle: "zlib：终端里的 Z-Library 客户端，也能交给 AI Agent",
-    ogDescription: "搜书、下载、发送到 Kindle，全程不用离开终端，也可以交给 Claude Code 或 Codex。",
+    ogDescription: "搜书、下载、发送到 Kindle 或微信读书，全程不用离开终端，也可以交给 Claude Code 或 Codex。",
   },
   {
     src: "site/send-to-kindle/index.html",
