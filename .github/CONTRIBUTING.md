@@ -1,7 +1,88 @@
 # Contributing
 
-zlib takes no pull requests. Changes are committed directly, so every commit
-must pass the checks below on the committer's machine first.
+zlib is maintained by one person. Every change reaches `main` through a pull
+request from the maintainer; only collaborators can open pull requests. To
+report a bug, propose a feature or offer a fix, open an issue. A fix you
+describe or attach there is reviewed and committed by the maintainer, with a
+`Co-authored-by` trailer when your design is used.
+
+## Development workflow
+
+The workflow is kept small: one short-lived branch per change, one pull
+request per branch, one squashed commit on `main` per pull request.
+
+### Branches
+
+- `main` is always releasable. Releases are tags on `main`; there are no
+  long-lived development or release branches.
+- Branch from the latest `main` and name the branch `<type>/<topic>`, using
+  the commit types below: `fix/download-percent`, `feat/weread-import`,
+  `docs/pr-workflow`.
+- Keep a branch to days, not weeks. Rebase it on `main` when it falls behind;
+  do not merge `main` into it.
+- The branch is deleted when its pull request merges.
+
+### Commits
+
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
+  `type(scope): description`, with the subject at most 50 characters and no
+  body unless it explains something the diff cannot. Types: `feat`, `fix`,
+  `perf`, `refactor`, `test`, `docs`, `build`, `ci`, `chore`.
+- Each commit on a branch passes the pre-commit checks below. Commits on a
+  branch are working history; squash merging decides what lands on `main`.
+
+### Pull requests
+
+- **One logical change per pull request.** A change and its tests, docs and
+  site updates go together. Unrelated changes, even small ones, get their own
+  pull requests. Changes that would be wrong on `main` without each other go
+  together.
+- **The title is the commit.** It becomes the subject of the squashed commit
+  and a line in the release notes, so it follows the commit rules above,
+  including the 50-character limit (the `commit-msg` hook does not see it).
+  `feat`, `fix`, `perf` and `build` titles appear in the release notes;
+  `docs`, `test`, `ci`, `chore` and `refactor` do not (`.goreleaser.yml`).
+- Fill in the template: what changed, why, and how it was verified. Link the
+  issue it resolves with `Fixes #123`.
+- Open a draft while work is in progress; mark it ready when it is.
+
+### Review
+
+- Read the full diff on GitHub before merging, as a reviewer would: scope,
+  naming, error paths, tests, docs and leftover debugging.
+- Pullfrog's review comments are advice. Resolve each one with a change or a
+  reply saying why not.
+- Changes listed under [Security changes](#security-changes) also need the
+  credential boundary review before merging.
+
+### Testing
+
+- `make check` passes locally (the pre-commit hook runs it on every commit).
+- A bug fix starts with a test that fails without the fix.
+- Tests do not depend on the machine: no network, real credentials, fixed
+  terminal sizes from the environment, or assumptions about the length or
+  location of the checkout or temporary directory.
+- Terminal UI changes: also run the walkthrough in
+  [docs/tui.md](../docs/tui.md#verification) and look at the changed screens
+  at 80x24.
+- Site changes: the checks under [Website](#website).
+
+### Merging
+
+- Merge with **Squash and merge** only, after every required check passes:
+  `build`, `test` (Linux, macOS, Windows), `govulncheck` and `gitleaks`.
+- Before merging, rebase on `main` if it moved, so the checks ran on what
+  will land.
+- Dependabot pull requests follow the same rules; adjust the title to the
+  commit rules when needed.
+- A broken `main` is fixed or reverted through a pull request first, before
+  other work merges.
+
+### Releasing
+
+Tag the squashed commit on `main` as described in
+[docs/versioning.md](../docs/versioning.md#releasing), check the draft
+release, then publish it. Publishing redeploys the site with the new version.
 
 ## Pre-commit checks
 
@@ -38,7 +119,7 @@ cause. When govulncheck reports a vulnerability, follow
 [the security-scan skill](../.agents/skills/security-scan/SKILL.md). Network
 errors from govulncheck are not a pass: retry.
 
-CI repeats these checks on every push. It also runs the tests natively on
+CI repeats these checks on every push and pull request. It also runs the tests natively on
 Linux, macOS and Windows, because path handling, file names and terminal
 detection differ between them. Code that touches one of those must be correct on
 all three. Branch on `runtime.GOOS` behind a parameter, as
