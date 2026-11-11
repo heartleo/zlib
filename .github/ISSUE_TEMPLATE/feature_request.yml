@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Search open and closed issues first. Describe the user problem so we can evaluate different solutions. Changes are maintained directly; please open an issue rather than a pull request.
+        Search open and closed issues first. Describe the user problem so we can evaluate different solutions. Only the maintainer opens pull requests and implements accepted requests; please open an issue rather than a pull request.
   - type: checkboxes
     id: checks
     attributes:

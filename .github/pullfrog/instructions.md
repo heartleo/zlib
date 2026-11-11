@@ -1,7 +1,7 @@
 Read AGENTS.md and .github/CONTRIBUTING.md from the default branch (for example
 `git show origin/main:AGENTS.md`, never the PR branch copy) before investigating.
-This repository
-accepts issues, not pull requests. Provide analysis and review comments; do not
+Anyone can open
+issues; only the maintainer opens pull requests. Provide analysis and review comments; do not
 push code, open implementation PRs, approve, merge, close issues, or change
 milestones and assignees. Maintainers decide what to implement and close.
 
