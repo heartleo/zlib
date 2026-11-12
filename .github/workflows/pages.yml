@@ -41,7 +41,7 @@ jobs:
     steps:
       # A release event would check out the tagged commit; deploy the default
       # branch instead, so a release never rolls back newer site changes.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.repository.default_branch }}
 
@@ -49,7 +49,7 @@ jobs:
       # on a repository that has never had Pages turned on. Setting it true
       # makes this step create the Pages site with build_type: workflow, so
       # there is nothing to click in Settings beforehand.
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         with:
           enablement: true
 
@@ -76,7 +76,7 @@ jobs:
           sed -i "s/{{ZLIB_VERSION}}/$version/g" site/index.html
           echo "stamped $version"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - run: node scripts/build-zh.mjs
@@ -84,9 +84,9 @@ jobs:
       # site/ is served verbatim: no Jekyll runs on this path, so there is
       # nothing to escape and no .nojekyll to add. A CNAME file is ignored
       # for custom-workflow deploys; the domain lives in Pages settings.
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
