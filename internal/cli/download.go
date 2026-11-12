@@ -17,6 +17,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/weread"
 	"github.com/heartleo/zlib/internal/zlib"
 	"github.com/spf13/cobra"
@@ -276,6 +277,10 @@ type downloadModel struct {
 	sendToKindle   bool
 	autoKindle     bool // explicit list shortcut; skip directory and send dialogs
 	sendToWeRead   bool
+	fixMetadata    bool
+	// book is the Z-Library record fetched before the download; its ISBN
+	// seeds the metadata lookup. Empty for a direct URL.
+	book zlib.Book
 	// completeMessage reports a delivery outcome on the completion page.
 	completeMessage string
 	completeTone    noticeTone
@@ -369,6 +374,7 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fetchDoneMsg:
 		m.state = stateDownloading
+		m.book = msg.book
 		m.bookName = msg.book.Name
 		ch := make(chan tea.Msg, 64)
 		m.downloadCh = ch
@@ -411,9 +417,10 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.sendToKindle = actions[m.completeAction] == actionSendToKindle
 				m.sendToWeRead = actions[m.completeAction] == actionSendToWeRead
+				m.fixMetadata = actions[m.completeAction] == actionFixMetadata
 				return m, tea.Quit
 			case "esc", "q", "ctrl+c":
-				m.sendToKindle, m.sendToWeRead = false, false
+				m.sendToKindle, m.sendToWeRead, m.fixMetadata = false, false, false
 				return m, tea.Quit
 			case "left", "shift+tab":
 				m.completeAction = (m.completeAction + len(actions) - 1) % len(actions)
@@ -501,13 +508,15 @@ const (
 	actionBack         = "Back"
 	actionSendToKindle = "Send to Kindle"
 	actionSendToWeRead = "Send to WeRead"
+	actionFixMetadata  = "Fix metadata"
 )
 
 func (m downloadModel) canSendToKindle() bool {
 	return slices.Contains(kindleAllowedTypes, strings.ToLower(filepath.Ext(m.savedPath)))
 }
 
-// completeActions lists Back plus each delivery that accepts the file.
+// completeActions lists Back plus each delivery that accepts the file, and
+// Fix metadata when zlib can read the format.
 func (m downloadModel) completeActions() []string {
 	actions := []string{actionBack}
 	if m.canSendToKindle() {
@@ -515,6 +524,9 @@ func (m downloadModel) completeActions() []string {
 	}
 	if weread.SupportedFormat(m.savedPath) {
 		actions = append(actions, actionSendToWeRead)
+	}
+	if slices.Contains(ebookmeta.Extensions, strings.ToLower(filepath.Ext(m.savedPath))) {
+		actions = append(actions, actionFixMetadata)
 	}
 	return actions
 }

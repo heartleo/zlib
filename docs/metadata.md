@@ -93,6 +93,18 @@ start selected, so nothing already in the file is replaced unless you select it.
 Formats that cannot store a field do not offer it. Redirected output, `--json`
 and `-t`, `-a` or `--isbn` print the list instead.
 
+A match that has a cover adds a `Cover` row. Selecting it downloads the image
+when you apply: if the download fails, nothing is written and the page says
+why. A cover is only fetched from Open Library, the Internet Archive and Google
+Books, must be a JPEG, PNG, GIF or WebP image of at least 50 by 50 pixels, and
+is capped at 10 MiB. A MOBI or AZW3 file can only have an existing cover
+replaced, so the row is not offered for one without a cover.
+
+After a download in the terminal interface, choose **Fix metadata** on the
+saved-file page. The lookup also searches the ISBN from the Z-Library record,
+and uses its title and authors when the file has none. Leaving the page
+returns to the saved file.
+
 With `--json`, the document has the `query`, the ranked `candidates` (with
 `match`, `score`, `sources`, `edition_level` and the fields) and any
 per-source `errors`.

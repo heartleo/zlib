@@ -48,9 +48,9 @@ func answerWith(res metasource.Result, err error, calls *atomic.Int32) metaLooku
 }
 
 // metaPageAfterLookup runs the lookup and feeds its answer to the page.
-func metaPageAfterLookup(t *testing.T, lookup metaLookupFunc, write metaWriteFunc) metaPageModel {
+func metaPageAfterLookup(t *testing.T, lookup metaLookupFunc, write metaWriteFunc, opts ...metaOption) metaPageModel {
 	t.Helper()
-	m, err := newMetaPageModel(writeTestEPUB(t), lookup, write)
+	m, err := newMetaPageModel(writeTestEPUB(t), lookup, write, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}

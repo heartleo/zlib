@@ -48,7 +48,7 @@ func (m *shellModel) openMeta(arg string) tea.Cmd {
 
 // openMetaFile opens the lookup page for path, or reports why it cannot.
 func (m *shellModel) openMetaFile(path string) tea.Cmd {
-	page, err := newMetaPageModel(path, newDefaultMetaLookup(), ebookmeta.WriteFile)
+	page, err := newMetaPageModel(path, newDefaultMetaLookup(), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()))
 	if err != nil {
 		m.setError(safeText(err.Error()))
 		return nil
@@ -56,12 +56,33 @@ func (m *shellModel) openMetaFile(path string) tea.Cmd {
 	return m.open("meta", page)
 }
 
+// openMetaForDownload opens the lookup page for a file just downloaded. The
+// Z-Library record's ISBN is searched along with whatever the file says, and
+// its title and authors fill in what the file lacks. Leaving the page returns
+// to the saved-file page.
+func (m *shellModel) openMetaForDownload(dl downloadModel) tea.Cmd {
+	hint := metaHint{Title: dl.book.Name, Authors: dl.book.Authors, ISBNs: []string{dl.book.ISBN13, dl.book.ISBN10, dl.book.ISBN}}
+	page, err := newMetaPageModel(dl.savedPath, newDefaultMetaLookup(), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()), withMetaHint(hint))
+	if err != nil {
+		return m.returnToDownloadCompletion(noticeError, safeText(err.Error()))
+	}
+	return m.open("meta", page)
+}
+
 // metaDone returns from the metadata page, saying what was written. A page
-// that ended without writing (cancelled) leaves no message.
+// that ended without writing (cancelled) leaves no message. After a
+// download it goes back to the saved-file page.
 func (m *shellModel) metaDone(page metaPageModel) tea.Cmd {
 	page.stop()
+	wrote := !page.cancelled && len(page.applied) > 0
+	if m.deliveryReturn != nil {
+		if wrote {
+			return m.returnToDownloadCompletion(noticeSuccess, page.summary())
+		}
+		return m.returnToDownloadCompletion(noticeInfo, "")
+	}
 	m.restore()
-	if !page.cancelled && len(page.applied) > 0 {
+	if wrote {
 		m.setSuccess(page.summary())
 	}
 	return nil

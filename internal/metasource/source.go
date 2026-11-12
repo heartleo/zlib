@@ -191,14 +191,23 @@ func fetch(ctx context.Context, c *http.Client, rawURL, accept string) ([]byte, 
 		return nil, 0, stripURL(err)
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))
+	data, err := readLimited(resp.Body, maxBodyBytes)
 	if err != nil {
-		return nil, 0, stripURL(err)
-	}
-	if len(data) > maxBodyBytes {
-		return nil, 0, errors.New("response too large")
+		return nil, 0, err
 	}
 	return data, resp.StatusCode, nil
+}
+
+// readLimited reads r, failing when it holds more than limit bytes.
+func readLimited(r io.Reader, limit int) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, int64(limit)+1))
+	if err != nil {
+		return nil, stripURL(err)
+	}
+	if len(data) > limit {
+		return nil, errors.New("response too large")
+	}
+	return data, nil
 }
 
 // stripURL drops the request URL from a transport error: it carries the

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -28,6 +30,13 @@ const (
 	metaFields                      // choosing which fields to write
 	metaWriting                     // rewriting the file
 )
+
+// metaCoverError marks a failed cover download, which happens before
+// anything is written.
+type metaCoverError struct{ err error }
+
+func (e metaCoverError) Error() string { return "cover download failed: " + e.err.Error() }
+func (e metaCoverError) Unwrap() error { return e.err }
 
 // metaRun is the state of one lookup. Copies of the page share it, so the
 // lookup starts once however many times Init runs, and any copy can cancel
@@ -52,6 +61,7 @@ func (r *metaRun) stop() {
 type (
 	metaLookupFunc func(ctx context.Context, q metasource.Query) (metasource.Result, error)
 	metaWriteFunc  func(path string, c *ebookmeta.Changes) error
+	metaCoverFunc  func(ctx context.Context, url string) (*ebookmeta.Cover, error)
 
 	metaLookupDone struct {
 		gen int
@@ -76,6 +86,7 @@ type metaPageModel struct {
 	query         metasource.Query
 	lookup        metaLookupFunc
 	write         metaWriteFunc
+	cover         metaCoverFunc // nil: covers are not offered
 
 	stage    metaStage
 	spinner  spinner.Model
@@ -98,22 +109,66 @@ type metaPageModel struct {
 	cancelled bool
 }
 
+// metaHint adds what is known about the book from outside the file, such as
+// the Z-Library record of a download. Hints only fill gaps: they never
+// replace the file's own title or authors, and their ISBNs are searched as
+// well.
+type metaHint struct {
+	Title   string
+	Authors []string
+	ISBNs   []string // any form; invalid ones are ignored
+}
+
+// metaOption adjusts a new metadata page.
+type metaOption func(*metaPageModel)
+
+func withMetaHint(h metaHint) metaOption {
+	return func(m *metaPageModel) {
+		q := &m.query
+		if q.Title == "" {
+			q.Title = h.Title
+		}
+		if len(q.Authors) == 0 {
+			q.Authors = h.Authors
+		}
+		for _, raw := range h.ISBNs {
+			if isbn := metasource.NormalizeISBN(raw); isbn != "" && !slices.Contains(q.ISBNs, isbn) {
+				q.ISBNs = append(q.ISBNs, isbn)
+			}
+		}
+	}
+}
+
+func withMetaCover(fetch metaCoverFunc) metaOption {
+	return func(m *metaPageModel) { m.cover = fetch }
+}
+
 // newMetaPageModel reads path and prepares the lookup. The lookup runs on
 // the first Init, not here, so building the page costs nothing.
-func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc) (metaPageModel, error) {
+func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, opts ...metaOption) (metaPageModel, error) {
 	cur, format, err := ebookmeta.ReadFile(path)
 	if err != nil {
 		return metaPageModel{}, metaError(path, err)
 	}
-	q := metasource.QueryFromMetadata(cur)
-	if q.Empty() {
-		return metaPageModel{}, fmt.Errorf("%s has no title, author or ISBN to search with; set one with zlib meta first", filepath.Base(path))
-	}
 	m := metaPageModel{
-		path: path, format: format, current: cur, query: q, lookup: lookup, write: write,
+		path: path, format: format, current: cur, query: metasource.QueryFromMetadata(cur), lookup: lookup, write: write,
 		spinner: newLoadingSpinner(), width: 80, height: 24, run: newMetaRun(),
 	}
+	for _, opt := range opts {
+		opt(&m)
+	}
+	if m.query.Empty() {
+		return metaPageModel{}, fmt.Errorf("%s has no title, author or ISBN to search with; set one with zlib meta first", filepath.Base(path))
+	}
 	return m, nil
+}
+
+// newDefaultMetaCover resolves the proxy now, like newDefaultMetaLookup.
+func newDefaultMetaCover() metaCoverFunc {
+	rt := metaTransport()
+	return func(ctx context.Context, url string) (*ebookmeta.Cover, error) {
+		return metasource.FetchCover(ctx, rt, url)
+	}
 }
 
 // newDefaultMetaLookup resolves the built-in sources, and the proxy they use,
@@ -237,7 +292,10 @@ func (m metaPageModel) openFields() metaPageModel {
 	m.cand = m.res.Candidates[m.cursor]
 	m.plan, m.hidden, m.selected = nil, nil, nil
 	for _, ch := range metasource.Plan(m.current, m.cand) {
-		if !ebookmeta.CanStore(m.format, string(ch.Field)) {
+		if ch.Field == metasource.FieldCover && m.cover == nil {
+			continue
+		}
+		if !m.canOffer(ch) {
 			m.hidden = append(m.hidden, string(ch.Field))
 			continue
 		}
@@ -249,6 +307,15 @@ func (m metaPageModel) openFields() metaPageModel {
 		m.message = "Nothing to add: the file already has these values"
 	}
 	return m
+}
+
+// canOffer reports whether the file's format can take the change. MOBI can
+// only replace a cover it already has.
+func (m metaPageModel) canOffer(ch metasource.Change) bool {
+	if !ebookmeta.CanStore(m.format, string(ch.Field)) {
+		return false
+	}
+	return !(ch.Field == metasource.FieldCover && m.format == ebookmeta.FormatMOBI && m.current.Cover == "")
 }
 
 func (m metaPageModel) fieldsKey(k string) (tea.Model, tea.Cmd) {
@@ -288,16 +355,23 @@ func (m metaPageModel) fieldsKey(k string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// apply writes the selected fields in the background.
+// apply writes the selected fields in the background. A selected cover is
+// downloaded first; if that fails nothing is written, so the user can
+// deselect it and apply again.
 func (m metaPageModel) apply() (tea.Model, tea.Cmd) {
 	var chosen []metasource.Change
+	coverURL := ""
 	for i, ch := range m.plan {
-		if m.selected[i] {
-			chosen = append(chosen, ch)
+		if !m.selected[i] {
+			continue
+		}
+		chosen = append(chosen, ch)
+		if ch.Field == metasource.FieldCover {
+			coverURL = ch.CoverURL()
 		}
 	}
 	changes := metasource.BuildChanges(chosen, func(metasource.Change) bool { return true })
-	if changes == nil {
+	if changes == nil && coverURL == "" {
 		m.message = "Select at least one field"
 		return m, nil
 	}
@@ -306,16 +380,35 @@ func (m metaPageModel) apply() (tea.Model, tea.Cmd) {
 		m.applied = append(m.applied, string(ch.Field))
 	}
 	m.stage, m.message = metaWriting, ""
-	write, path := m.write, m.path
-	return m, tea.Batch(m.spinner.Tick, func() tea.Msg { return metaWriteDone{err: write(path, changes)} })
+	write, fetch, path := m.write, m.cover, m.path
+	return m, tea.Batch(m.spinner.Tick, func() tea.Msg {
+		if coverURL != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			cov, err := fetch(ctx, coverURL)
+			if err != nil {
+				return metaWriteDone{err: metaCoverError{err}}
+			}
+			if changes == nil {
+				changes = &ebookmeta.Changes{}
+			}
+			changes.Cover = cov
+		}
+		return metaWriteDone{err: write(path, changes)}
+	})
 }
 
 func (m metaPageModel) written(msg metaWriteDone) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		// The file is untouched; stay here so the user can try again.
 		m.stage = metaFields
-		m.message = "Could not write the file: " + safeText(msg.err.Error())
 		m.applied = nil
+		var cover metaCoverError
+		if errors.As(msg.err, &cover) {
+			m.message = "Cover download failed, nothing was written: " + safeText(cover.err.Error())
+		} else {
+			m.message = "Could not write the file: " + safeText(msg.err.Error())
+		}
 		return m, nil
 	}
 	return m, tea.Quit
@@ -344,7 +437,13 @@ func (m metaPageModel) View() tea.View {
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), status,
 			uiKey("↑/↓", "move"), uiKey("space", "select"), uiKey("ctrl+s", "apply"), uiKey("esc", "back"))
 	}
-	return screenView(m.width, m.height, "Fix metadata", subtitle, "  "+m.spinner.View()+"Writing the file…", "")
+	note := "Writing the file…"
+	for i, ch := range m.plan {
+		if ch.Field == metasource.FieldCover && m.selected[i] {
+			note = "Downloading the cover and writing the file…"
+		}
+	}
+	return screenView(m.width, m.height, "Fix metadata", subtitle, "  "+m.spinner.View()+note, "")
 }
 
 func (m metaPageModel) lookingBody() string {

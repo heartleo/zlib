@@ -1,6 +1,7 @@
 package metasource
 
 import (
+	"net/url"
 	"slices"
 	"strings"
 
@@ -18,6 +19,9 @@ const (
 	FieldTags        Field = "tags"
 	FieldPublished   Field = "published"
 	FieldDescription Field = "description"
+	// FieldCover proposes the candidate's cover image. Its bytes are fetched
+	// on demand with FetchCover, so a plan only carries the URL.
+	FieldCover Field = "cover"
 )
 
 // writableIdentifiers are the schemes a lookup may add. A uuid names one
@@ -33,8 +37,12 @@ type Change struct {
 	// by default: replacing what a file already says needs a decision.
 	Fill bool
 
-	apply func(*ebookmeta.Changes)
+	apply    func(*ebookmeta.Changes)
+	coverURL string
 }
+
+// CoverURL is where a FieldCover change gets its image, or "".
+func (c Change) CoverURL() string { return c.coverURL }
 
 // DefaultSelected reports whether the change is applied unless the user
 // opts out: fills yes, replacements no.
@@ -91,6 +99,13 @@ func Plan(cur *ebookmeta.Metadata, cand Candidate) []Change {
 		d := cand.Description
 		add(FieldDescription, cur.Description, d, cur.Description == "", func(c *ebookmeta.Changes) { c.Description = &d })
 	}
+	if cand.CoverURL != "" {
+		host := "a catalogue"
+		if u, err := url.Parse(cand.CoverURL); err == nil && u.Hostname() != "" {
+			host = u.Hostname()
+		}
+		out = append(out, Change{Field: FieldCover, Old: cur.Cover, New: "image from " + host, Fill: cur.Cover == "", coverURL: cand.CoverURL})
+	}
 	for _, scheme := range writableIdentifiers {
 		var value string
 		for _, id := range cand.Identifiers {
@@ -123,11 +138,13 @@ func Plan(cur *ebookmeta.Metadata, cand Candidate) []Change {
 }
 
 // BuildChanges returns the ebookmeta changes for the selected entries of
-// plan. It returns nil when nothing is selected.
+// plan. It returns nil when nothing is selected. A cover change is left out:
+// its image has to be downloaded first, so the caller fetches it from
+// Change.CoverURL and sets Changes.Cover.
 func BuildChanges(plan []Change, selected func(Change) bool) *ebookmeta.Changes {
 	c := &ebookmeta.Changes{}
 	for _, ch := range plan {
-		if selected(ch) {
+		if selected(ch) && ch.apply != nil {
 			ch.apply(c)
 		}
 	}

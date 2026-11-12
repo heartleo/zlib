@@ -53,10 +53,23 @@ Changed:
 - **Replacing a value is always an explicit choice.** The default plan only
   fills empty fields. A `uuid` is never taken from a catalogue.
 
+Covers are fetched only when the user selects them. Calibre downloads covers
+from every source and keeps the best by a per-source priority and then by
+resolution. zlib keeps one URL per book, preferring Open Library's large cover
+over Google's thumbnail, and checks the download itself: https only, an
+allow-listed host re-checked on every redirect (Open Library covers can
+redirect to Internet Archive hosts), at most 10 MiB, a real JPEG, PNG, GIF or
+WebP image, and at least 50 pixels on each side.
+
+For a book downloaded through zlib, the Z-Library record's own ISBN is added
+to the lookup. The record is validated like any other ISBN, and its title and
+authors are used only to fill in what the file lacks. This is the main help
+for books in other languages, where a title search finds little.
+
 Left out: Amazon and Edelweiss (HTML scraping that needs a headless browser,
-which zlib does not do), cover scoring and downloading (a later step),
-rating, series (neither source provides it), user mapping rules, and source
-updates (downloading code to execute is not something to copy).
+which zlib does not do), rating, series (neither source provides it), user
+mapping rules, and source updates (downloading code to execute is not
+something to copy).
 
 ## Sources and evidence
 
@@ -70,6 +83,7 @@ title.
 | Open Library | `GET /api/books?bibkeys=ISBN:…&format=json&jscmd=data` | Edition by ISBN: title, subtitle, authors, publisher, date, subjects, identifiers, cover |
 | Open Library | `GET /search.json?title=…&author=…&fields=…` | Works by title and author: title, authors, first publication year, subjects, cover |
 | Google Books | `GET /books/v1/volumes?q=isbn:…` or `intitle:"…" inauthor:"…"` | Edition: title, authors, publisher, date, description, categories, language, ISBN, thumbnail |
+| Open Library covers, Google Books thumbnails | `GET` of the cover URL a result names | The cover image, on request |
 
 Live measurements with a well-known public ISBN, status codes and key names
 only:

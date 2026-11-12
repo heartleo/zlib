@@ -246,6 +246,7 @@ func (m *shellModel) returnToDownloadCompletion(tone noticeTone, message string)
 	page.completeAction = 0
 	page.sendToKindle = false
 	page.sendToWeRead = false
+	page.fixMetadata = false
 	page.completeMessage, page.completeTone = message, tone
 	return m.open("download", page)
 }
@@ -854,6 +855,11 @@ func (m *shellModel) completed() tea.Cmd {
 			}
 			m.wereadPath = page.savedPath
 			return m.open("weread-confirm", confirm)
+		} else if page.fixMetadata {
+			page.fixMetadata = false
+			page.completeAction = 0
+			m.deliveryReturn = new(page)
+			return m.openMetaForDownload(page)
 		} else {
 			m.deliveryReturn = nil
 			m.restore()

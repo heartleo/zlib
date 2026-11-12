@@ -271,6 +271,12 @@ lookup and moves through candidates, fields and writing:
   reached, the page names why and `r` retries. A write error keeps the field
   choices so Apply can be pressed again.
 
+A match with a cover adds a `Cover` row, preselected only when the file has none.
+Applying downloads the image first; a failed download writes nothing and is
+reported on the page. The saved-file page after a download offers **Fix metadata**
+for every format `zlib meta` reads. It opens the same page, adds the Z-Library
+record's ISBN to the search, and returns to the saved file with the outcome.
+
 The lookup starts in `Init`, once however often `Init` runs, and a late answer
 to a lookup the user already left is ignored. `zlib meta <file> --fetch` opens
 the same page on a terminal; with `--json`, `-t`, `-a` or `--isbn`, or when
