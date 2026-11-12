@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -23,7 +24,7 @@ const (
 )
 
 // SupportedFormats names the formats ReadFile accepts, for messages.
-const SupportedFormats = "EPUB"
+const SupportedFormats = "EPUB, FB2, DOCX"
 
 var (
 	// ErrUnsupportedFormat means the file is not one of the known formats.
@@ -122,33 +123,61 @@ func isFB2(head []byte) bool {
 		bytes.Contains(head, []byte("<FictionBook"))
 }
 
-// Unsupported reports which fields of c the format cannot store, so callers
-// can tell the user instead of dropping them silently.
-func Unsupported(f Format, c *Changes) []string {
+// identifierLimiter is implemented by formats that store only some
+// identifier schemes.
+type identifierLimiter interface {
+	identifierSchemes() []string
+}
+
+// DropUnsupported removes from c the fields format f cannot store and
+// returns their names (identifiers as "identifier:scheme"), so callers can
+// tell the user instead of losing them silently.
+func DropUnsupported(f Format, c *Changes) []string {
 	h := handlerFor(f)
 	if h == nil {
 		return nil
 	}
 	var out []string
-	check := func(set bool, name string) {
+	drop := func(set bool, name string, clear func()) {
 		if set && !h.supports(name) {
 			out = append(out, name)
+			clear()
 		}
 	}
-	check(c.Title != nil, "title")
-	check(c.TitleSort != nil, "title_sort")
-	check(c.Authors != nil, "authors")
-	check(c.AuthorSort != nil, "author_sort")
-	check(c.Publisher != nil, "publisher")
-	check(c.Languages != nil, "languages")
-	check(c.Tags != nil, "tags")
-	check(c.Series != nil, "series")
-	check(c.SeriesIndex != nil, "series_index")
-	check(len(c.Identifiers) > 0, "identifiers")
-	check(c.Published != nil, "published")
-	check(c.Description != nil, "description")
-	check(c.Rating != nil, "rating")
-	check(c.Cover != nil, "cover")
+	drop(c.Title != nil, "title", func() { c.Title = nil })
+	drop(c.TitleSort != nil, "title_sort", func() { c.TitleSort = nil })
+	drop(c.Authors != nil, "authors", func() { c.Authors = nil })
+	drop(c.AuthorSort != nil, "author_sort", func() { c.AuthorSort = nil })
+	drop(c.Publisher != nil, "publisher", func() { c.Publisher = nil })
+	drop(c.Languages != nil, "languages", func() { c.Languages = nil })
+	drop(c.Tags != nil, "tags", func() { c.Tags = nil })
+	drop(c.Series != nil, "series", func() { c.Series = nil })
+	drop(c.SeriesIndex != nil, "series_index", func() { c.SeriesIndex = nil })
+	drop(c.Published != nil, "published", func() { c.Published = nil })
+	drop(c.Description != nil, "description", func() { c.Description = nil })
+	drop(c.Rating != nil, "rating", func() { c.Rating = nil })
+	drop(c.Cover != nil, "cover", func() { c.Cover = nil })
+	if len(c.Identifiers) > 0 {
+		var allowed []string
+		if l, ok := h.(identifierLimiter); ok {
+			allowed = l.identifierSchemes()
+		}
+		for _, scheme := range sortedSchemes(c.Identifiers) {
+			if !h.supports("identifiers") || allowed != nil && !slices.Contains(allowed, strings.ToLower(scheme)) {
+				out = append(out, "identifier:"+scheme)
+				delete(c.Identifiers, scheme)
+			}
+		}
+	}
+	return out
+}
+
+func sortedSchemes(ids map[string]string) []string {
+	out := make([]string, 0, len(ids))
+	for s := range ids {
+		out = append(out, s)
+	}
+	slices.Sort(out)
 	return out
 }
 

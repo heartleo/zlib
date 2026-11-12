@@ -58,9 +58,11 @@ file; options given alongside it take precedence.
 
 ## Formats
 
-| Format | Read | Write |
-| --- | --- | --- |
-| EPUB 2 and 3 | All fields and the cover | All fields and the cover |
+| Format | Fields read and written |
+| --- | --- |
+| EPUB 2 and 3 | All fields and the cover |
+| FB2 | Title, authors, publisher, language, tags (genres), series, ISBN, date, description, cover |
+| DOCX | Title, authors, languages, tags (keywords), description |
 
 When a format cannot store a requested field, `zlib meta` names it on stderr,
 skips it and still writes the rest.
@@ -78,6 +80,23 @@ skips it and still writes the rest.
 - The archive keeps the `mimetype` entry first and uncompressed. Files listed
   in `META-INF/encryption.xml` are never rewritten; replacing an encrypted
   cover fails with an error.
+
+### FB2 notes
+
+- Fields live in `<title-info>` and `<publish-info>`; new elements are
+  placed where the FictionBook schema expects them.
+- Tags are FB2 genre codes such as `sf_fantasy`. FB2 holds one book
+  language, so only the first `--language` value is stored.
+- Author names are split at the last word: `Jane Q. Doe` becomes first name
+  `Jane Q.` and last name `Doe`; a single word becomes a nickname.
+- A file in `windows-1251`, `windows-1252`, `koi8-r` or `iso-8859-1` is
+  rewritten as UTF-8, with its XML declaration updated to match.
+
+### DOCX notes
+
+- Fields live in the core properties part (`docProps/core.xml`). Authors are
+  stored `;`-separated in `dc:creator`, tags comma-separated in
+  `cp:keywords`. A document without the part gets one.
 
 ## Safety
 

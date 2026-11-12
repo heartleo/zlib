@@ -13,7 +13,5 @@ func (stub) write(io.ReaderAt, int64, io.Writer, *Changes) error {
 	return ErrUnsupportedFormat
 }
 
-type fb2Handler struct{ stub }
-type docxHandler struct{ stub }
 type mobiHandler struct{ stub }
 type pdfHandler struct{ stub }

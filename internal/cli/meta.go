@@ -20,8 +20,11 @@ Without options, print the metadata. Options that change a field rewrite the
 file in place (atomically: a failed write leaves it untouched) and then
 print the result. An empty value clears a field, for example --series "".
 
-The format is detected from the file contents. EPUB 2 and EPUB 3 files
-support every field, including the cover.
+The format is detected from the file contents:
+  EPUB  every field, including the cover
+  FB2   title, authors, publisher, language, tags, series, ISBN, date,
+        description, cover
+  DOCX  title, authors, languages, tags, description
 
 Fields a format cannot store are reported on stderr and skipped.`
 
@@ -90,10 +93,9 @@ func runMeta(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return metaError(path, err)
 		}
-		if skipped := ebookmeta.Unsupported(format, changes); len(skipped) > 0 {
+		if skipped := ebookmeta.DropUnsupported(format, changes); len(skipped) > 0 {
 			lipgloss.Fprintf(stderr, "%s %s files cannot store %s; skipped.\n",
 				lipgloss.NewStyle().Foreground(currentTheme.Warning).Render("!"), strings.ToUpper(string(format)), strings.Join(skipped, ", "))
-			dropUnsupported(format, changes)
 		}
 		if !changes.Empty() {
 			if err := ebookmeta.WriteFile(path, changes); err != nil {
@@ -272,42 +274,6 @@ func readLimited(path string, limit int64) ([]byte, error) {
 		return nil, fmt.Errorf("%s is larger than %d MiB", path, limit>>20)
 	}
 	return data, nil
-}
-
-// dropUnsupported clears the fields the format reported it cannot store.
-func dropUnsupported(format ebookmeta.Format, c *ebookmeta.Changes) {
-	for _, field := range ebookmeta.Unsupported(format, c) {
-		switch field {
-		case "title":
-			c.Title = nil
-		case "title_sort":
-			c.TitleSort = nil
-		case "authors":
-			c.Authors = nil
-		case "author_sort":
-			c.AuthorSort = nil
-		case "publisher":
-			c.Publisher = nil
-		case "languages":
-			c.Languages = nil
-		case "tags":
-			c.Tags = nil
-		case "series":
-			c.Series = nil
-		case "series_index":
-			c.SeriesIndex = nil
-		case "identifiers":
-			c.Identifiers = nil
-		case "published":
-			c.Published = nil
-		case "description":
-			c.Description = nil
-		case "rating":
-			c.Rating = nil
-		case "cover":
-			c.Cover = nil
-		}
-	}
 }
 
 func printMetadata(out io.Writer, format ebookmeta.Format, m *ebookmeta.Metadata) {

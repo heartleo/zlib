@@ -9,7 +9,9 @@ import (
 	"io"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
+	"time"
 )
 
 const epubMimetype = "application/epub+zip"
@@ -192,9 +194,8 @@ func (epubHandler) write(src io.ReaderAt, size int64, dst io.Writer, c *Changes)
 	}
 	var extra []edit
 	replace := map[string][]byte{} // zip entry -> new content
-	var addEntry string
 	if c.Cover != nil {
-		if extra, addEntry, err = b.planCover(c.Cover, replace); err != nil {
+		if extra, err = b.planCover(c.Cover, replace); err != nil {
 			return err
 		}
 	}
@@ -208,8 +209,31 @@ func (epubHandler) write(src io.ReaderAt, size int64, dst io.Writer, c *Changes)
 	if err := writeMimetype(zw); err != nil {
 		return err
 	}
-	for _, f := range b.zr.File {
-		if f.Name == "mimetype" {
+	if err := copyZip(zw, b.zr.File, replace, "mimetype"); err != nil {
+		return err
+	}
+	return zw.Close()
+}
+
+// copyZip copies files to zw, substituting the contents in replace and
+// leaving out the entry named skip. Entries in replace that do not exist
+// yet are appended in name order.
+func copyZip(zw *zip.Writer, files []*zip.File, replace map[string][]byte, skip string) error {
+	written := map[string]bool{}
+	put := func(name string, data []byte, modified time.Time) error {
+		method := zip.Deflate
+		if SniffImage(data) != "" {
+			method = zip.Store // already compressed
+		}
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: method, Modified: modified})
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(data)
+		return err
+	}
+	for _, f := range files {
+		if f.Name == skip {
 			continue
 		}
 		data, ok := replace[f.Name]
@@ -221,26 +245,27 @@ func (epubHandler) write(src io.ReaderAt, size int64, dst io.Writer, c *Changes)
 			}
 			continue
 		}
-		delete(replace, f.Name)
-		w, err := zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: zip.Deflate, Modified: f.Modified})
-		if err != nil {
-			return err
+		if written[f.Name] {
+			continue // a duplicate name; the first copy wins
 		}
-		if _, err := w.Write(data); err != nil {
-			return err
-		}
-	}
-	if addEntry != "" {
-		// Images are already compressed; store them.
-		w, err := zw.CreateHeader(&zip.FileHeader{Name: addEntry, Method: zip.Store})
-		if err != nil {
-			return err
-		}
-		if _, err := w.Write(replace[addEntry]); err != nil {
+		written[f.Name] = true
+		if err := put(f.Name, data, f.Modified); err != nil {
 			return err
 		}
 	}
-	return zw.Close()
+	names := make([]string, 0, len(replace))
+	for name := range replace {
+		if !written[name] {
+			names = append(names, name)
+		}
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		if err := put(name, replace[name], time.Time{}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeMimetype writes the EPUB signature entry first, stored and with no
@@ -263,13 +288,13 @@ func writeMimetype(zw *zip.Writer) error {
 
 // planCover decides how to embed cov: replace the existing cover image's
 // bytes, or add a new manifest item. It fills replace with entry contents
-// and returns OPF edits plus the name of a new entry, if any.
-func (b *epubBook) planCover(cov *Cover, replace map[string][]byte) ([]edit, string, error) {
+// and returns the OPF edits.
+func (b *epubBook) planCover(cov *Cover, replace map[string][]byte) ([]edit, error) {
 	if it := b.opf.coverItem(); it != nil {
 		name, err := b.resolve(it.attr["href"])
 		if err == nil && b.file(name) != nil {
 			if b.encrypted(name) {
-				return nil, "", fmt.Errorf("%w: the cover image is encrypted", ErrEncrypted)
+				return nil, fmt.Errorf("%w: the cover image is encrypted", ErrEncrypted)
 			}
 			replace[name] = cov.Data
 			var edits []edit
@@ -278,22 +303,22 @@ func (b *epubBook) planCover(cov *Cover, replace map[string][]byte) ([]edit, str
 					edits = append(edits, e)
 				}
 			}
-			return edits, "", nil
+			return edits, nil
 		}
 	}
 	if b.opf.manifestEnd < 0 {
-		return nil, "", fmt.Errorf("%w: OPF has no manifest", ErrMalformed)
+		return nil, fmt.Errorf("%w: OPF has no manifest", ErrMalformed)
 	}
 	id := b.opf.newID("cover-image")
 	href := "cover-image" + coverExt(cov.MediaType)
 	name, err := b.resolve(href)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	for n := 2; b.file(name) != nil; n++ {
 		href = fmt.Sprintf("cover-image-%d%s", n, coverExt(cov.MediaType))
 		if name, err = b.resolve(href); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 	}
 	replace[name] = cov.Data
@@ -320,5 +345,5 @@ func (b *epubBook) planCover(cov *Cover, replace map[string][]byte) ([]edit, str
 	}
 	edits = append(edits, edit{start: d.metaOpenEnd, end: d.metaOpenEnd,
 		text: mi + "<" + d.elemPrefix + `meta name="cover" content="` + escAttr(id) + `"/>`})
-	return edits, name, nil
+	return edits, nil
 }
