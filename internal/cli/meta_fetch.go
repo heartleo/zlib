@@ -94,6 +94,13 @@ func metaFetchQuery(cmd *cobra.Command, m *ebookmeta.Metadata) (metasource.Query
 	return q, nil
 }
 
+// metaFetchHasOverrides reports whether -t, -a or --isbn were given, which
+// the interactive page does not take.
+func metaFetchHasOverrides(cmd *cobra.Command) bool {
+	f := cmd.Flags()
+	return f.Changed("title") || f.Changed("authors") || f.Changed("isbn")
+}
+
 type metaFetchJSON struct {
 	File       string                 `json:"file"`
 	Query      metasource.Query       `json:"query"`
@@ -107,6 +114,11 @@ type metaFetchErrorJSON struct {
 }
 
 func runMetaFetch(cmd *cobra.Command, path string) error {
+	// On a terminal, without --json or query overrides, the interactive page
+	// does the same lookup and can apply a match.
+	if asJSON, _ := cmd.Flags().GetBool("json"); !asJSON && isInteractive() && !metaFetchHasOverrides(cmd) {
+		return runStandaloneShellCommand(metaShellCommand(path))
+	}
 	m, _, err := ebookmeta.ReadFile(path)
 	if err != nil {
 		return metaError(path, err)

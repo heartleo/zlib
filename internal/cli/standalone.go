@@ -15,6 +15,9 @@ func newStandaloneShellCommand(command string) (shellModel, error) {
 	if strings.HasPrefix(command, "/weread") {
 		m.standaloneTitle = "WeRead"
 	}
+	if strings.HasPrefix(command, "/meta") {
+		m.standaloneTitle = "Metadata"
+	}
 	m.dispatch(command)
 	if m.page == nil && m.kind == "" {
 		return m, fmt.Errorf("%s", m.status)

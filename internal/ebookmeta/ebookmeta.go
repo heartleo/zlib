@@ -157,20 +157,38 @@ func DropUnsupported(f Format, c *Changes) []string {
 	drop(c.Description != nil, "description", func() { c.Description = nil })
 	drop(c.Rating != nil, "rating", func() { c.Rating = nil })
 	drop(c.Cover != nil, "cover", func() { c.Cover = nil })
-	if len(c.Identifiers) > 0 {
-		var allowed []string
-		if l, ok := h.(identifierLimiter); ok {
-			allowed = l.identifierSchemes()
-		}
-		for _, scheme := range sortedSchemes(c.Identifiers) {
-			if !h.supports("identifiers") || allowed != nil && !slices.Contains(allowed, strings.ToLower(scheme)) {
-				out = append(out, "identifier:"+scheme)
-				delete(c.Identifiers, scheme)
-			}
+	for _, scheme := range sortedSchemes(c.Identifiers) {
+		if !CanStore(f, "identifier:"+scheme) {
+			out = append(out, "identifier:"+scheme)
+			delete(c.Identifiers, scheme)
 		}
 	}
 	return out
 }
+
+// CanStore reports whether format f can hold field, named as DropUnsupported
+// names it: "title", "authors", "publisher", "languages", "tags", "published",
+// "description", "series", "rating", "cover" and "identifier:<scheme>".
+func CanStore(f Format, field string) bool {
+	h := handlerFor(f)
+	if h == nil {
+		return false
+	}
+	scheme, ok := strings.CutPrefix(field, "identifier:")
+	if !ok {
+		return h.supports(field)
+	}
+	if !h.supports("identifiers") {
+		return false
+	}
+	if l, ok := h.(identifierLimiter); ok {
+		return slices.Contains(l.identifierSchemes(), strings.ToLower(scheme))
+	}
+	return true
+}
+
+// Extensions lists the file extensions ReadFile can open.
+var Extensions = []string{".epub", ".fb2", ".docx", ".mobi", ".azw", ".azw3", ".pdf"}
 
 func sortedSchemes(ids map[string]string) []string {
 	out := make([]string, 0, len(ids))

@@ -86,6 +86,13 @@ What it does:
   ISBN belongs to a book with another title (files often carry a wrong
   ISBN), or `title match` with a percentage.
 
+On a terminal, plain `--fetch` opens an interactive page (also available as
+`/meta` in the [terminal interface](tui.md)): pick a match, review each field
+as `old → new`, and write the ones you choose. Only fields the file leaves empty
+start selected, so nothing already in the file is replaced unless you select it.
+Formats that cannot store a field do not offer it. Redirected output, `--json`
+and `-t`, `-a` or `--isbn` print the list instead.
+
 With `--json`, the document has the `query`, the ranked `candidates` (with
 `match`, `score`, `sources`, `edition_level` and the fields) and any
 per-source `errors`.

@@ -112,6 +112,7 @@ var shellCommands = []shellCommand{
 	{"logout", "Delete the saved session"},
 	{"kindle", "Send a file to Kindle"},
 	{"weread", "Import a file into WeRead"},
+	{"meta", "Look up and fix a local book's metadata"},
 	{"quit", "Exit zlib"},
 }
 
@@ -659,6 +660,8 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 		return m.openKindle(arg)
 	case "weread":
 		return m.openWeRead(arg)
+	case "meta":
+		return m.openMeta(arg)
 	}
 	c, err := loadClient()
 	if err != nil {
@@ -922,11 +925,16 @@ func (m *shellModel) completed() tea.Cmd {
 		}
 	case sendFileModel:
 		if page.accepted {
-			if m.kind == "weread-file" {
+			switch m.kind {
+			case "weread-file":
 				return m.importWeRead(page.path)
+			case "meta-file":
+				return m.openMetaFile(page.path)
 			}
 			return m.sendKindle(page.path)
 		}
+	case metaPageModel:
+		return m.metaDone(page)
 	case wereadLoginModel:
 		return m.wereadLoginDone(page)
 	case wereadImportModel:

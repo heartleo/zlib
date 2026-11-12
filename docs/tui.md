@@ -81,7 +81,7 @@ The shell accepts `/search`, `/favorites`, `/recommended`, `/most-popular`,
 `/history`, `/login`, `/logout`, `/profile`, `/doctor`,
 `/config`, `/config network`, `/config download`, `/config kindle`, `/config weread`, `/theme`, `/kindle`,
 `/kindle config`, `/kindle send <file>`, `/weread`, `/weread import <file>`,
-`/weread login`, `/weread logout` and `/quit`. Use `zlib version`
+`/weread login`, `/weread logout`, `/meta`, `/meta <file>` and `/quit`. Use `zlib version`
 outside the TUI to check the installed version.
 For automation, use direct commands and their flags, including `--json`.
 To download a selected book in the TUI, press Enter on its list row. To download
@@ -249,6 +249,32 @@ pages the same way. The login page renders the QR code black on white so it
 scans on dark terminals, offers `r` for a new code after expiry or a declined
 login, and asks for a larger terminal when the code does not fit. Kindle and
 WeRead file pickers open in the default download directory.
+
+`/meta` looks a local book up online and fixes its metadata; it needs no
+Z-Library login. It opens a file picker listing folders and the formats
+`zlib meta` reads, or takes a path (`/meta "<file>"`). The page then runs one
+lookup and moves through candidates, fields and writing:
+
+- **Looking up** shows the title, authors and ISBN being searched. Esc cancels
+  the request.
+- **Candidates** list the merged matches, best first. Each row starts with a
+  five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
+  the title is different, or a percentage for a title match. The pane under the
+  list shows the selected match's details. A source that failed while others
+  answered is named on the status line.
+- **Fields** show one row per change as `[x] Field  old → new`. Only fields the
+  file leaves empty start selected; a replacement is marked `(replaces)` and
+  starts unselected. Space toggles a row, Ctrl+S or the Apply button writes,
+  Esc goes back. Fields the format cannot store are not offered and are named
+  on the status line.
+- **Failures** stay on the page. When nothing matched, or no source could be
+  reached, the page names why and `r` retries. A write error keeps the field
+  choices so Apply can be pressed again.
+
+The lookup starts in `Init`, once however often `Init` runs, and a late answer
+to a lookup the user already left is ignored. `zlib meta <file> --fetch` opens
+the same page on a terminal; with `--json`, `-t`, `-a` or `--isbn`, or when
+output is redirected, it prints the candidates instead.
 
 The QR code is drawn with half-block characters, two modules per cell: one
 column and half a row per module, so modules are square on a terminal whose

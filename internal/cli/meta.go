@@ -75,7 +75,7 @@ func addMetaFlags(cmd *cobra.Command) {
 	f.String("get-cover", "", "Save the embedded cover to this file")
 	f.String("to-opf", "", "Save the metadata to this OPF file")
 	f.String("from-opf", "", "Apply the metadata in this OPF file")
-	f.Bool("fetch", false, "Look the book up in online catalogues and list matches (read-only; -t, -a and --isbn set what to search for)")
+	f.Bool("fetch", false, "Look the book up in online catalogues; on a terminal pick a match and apply it, otherwise list matches (-t, -a and --isbn set what to search for and list matches)")
 	f.Bool("json", false, "Print the metadata as JSON")
 }
 
