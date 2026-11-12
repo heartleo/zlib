@@ -250,3 +250,11 @@ func parseIndex(s string) float64 {
 	}
 	return f
 }
+
+// CleanLine makes text from an untrusted source fit for a one-line field:
+// control and bidirectional formatting characters are dropped and whitespace
+// runs collapse.
+func CleanLine(s string) string { return cleanString(s) }
+
+// CleanText is CleanLine for multi-line text such as a description.
+func CleanText(s string) string { return cleanText(s) }

@@ -75,6 +75,7 @@ func addMetaFlags(cmd *cobra.Command) {
 	f.String("get-cover", "", "Save the embedded cover to this file")
 	f.String("to-opf", "", "Save the metadata to this OPF file")
 	f.String("from-opf", "", "Apply the metadata in this OPF file")
+	f.Bool("fetch", false, "Look the book up in online catalogues and list matches (read-only; -t, -a and --isbn set what to search for)")
 	f.Bool("json", false, "Print the metadata as JSON")
 }
 
@@ -87,6 +88,9 @@ type metaJSON struct {
 
 func runMeta(cmd *cobra.Command, args []string) error {
 	path := args[0]
+	if fetch, _ := cmd.Flags().GetBool("fetch"); fetch {
+		return runMetaFetch(cmd, path)
+	}
 	changes, err := metaChangesFromFlags(cmd)
 	if err != nil {
 		return err

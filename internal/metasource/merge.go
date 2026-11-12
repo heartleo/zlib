@@ -1,0 +1,369 @@
+package metasource
+
+import (
+	"cmp"
+	"slices"
+	"strings"
+
+	"github.com/heartleo/zlib/internal/ebookmeta"
+)
+
+const (
+	defaultMinScore   = 0.45
+	defaultMaxResults = 10
+	maxMergedTags     = 10
+	maxTagRunes       = 40
+	// A found title must be at least this similar to the wanted one to
+	// count at all, however well the authors agree.
+	minTitleSimilarity = 0.5
+)
+
+// noiseTags are catalogue housekeeping entries, not subjects.
+var noiseTags = map[string]bool{
+	"accessible book": true, "protected daisy": true, "in library": true, "lending library": true,
+	"internet archive wishlist": true, "overdrive": true, "large type books": true, "open library staff picks": true,
+}
+
+// rankAndMerge pools candidates that describe the same book, merges each
+// pool into one candidate, scores it against q and returns the best first.
+//
+// Pooling: candidates sharing an ISBN are one book. Candidates without a
+// shared ISBN are pooled when their title and first author agree, unless
+// that would join two different ISBNs, since two ISBNs are two editions.
+func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candidate {
+	parent := make([]int, len(in))
+	for i := range parent {
+		parent[i] = i
+	}
+	var find func(int) int
+	find = func(i int) int {
+		for parent[i] != i {
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		}
+		return i
+	}
+	isbnOf := func(root int) string { // the pool's ISBN, if any
+		for i := range in {
+			if find(i) == root {
+				if v := in[i].ISBN(); v != "" {
+					return v
+				}
+			}
+		}
+		return ""
+	}
+
+	byISBN := map[string]int{}
+	for i, c := range in {
+		if v := c.ISBN(); v != "" {
+			if j, ok := byISBN[v]; ok {
+				parent[find(i)] = find(j)
+			} else {
+				byISBN[v] = i
+			}
+		}
+	}
+	byKey := map[string]int{}
+	for i, c := range in {
+		key := string(foldText(mainTitle(c.Title)))
+		if key == "" {
+			continue
+		}
+		if len(c.Authors) > 0 {
+			key += "|" + personKey(c.Authors[0])
+		}
+		j, ok := byKey[key]
+		if !ok {
+			byKey[key] = i
+			continue
+		}
+		ri, rj := find(i), find(j)
+		if ri == rj {
+			continue
+		}
+		if a, b := isbnOf(ri), isbnOf(rj); a != "" && b != "" && a != b {
+			continue
+		}
+		parent[ri] = rj
+	}
+
+	pools := map[int][]Candidate{}
+	var order []int
+	for i, c := range in {
+		r := find(i)
+		if _, ok := pools[r]; !ok {
+			order = append(order, r)
+		}
+		pools[r] = append(pools[r], c)
+	}
+
+	var out []Candidate
+	for _, r := range order {
+		c := mergePool(q, pools[r])
+		c.Match, c.Score = scoreCandidate(q, c)
+		if c.Match == MatchISBN || c.Score >= minScore {
+			out = append(out, c)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b Candidate) int {
+		if (a.Match == MatchISBN) != (b.Match == MatchISBN) {
+			if a.Match == MatchISBN {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Or(
+			cmp.Compare(b.Score, a.Score),
+			cmp.Compare(len(b.Sources), len(a.Sources)),
+			cmp.Compare(completeness(b), completeness(a)),
+			strings.Compare(a.Title, b.Title),
+		)
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+// scoreCandidate relates c to q. Sharing an ISBN and agreeing on the title is
+// the only way to score 1. An ISBN match whose title disagrees with the
+// wanted one scores 0.5: files often carry the ISBN of another book, so the
+// result is kept but flagged. Otherwise the title (65%) and authors (35%)
+// decide, with a small bonus for each further source that agrees.
+func scoreCandidate(q Query, c Candidate) (Match, float64) {
+	if isbn := c.ISBN(); isbn != "" && slices.Contains(q.ISBNs, isbn) {
+		if q.Title != "" && titleSimilarity(q.Title, c.Title) < minTitleSimilarity {
+			return MatchISBN, 0.5
+		}
+		return MatchISBN, 1
+	}
+	ts := titleSimilarity(q.Title, c.Title)
+	if ts < minTitleSimilarity {
+		return MatchTitle, ts * 0.5
+	}
+	s := ts
+	if len(q.Authors) > 0 {
+		s = 0.65*ts + 0.35*authorSimilarity(q.Authors, c.Authors)
+	}
+	s += min(0.06, 0.03*float64(len(c.Sources)-1))
+	return MatchTitle, min(s, 0.99)
+}
+
+func completeness(c Candidate) int {
+	n := 0
+	for _, ok := range []bool{c.Title != "", len(c.Authors) > 0, c.Publisher != "", len(c.Languages) > 0,
+		len(c.Tags) > 0, c.Published != "", c.Description != "", c.ISBN() != "", c.CoverURL != ""} {
+		if ok {
+			n++
+		}
+	}
+	return n
+}
+
+// mergePool combines candidates for one book. Each field has its own rule:
+//
+//	title        most agreed (by folded text); ties go to the one closest to
+//	             the wanted title, then the shortest
+//	authors      most agreed list; ties go to the longer list
+//	publisher    most agreed; ties go to the shortest
+//	language     most agreed
+//	published    most agreed year; then the most specific date, then the earliest
+//	description  the longest
+//	tags         union, most-mentioned first, housekeeping tags dropped, capped
+//	ISBN         the one the query named, else the most common
+//	cover        from the source with the best cover priority
+func mergePool(q Query, pool []Candidate) Candidate {
+	var out Candidate
+	names := map[string]bool{}
+	for _, c := range pool {
+		for _, n := range c.Sources {
+			names[n] = true
+		}
+		out.EditionLevel = out.EditionLevel || c.EditionLevel
+	}
+	for n := range names {
+		out.Sources = append(out.Sources, n)
+	}
+	slices.Sort(out.Sources)
+
+	pick := func(values []string, key func(string) string, better func(a, b string) bool) string {
+		counts := map[string]int{}
+		first := map[string]string{}
+		for _, v := range values {
+			if v == "" {
+				continue
+			}
+			k := key(v)
+			counts[k]++
+			if _, ok := first[k]; !ok {
+				first[k] = v
+			}
+		}
+		best, bestN := "", 0
+		for k, n := range counts {
+			v := first[k]
+			if n > bestN || n == bestN && better(v, best) {
+				best, bestN = v, n
+			}
+		}
+		return best
+	}
+	fold := func(s string) string { return string(foldText(s)) }
+	shorter := func(a, b string) bool { return len(a) < len(b) || len(a) == len(b) && a < b }
+
+	var titles, pubs, langs, dates, descs []string
+	var authorLists []string
+	listOf := map[string][]string{}
+	for _, c := range pool {
+		titles = append(titles, c.Title)
+		pubs = append(pubs, c.Publisher)
+		if len(c.Languages) > 0 {
+			langs = append(langs, c.Languages[0])
+		}
+		dates = append(dates, c.Published)
+		descs = append(descs, c.Description)
+		if len(c.Authors) > 0 {
+			k := strings.Join(c.Authors, "\x00")
+			authorLists = append(authorLists, k)
+			listOf[k] = c.Authors
+		}
+	}
+	out.Title = pick(titles, fold, func(a, b string) bool {
+		if q.Title != "" {
+			if sa, sb := titleSimilarity(q.Title, a), titleSimilarity(q.Title, b); sa != sb {
+				return sa > sb
+			}
+		}
+		return shorter(a, b)
+	})
+	if k := pick(authorLists, func(s string) string {
+		parts := strings.Split(s, "\x00")
+		for i, p := range parts {
+			parts[i] = personKey(p)
+		}
+		return strings.Join(parts, "|")
+	}, func(a, b string) bool {
+		la, lb := len(listOf[a]), len(listOf[b])
+		return la > lb || la == lb && a < b
+	}); k != "" {
+		out.Authors = listOf[k]
+	}
+	out.Publisher = pick(pubs, fold, shorter)
+	if l := pick(langs, strings.ToLower, shorter); l != "" {
+		out.Languages = []string{l}
+	}
+	out.Published = pick(dates, func(s string) string { return s[:min(4, len(s))] }, func(a, b string) bool {
+		if len(a) != len(b) {
+			return len(a) > len(b)
+		}
+		return a < b
+	})
+	// The winning year may have several dates; take the most specific.
+	if out.Published != "" {
+		year := out.Published[:min(4, len(out.Published))]
+		for _, d := range dates {
+			if strings.HasPrefix(d, year) && (len(d) > len(out.Published) || len(d) == len(out.Published) && d < out.Published) {
+				out.Published = d
+			}
+		}
+	}
+	for _, d := range descs {
+		if len([]rune(d)) > len([]rune(out.Description)) {
+			out.Description = d
+		}
+	}
+	out.Tags = mergeTags(pool)
+	out.Identifiers = mergeIdentifiers(q, pool)
+	bestRank := 1 << 30
+	for _, c := range pool {
+		if c.CoverURL != "" && c.coverRank < bestRank {
+			out.CoverURL, out.coverRank, bestRank = c.CoverURL, c.coverRank, c.coverRank
+		}
+	}
+	return out
+}
+
+func mergeTags(pool []Candidate) []string {
+	counts := map[string]int{}
+	display := map[string]string{}
+	var order []string
+	for _, c := range pool {
+		for _, t := range c.Tags {
+			k := strings.ToLower(t)
+			if isNoiseTag(k) || len([]rune(t)) > maxTagRunes {
+				continue
+			}
+			if _, ok := display[k]; !ok {
+				display[k] = t
+				order = append(order, k)
+			}
+			counts[k]++
+		}
+	}
+	slices.SortStableFunc(order, func(a, b string) int { return cmp.Compare(counts[b], counts[a]) })
+	if len(order) > maxMergedTags {
+		order = order[:maxMergedTags]
+	}
+	out := make([]string, len(order))
+	for i, k := range order {
+		out[i] = display[k]
+	}
+	return out
+}
+
+func mergeIdentifiers(q Query, pool []Candidate) []ebookmeta.Identifier {
+	var out []ebookmeta.Identifier
+	seen := map[string]bool{}
+	isbns := map[string]int{}
+	for _, c := range pool {
+		if v := c.ISBN(); v != "" {
+			isbns[v]++
+		}
+	}
+	// The ISBN the query named wins; otherwise the most common, then the
+	// smallest, so the choice never depends on map order.
+	candidates := make([]string, 0, len(isbns))
+	for v := range isbns {
+		candidates = append(candidates, v)
+	}
+	slices.SortFunc(candidates, func(a, b string) int {
+		return cmp.Or(
+			cmp.Compare(b2i(slices.Contains(q.ISBNs, b)), b2i(slices.Contains(q.ISBNs, a))),
+			cmp.Compare(isbns[b], isbns[a]),
+			strings.Compare(a, b),
+		)
+	})
+	best := ""
+	if len(candidates) > 0 {
+		best = candidates[0]
+	}
+	if best != "" {
+		out = append(out, ebookmeta.Identifier{Scheme: "isbn", Value: best})
+		seen["isbn"] = true
+	}
+	for _, c := range pool {
+		for _, id := range c.Identifiers {
+			if !seen[id.Scheme] {
+				seen[id.Scheme] = true
+				out = append(out, id)
+			}
+		}
+	}
+	return out
+}
+
+func b2i(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// isNoiseTag reports catalogue housekeeping and subject headings that are
+// not useful as tags: the fixed list above, language subjects such as
+// "Spanish language", "Translations from …", and headings with commas
+// ("Romans, nouvelles, etc. pour la jeunesse"). k is lower case.
+func isNoiseTag(k string) bool {
+	return noiseTags[k] || strings.HasSuffix(k, " language") || strings.HasPrefix(k, "translations from") || strings.Contains(k, ",")
+}

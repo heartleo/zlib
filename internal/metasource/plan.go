@@ -1,0 +1,156 @@
+package metasource
+
+import (
+	"slices"
+	"strings"
+
+	"github.com/heartleo/zlib/internal/ebookmeta"
+)
+
+// Field names a proposed change. Identifier changes are "identifier:<scheme>".
+type Field string
+
+const (
+	FieldTitle       Field = "title"
+	FieldAuthors     Field = "authors"
+	FieldPublisher   Field = "publisher"
+	FieldLanguages   Field = "languages"
+	FieldTags        Field = "tags"
+	FieldPublished   Field = "published"
+	FieldDescription Field = "description"
+)
+
+// writableIdentifiers are the schemes a lookup may add. A uuid names one
+// particular file and is never taken from a catalogue.
+var writableIdentifiers = []string{"isbn", "google", "openlibrary"}
+
+// Change is one proposed edit to a file's metadata.
+type Change struct {
+	Field Field
+	// Old and New are display text; Old is "" when the field is empty.
+	Old, New string
+	// Fill is true when the file has no value yet. Only fills are applied
+	// by default: replacing what a file already says needs a decision.
+	Fill bool
+
+	apply func(*ebookmeta.Changes)
+}
+
+// DefaultSelected reports whether the change is applied unless the user
+// opts out: fills yes, replacements no.
+func (c Change) DefaultSelected() bool { return c.Fill }
+
+// Plan lists what cand would change in cur. Fields the candidate lacks, and
+// fields that already agree, are left out. The file's own unique identifier
+// and cover are never part of a plan.
+func Plan(cur *ebookmeta.Metadata, cand Candidate) []Change {
+	var out []Change
+	add := func(f Field, old, new string, fill bool, apply func(*ebookmeta.Changes)) {
+		out = append(out, Change{Field: f, Old: old, New: new, Fill: fill, apply: apply})
+	}
+	same := func(a, b string) bool { return string(foldText(a)) == string(foldText(b)) }
+
+	if cand.Title != "" && !same(cur.Title, cand.Title) {
+		t := cand.Title
+		add(FieldTitle, cur.Title, t, cur.Title == "", func(c *ebookmeta.Changes) { c.Title = &t })
+	}
+	if len(cand.Authors) > 0 && !sameList(cur.Authors, cand.Authors, personKey) {
+		a := slices.Clone(cand.Authors)
+		add(FieldAuthors, strings.Join(cur.Authors, " & "), strings.Join(a, " & "), len(cur.Authors) == 0,
+			func(c *ebookmeta.Changes) { c.Authors = &a })
+	}
+	if cand.Publisher != "" && !same(cur.Publisher, cand.Publisher) {
+		p := cand.Publisher
+		add(FieldPublisher, cur.Publisher, p, cur.Publisher == "", func(c *ebookmeta.Changes) { c.Publisher = &p })
+	}
+	if len(cand.Languages) > 0 && !sameList(cur.Languages, cand.Languages, strings.ToLower) {
+		l := slices.Clone(cand.Languages)
+		add(FieldLanguages, strings.Join(cur.Languages, ", "), strings.Join(l, ", "), len(cur.Languages) == 0,
+			func(c *ebookmeta.Changes) { c.Languages = &l })
+	}
+	if len(cand.Tags) > 0 {
+		// Tags are added to, not replaced: the proposal keeps the file's own.
+		merged := slices.Clone(cur.Tags)
+		for _, t := range cand.Tags {
+			if !slices.ContainsFunc(merged, func(m string) bool { return strings.EqualFold(m, t) }) {
+				merged = append(merged, t)
+			}
+		}
+		if len(merged) > len(cur.Tags) {
+			add(FieldTags, strings.Join(cur.Tags, ", "), strings.Join(merged, ", "), len(cur.Tags) == 0,
+				func(c *ebookmeta.Changes) { c.Tags = &merged })
+		}
+	}
+	// A work-level result only knows the year the work first appeared, which
+	// says nothing about when this edition was published.
+	if cand.Published != "" && cand.EditionLevel && cand.Published != cur.Published && !lessSpecificSame(cur.Published, cand.Published) {
+		d := cand.Published
+		add(FieldPublished, cur.Published, d, cur.Published == "", func(c *ebookmeta.Changes) { c.Published = &d })
+	}
+	if cand.Description != "" && !same(cur.Description, cand.Description) {
+		d := cand.Description
+		add(FieldDescription, cur.Description, d, cur.Description == "", func(c *ebookmeta.Changes) { c.Description = &d })
+	}
+	for _, scheme := range writableIdentifiers {
+		var value string
+		for _, id := range cand.Identifiers {
+			if id.Scheme == scheme {
+				value = id.Value
+			}
+		}
+		if value == "" || (scheme == "isbn" && !cand.EditionLevel) {
+			continue
+		}
+		old := cur.Identifier(scheme)
+		if scheme == "isbn" {
+			old = NormalizeISBN(old)
+			if old == "" && cur.Identifier("isbn") != "" {
+				old = cur.Identifier("isbn") // not a valid ISBN, but the file's own
+			}
+		}
+		if old == value {
+			continue
+		}
+		s, v := scheme, value
+		add(Field("identifier:"+scheme), cur.Identifier(scheme), v, old == "", func(c *ebookmeta.Changes) {
+			if c.Identifiers == nil {
+				c.Identifiers = map[string]string{}
+			}
+			c.Identifiers[s] = v
+		})
+	}
+	return out
+}
+
+// BuildChanges returns the ebookmeta changes for the selected entries of
+// plan. It returns nil when nothing is selected.
+func BuildChanges(plan []Change, selected func(Change) bool) *ebookmeta.Changes {
+	c := &ebookmeta.Changes{}
+	for _, ch := range plan {
+		if selected(ch) {
+			ch.apply(c)
+		}
+	}
+	if c.Empty() {
+		return nil
+	}
+	return c
+}
+
+func sameList(a, b []string, key func(string) string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if key(a[i]) != key(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// lessSpecificSame reports whether cand is only a less precise form of cur,
+// such as "2003" against "2003-08-26".
+func lessSpecificSame(cur, cand string) bool {
+	return cur != "" && len(cand) < len(cur) && strings.HasPrefix(cur, cand)
+}

@@ -58,6 +58,43 @@ zlib meta other.epub --from-opf book.opf
 e-book managers exchange. `--from-opf` applies every field present in an OPF
 file; options given alongside it take precedence.
 
+## Look a book up
+
+```sh
+zlib meta book.epub --fetch
+zlib meta book.epub --fetch --json
+zlib meta book.epub --fetch -t "Dune" -a "Frank Herbert"
+zlib meta book.epub --fetch --isbn 9780441013593
+```
+
+`--fetch` asks Open Library and Google Books about the book and lists the
+best matches. It only reads: it never changes the file, and it cannot be
+combined with the field options. `-t`, `-a` and `--isbn` set what to search
+for instead of what the file says. To use a match, copy the values into the
+field options above; the terminal interface applies a match for you.
+
+What it does:
+
+- Sources are asked in parallel. One failing, for example when Google
+  Books refuses a request for quota reasons, is reported on stderr and the
+  other results are still listed.
+- An ISBN gives the exact edition. Without one, the title and authors are
+  searched, and results are ranked by how well they agree. A result found
+  from a title alone is a guess about the edition: check it before using its
+  ISBN or date.
+- A result is marked `ISBN match`, or `ISBN match, title differs` when the
+  ISBN belongs to a book with another title (files often carry a wrong
+  ISBN), or `title match` with a percentage.
+
+With `--json`, the document has the `query`, the ranked `candidates` (with
+`match`, `score`, `sources`, `edition_level` and the fields) and any
+per-source `errors`.
+
+Exit codes: `1` when nothing matched, `2` when the file has nothing to search
+with or `--isbn` is not a valid ISBN, `4` when every source was unreachable.
+Lookups use `ZLIB_PROXY` when it is set, otherwise the system proxy; the
+Z-Library session is never sent. See [Metadata lookup research](metadata-research.md).
+
 ## Formats
 
 | Format | Fields read and written |

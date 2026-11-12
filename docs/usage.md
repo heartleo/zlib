@@ -132,7 +132,8 @@ zlib meta book.epub -t "New Title" -a "Jane Doe & John Roe" --cover cover.jpg
 ```
 
 `meta` shows or edits the title, authors, series, identifiers, cover and other
-metadata inside a local file, offline. See [E-book metadata](metadata.md).
+metadata inside a local file, offline; `--fetch` looks the book up online. See
+[E-book metadata](metadata.md).
 
 For interactive controls, see [Terminal interface](tui.md). For exact flags and
 defaults, run `zlib <command> --help`.
@@ -145,7 +146,7 @@ defaults, run `zlib <command> --help`.
 | 1 | Other error |
 | 2 | Usage error: unknown command or flag, wrong number of arguments |
 | 3 | Not logged in, or the saved session expired; run `zlib login` (or `zlib weread login` for WeRead) |
-| 4 | Network: a host (a mirror, or GitHub for `update`) is unreachable, the mirror is behind DiamWall, `doctor` found no usable domain, or `mirrors add` found no Z-Library at the domain |
+| 4 | Network: a host (a mirror, or GitHub for `update`) is unreachable, the mirror is behind DiamWall, `doctor` found no usable domain, `mirrors add` found no Z-Library at the domain, or every source of `meta --fetch` failed |
 | 5 | The book was saved, but Send to Kindle or WeRead failed |
 | 130 | You cancelled the download or its folder prompt, or declined to trust a mirror |
 
