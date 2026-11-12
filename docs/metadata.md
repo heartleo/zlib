@@ -1,0 +1,89 @@
+# E-book metadata
+
+`zlib meta` shows and edits the metadata stored inside a local e-book file:
+title, authors, series, identifiers, cover and so on. It works offline and
+needs no login. The format is detected from the file contents, not the
+extension.
+
+```sh
+zlib meta book.epub
+zlib meta book.epub --json
+```
+
+## Change fields
+
+Any field option rewrites the file in place and then prints the result.
+
+```sh
+zlib meta book.epub -t "New Title" -a "Jane Doe & John Roe"
+zlib meta book.epub --series "Saga" --index 2 --tags "fiction, space"
+zlib meta book.epub --isbn 9780000000002 --identifier asin:B000000000
+zlib meta book.epub --cover cover.jpg
+```
+
+| Option | Field |
+| --- | --- |
+| `-t`, `--title` | Title |
+| `--title-sort` | Title used for sorting |
+| `-a`, `--authors` | Authors, separated by `&` |
+| `--author-sort` | Author name used for sorting |
+| `-p`, `--publisher` | Publisher |
+| `-l`, `--language` | Languages, comma-separated (`en,fr`) |
+| `--tags` | Tags, comma-separated |
+| `-s`, `--series`, `-i`, `--index` | Series and position (`2`, `2.5`) |
+| `--isbn`, `--identifier scheme:value` | Identifiers; `--identifier asin:` removes one |
+| `-d`, `--date` | Publication date (`2024-03-04`) |
+| `-c`, `--comments` | Description |
+| `-r`, `--rating` | Rating, 0 to 5 stars |
+| `--cover FILE` | Cover image (JPEG, PNG, GIF or WebP) |
+
+An empty value clears a field: `--series ""`. Fields you do not name are left
+exactly as they are.
+
+The new file is written next to the original and renamed over it only when
+complete, so an error leaves the book untouched. Only the parts that hold
+metadata change; chapters, images and fonts are copied byte for byte.
+
+## Export and import
+
+```sh
+zlib meta book.epub --get-cover cover.jpg
+zlib meta book.epub --to-opf book.opf
+zlib meta other.epub --from-opf book.opf
+```
+
+`--to-opf` writes a standalone OPF 2.0 package document, the sidecar format
+e-book managers exchange. `--from-opf` applies every field present in an OPF
+file; options given alongside it take precedence.
+
+## Formats
+
+| Format | Read | Write |
+| --- | --- | --- |
+| EPUB 2 and 3 | All fields and the cover | All fields and the cover |
+
+When a format cannot store a requested field, `zlib meta` names it on stderr,
+skips it and still writes the rest.
+
+### EPUB notes
+
+- The package document keeps its version. EPUB 3 books get `refines`
+  metadata and a `belongs-to-collection` series; EPUB 2 books get `opf:role`,
+  `opf:file-as` and `calibre:series` metadata. The series is written in both
+  forms in EPUB 3 so older readers find it.
+- The package's unique identifier is never removed; setting a new value for
+  its scheme rewrites it in place.
+- A new cover replaces the bytes of the existing cover image. A book without
+  one gets a new image item marked as the cover.
+- The archive keeps the `mimetype` entry first and uncompressed. Files listed
+  in `META-INF/encryption.xml` are never rewritten; replacing an encrypted
+  cover fails with an error.
+
+## Safety
+
+Metadata is untrusted text. Control and bidirectional formatting characters
+are removed when a file is read, so a crafted title cannot reach the terminal
+as an escape sequence.
+
+Exit codes follow [Usage](usage.md#exit-codes): `2` for an invalid option
+value, `1` for an unreadable or unsupported file.

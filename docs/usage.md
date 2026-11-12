@@ -124,7 +124,17 @@ With redirected output, it prints the current and available themes instead.
 `ZLIB_THEME` overrides the saved theme. See [Themes](themes.md) for the built-in
 names and preview controls.
 
-See [Terminal interface](tui.md) for interactive controls. For exact flags and
+## Book metadata
+
+```sh
+zlib meta book.epub
+zlib meta book.epub -t "New Title" -a "Jane Doe & John Roe" --cover cover.jpg
+```
+
+`meta` shows or edits the title, authors, series, identifiers, cover and other
+metadata inside a local file, offline. See [E-book metadata](metadata.md).
+
+For interactive controls, see [Terminal interface](tui.md). For exact flags and
 defaults, run `zlib <command> --help`.
 
 ## Exit codes
