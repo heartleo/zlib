@@ -25,6 +25,10 @@ The format is detected from the file contents:
   FB2   title, authors, publisher, language, tags, series, ISBN, date,
         description, cover
   DOCX  title, authors, languages, tags, description
+  MOBI, AZW3
+        title, authors, publisher, languages, tags, ISBN, ASIN, date,
+        description, cover (replacing an existing one)
+  PDF   title, authors, tags, description
 
 Fields a format cannot store are reported on stderr and skipped.`
 
@@ -35,7 +39,7 @@ var metaCmd = &cobra.Command{
 	Example: `  zlib meta book.epub
   zlib meta book.epub -t "New Title" -a "Jane Doe & John Roe" --series Saga --index 2
   zlib meta book.epub --cover cover.jpg --isbn 9780000000002
-  zlib meta book.epub --get-cover cover.jpg --to-opf book.opf
+  zlib meta book.azw3 --get-cover cover.jpg --to-opf book.opf
   zlib meta book.epub --json`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
@@ -158,6 +162,9 @@ func metaChangesFromFlags(cmd *cobra.Command) (*ebookmeta.Changes, error) {
 			return nil, fmt.Errorf("%s: %w", p, err)
 		}
 		c = ebookmeta.ChangesFrom(m)
+		// A uuid identifies one particular book file; copying it from
+		// another book's OPF would give two books the same identity.
+		delete(c.Identifiers, "uuid")
 	}
 	str := func(name string) *string {
 		if !flags.Changed(name) {

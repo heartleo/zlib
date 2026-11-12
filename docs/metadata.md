@@ -38,7 +38,9 @@ zlib meta book.epub --cover cover.jpg
 | `--cover FILE` | Cover image (JPEG, PNG, GIF or WebP) |
 
 An empty value clears a field: `--series ""`. Fields you do not name are left
-exactly as they are.
+exactly as they are, with one exception: a new title or new authors clear the
+old title or author sort value unless `--title-sort` or `--author-sort` is
+given too.
 
 The new file is written next to the original and renamed over it only when
 complete, so an error leaves the book untouched. Only the parts that hold
@@ -63,6 +65,8 @@ file; options given alongside it take precedence.
 | EPUB 2 and 3 | All fields and the cover |
 | FB2 | Title, authors, publisher, language, tags (genres), series, ISBN, date, description, cover |
 | DOCX | Title, authors, languages, tags (keywords), description |
+| MOBI, AZW, AZW3 | Title, authors, publisher, languages, tags, ISBN, ASIN, date, description, cover (replace only) |
+| PDF | Title, authors, tags (keywords), description (subject) |
 
 When a format cannot store a requested field, `zlib meta` names it on stderr,
 skips it and still writes the rest.
@@ -97,6 +101,28 @@ skips it and still writes the rest.
 - Fields live in the core properties part (`docProps/core.xml`). Authors are
   stored `;`-separated in `dc:creator`, tags comma-separated in
   `cp:keywords`. A document without the part gets one.
+
+### MOBI and AZW3 notes
+
+- Fields are EXTH records in the header record. Joint MOBI/KF8 files have
+  both headers updated. Unknown EXTH records are kept.
+- The header record keeps its size when the new metadata fits in its
+  padding, so no other record moves; otherwise later records shift and the
+  record table is rewritten.
+- `--cover` replaces the existing cover image. A file without one cannot get
+  a cover added. DRM-protected files can be read but not written.
+
+### PDF notes
+
+- Fields are the document information dictionary (`Title`, `Author`,
+  `Subject`, `Keywords`); other entries such as `Producer` are kept.
+- Writes append an incremental update. The original bytes stay in place,
+  followed by a new information dictionary and a cross-reference section of
+  the same kind the file already uses (table or stream).
+- Encrypted PDFs are refused. An XMP metadata stream, if the file has one, is
+  not updated, and some readers prefer it over the information dictionary.
+- Only `FlateDecode` cross-reference and object streams are read; damaged
+  files are not reconstructed.
 
 ## Safety
 

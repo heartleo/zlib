@@ -203,10 +203,21 @@ func (epubHandler) write(src io.ReaderAt, size int64, dst io.Writer, c *Changes)
 	if err != nil {
 		return err
 	}
+	if b.file("META-INF/encryption.xml") != nil {
+		// Font obfuscation keys derive from the unique identifier, so a new
+		// value would make obfuscated fonts unreadable.
+		next, err := parseOPF(opfData)
+		if err != nil {
+			return err
+		}
+		if next.uniqueIDValue() != b.opf.uniqueIDValue() {
+			return fmt.Errorf("%w: the book has encrypted or obfuscated files keyed to its unique identifier, which cannot change", ErrEncrypted)
+		}
+	}
 	replace[b.opfPath] = opfData
 
 	zw := zip.NewWriter(dst)
-	if err := writeMimetype(zw); err != nil {
+	if err := writeMimetype(zw, b.file("mimetype")); err != nil {
 		return err
 	}
 	if err := copyZip(zw, b.zr.File, replace, "mimetype"); err != nil {
@@ -237,6 +248,18 @@ func copyZip(zw *zip.Writer, files []*zip.File, replace map[string][]byte, skip 
 			continue
 		}
 		data, ok := replace[f.Name]
+		if !ok && strings.HasSuffix(f.Name, "/") {
+			// Some writers deflate directory entries into a two-byte empty
+			// stream, which zip.Writer refuses to copy. A directory has no
+			// data, so write the header alone.
+			fh := f.FileHeader
+			fh.Method, fh.CRC32, fh.CompressedSize64, fh.UncompressedSize64 = zip.Store, 0, 0, 0
+			fh.Flags &^= 0x8 // no data descriptor
+			if _, err := zw.CreateRaw(&fh); err != nil {
+				return err
+			}
+			continue
+		}
 		if !ok {
 			// Copy the compressed bytes as they are: nothing is recompressed
 			// and encrypted entries stay intact.
@@ -269,16 +292,22 @@ func copyZip(zw *zip.Writer, files []*zip.File, replace map[string][]byte, skip 
 }
 
 // writeMimetype writes the EPUB signature entry first, stored and with no
-// extra field, so the string sits at a fixed offset (OCF 3.0 4.3).
-func writeMimetype(zw *zip.Writer) error {
+// extra field, so the string sits at a fixed offset (OCF 3.0 4.3). The
+// MS-DOS timestamp of orig is kept: setting Modified would add an extra
+// field.
+func writeMimetype(zw *zip.Writer, orig *zip.File) error {
 	data := []byte(epubMimetype)
-	w, err := zw.CreateRaw(&zip.FileHeader{
+	fh := &zip.FileHeader{
 		Name:               "mimetype",
 		Method:             zip.Store,
 		CRC32:              crc32.ChecksumIEEE(data),
 		CompressedSize64:   uint64(len(data)),
 		UncompressedSize64: uint64(len(data)),
-	})
+	}
+	if orig != nil {
+		fh.ModifiedTime, fh.ModifiedDate = orig.ModifiedTime, orig.ModifiedDate
+	}
+	w, err := zw.CreateRaw(fh)
 	if err != nil {
 		return err
 	}

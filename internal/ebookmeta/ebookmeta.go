@@ -24,7 +24,7 @@ const (
 )
 
 // SupportedFormats names the formats ReadFile accepts, for messages.
-const SupportedFormats = "EPUB, FB2, DOCX"
+const SupportedFormats = "EPUB, FB2, DOCX, MOBI, AZW3, PDF"
 
 var (
 	// ErrUnsupportedFormat means the file is not one of the known formats.
@@ -213,6 +213,11 @@ func WriteFile(path string, c *Changes) error {
 		if err := checkCover(c.Cover); err != nil {
 			return err
 		}
+	}
+	// Replace the file a symlink points to, not the link itself.
+	path, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
 	}
 	f, size, h, _, err := open(path)
 	if err != nil {

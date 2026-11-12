@@ -2,7 +2,6 @@ package ebookmeta
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"regexp"
@@ -154,15 +153,28 @@ func (c *charmapReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-var xmlEncodingRe = regexp.MustCompile(`^\s*<\?xml[^>]*?encoding\s*=\s*["']([A-Za-z0-9._-]+)["']`)
+var xmlEncodingRe = regexp.MustCompile(`^(?:\xef\xbb\xbf)?\s*<\?xml[^>]*?encoding\s*=\s*["']([A-Za-z0-9._-]+)["']`)
 
-// declaredEncoding returns the encoding named in an XML declaration.
-func declaredEncoding(data []byte) string {
-	data = bytes.TrimPrefix(data, []byte("\xef\xbb\xbf"))
-	if m := xmlEncodingRe.FindSubmatch(data[:min(len(data), 512)]); m != nil {
-		return string(m[1])
+// xmlToUTF8 converts an XML document in a single-byte encoding to UTF-8
+// and rewrites its declaration to match. Edits are byte splices at decoder
+// offsets, and those offsets count decoded bytes, so a document must be
+// UTF-8 before it is indexed. UTF-8 documents are returned unchanged.
+func xmlToUTF8(data []byte) ([]byte, error) {
+	loc := xmlEncodingRe.FindSubmatchIndex(data[:min(len(data), 512)])
+	if loc == nil {
+		return data, nil
 	}
-	return ""
+	label := string(data[loc[2]:loc[3]])
+	cm, ok := lookupCharmap(label)
+	if !ok {
+		return nil, fmt.Errorf("%w: unsupported character encoding %q", ErrMalformed, label)
+	}
+	if cm == nil {
+		return data, nil
+	}
+	// The declaration is ASCII, so its offsets survive decoding.
+	out := []byte(cm.decode(data[loc[3]:]))
+	return append(append(append([]byte{}, data[:loc[2]]...), "utf-8"...), out...), nil
 }
 
 // xmlCharRef is an encode fallback that writes r as an XML reference.

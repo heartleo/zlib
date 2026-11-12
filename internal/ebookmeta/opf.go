@@ -47,6 +47,10 @@ type opfDoc struct {
 }
 
 func parseOPF(data []byte) (*opfDoc, error) {
+	data, err := xmlToUTF8(data)
+	if err != nil {
+		return nil, err
+	}
 	d := &opfDoc{data: data, version: 2, manifestEnd: -1, ids: map[string]bool{}}
 	dec := xml.NewDecoder(bytes.NewReader(data))
 	dec.Entity = xml.HTMLEntity
@@ -386,6 +390,16 @@ func (d *opfDoc) metadata() *Metadata {
 		m.Cover = it.attr["media-type"]
 	}
 	return m
+}
+
+// uniqueIDValue returns the text of the package's unique identifier.
+func (d *opfDoc) uniqueIDValue() string {
+	for _, e := range d.meta {
+		if e.dc && e.local == "identifier" && e.attr["id"] == d.uniqueID {
+			return e.text
+		}
+	}
+	return ""
 }
 
 // coverItem returns the manifest item holding the cover image, if any.

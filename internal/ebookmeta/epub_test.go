@@ -3,6 +3,7 @@ package ebookmeta
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -84,7 +85,7 @@ func buildEPUB(t testing.TB, opf string, files map[string][]byte) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
-	if err := writeMimetype(zw); err != nil {
+	if err := writeMimetype(zw, nil); err != nil {
 		t.Fatal(err)
 	}
 	add := func(name string, data []byte) {
@@ -459,4 +460,113 @@ func FuzzParseOPF(f *testing.F) {
 		d.metadata()
 		_, _ = d.rewrite(fullChanges(), nil)
 	})
+}
+
+func TestNewTitleOrAuthorsDropStaleSortValues(t *testing.T) {
+	p := writeTemp(t, "b.epub", buildEPUB(t, opf3, map[string][]byte{"OEBPS/images/front.png": pngData}))
+	if err := WriteFile(p, &Changes{Title: new("Other"), Authors: new([]string{"New Person"})}); err != nil {
+		t.Fatal(err)
+	}
+	m, _, err := ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.TitleSort != "" || m.AuthorSort != "" {
+		t.Fatalf("stale sort values kept: %+v", m)
+	}
+}
+
+func TestWriteEPUBKeepsUniqueIDWhenFontsAreObfuscated(t *testing.T) {
+	opf := strings.Replace(opf2, `unique-identifier="bookid"`, `unique-identifier="isbnid"`, 1)
+	opf = strings.Replace(opf, `<dc:identifier opf:scheme="ISBN">`, `<dc:identifier id="isbnid" opf:scheme="ISBN">`, 1)
+	enc := `<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+<enc:EncryptedData><enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/><enc:CipherData><enc:CipherReference URI="OEBPS/fonts/f.otf"/></enc:CipherData></enc:EncryptedData></encryption>`
+	orig := buildEPUB(t, opf, map[string][]byte{"OEBPS/fonts/f.otf": []byte("obfuscated"), "META-INF/encryption.xml": []byte(enc)})
+	p := writeTemp(t, "b.epub", orig)
+	err := WriteFile(p, &Changes{Identifiers: map[string]string{"isbn": "9781111111113"}})
+	if !errors.Is(err, ErrEncrypted) {
+		t.Fatalf("err = %v, want ErrEncrypted", err)
+	}
+	if got, _ := os.ReadFile(p); !bytes.Equal(got, orig) {
+		t.Fatal("file changed")
+	}
+	// Fields other than the unique identifier can still change.
+	if err := WriteFile(p, &Changes{Title: new("Fine")}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWriteNonUTF8OPF(t *testing.T) {
+	opf := strings.Replace(opf2, `encoding="UTF-8"`, `encoding="windows-1252"`, 1)
+	opf = strings.Replace(opf, "<dc:title>Old Title</dc:title>", "<dc:description>Café crème</dc:description>\n    <dc:title>Old Title</dc:title>", 1)
+	opf = strings.Replace(opf, "<dc:description>A story.</dc:description>", "", 1)
+	raw := cp1252.encode(opf, xmlCharRef)
+	p := writeTemp(t, "b.epub", buildEPUB(t, string(raw), nil))
+	if m, _, err := ReadFile(p); err != nil || m.Description != "Café crème" {
+		t.Fatalf("read: %+v %v", m, err)
+	}
+	if err := WriteFile(p, &Changes{Title: new("Neuf été")}); err != nil {
+		t.Fatal(err)
+	}
+	m, _, err := ReadFile(p)
+	if err != nil || m.Title != "Neuf été" || m.Description != "Café crème" {
+		t.Fatalf("after write: %+v %v", m, err)
+	}
+}
+
+func TestWriteFollowsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "real.epub")
+	if err := os.WriteFile(target, buildEPUB(t, opf2, nil), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link.epub")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := WriteFile(link, &Changes{Title: new("Via Link")}); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("link replaced by a file: %v", err)
+	}
+	if m, _, err := ReadFile(target); err != nil || m.Title != "Via Link" {
+		t.Fatalf("target not updated: %+v %v", m, err)
+	}
+}
+
+func TestWriteEPUBWithDeflatedDirectoryEntry(t *testing.T) {
+	// Some tools store "OEBPS/" as a deflated empty stream (two data bytes).
+	// zip.Writer refuses to write that, so write a same-length file name
+	// and rename it in the bytes afterwards.
+	data := buildEPUB(t, opf2, nil)
+	zr, _ := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, f := range zr.File {
+		if err := zw.Copy(f); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w, err := zw.CreateRaw(&zip.FileHeader{Name: "OEBPS#", Method: zip.Deflate, CompressedSize64: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Write([]byte{0x03, 0x00})
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	fixture := bytes.ReplaceAll(buf.Bytes(), []byte("OEBPS#"), []byte("OEBPS/"))
+	p := writeTemp(t, "b.epub", fixture)
+	if err := WriteFile(p, &Changes{Title: new("Dir OK")}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(p)
+	e := zipEntries(t, got)
+	if d := e["OEBPS/"]; d == nil || d.CompressedSize64 != 0 {
+		t.Fatalf("directory entry = %+v", d)
+	}
+	if m, _, err := ReadFile(p); err != nil || m.Title != "Dir OK" {
+		t.Fatalf("m = %+v, %v", m, err)
+	}
 }

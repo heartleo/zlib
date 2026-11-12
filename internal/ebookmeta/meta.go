@@ -112,6 +112,14 @@ func (c *Changes) Apply(m *Metadata) {
 			*dst = cleanList(*src)
 		}
 	}
+	// A sort value describes the old title or authors; drop it when they
+	// change unless a new one is given.
+	if c.Title != nil && c.TitleSort == nil {
+		m.TitleSort = ""
+	}
+	if c.Authors != nil && c.AuthorSort == nil {
+		m.AuthorSort = ""
+	}
 	setStr(&m.Title, c.Title)
 	setStr(&m.TitleSort, c.TitleSort)
 	setList(&m.Authors, c.Authors)

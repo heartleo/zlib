@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -54,6 +55,12 @@ func writeTestEPUB(t *testing.T) string {
 // state does not leak between tests and rootCmd is left alone.
 func runMetaForTest(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	out, _, err := runMetaWithStderr(t, args...)
+	return out, err
+}
+
+func runMetaWithStderr(t *testing.T, args ...string) (string, string, error) {
+	t.Helper()
 	cmd := &cobra.Command{Use: "meta", Args: metaCmd.Args, RunE: runMeta, SilenceUsage: true, SilenceErrors: true}
 	addMetaFlags(cmd)
 	var out, errOut bytes.Buffer
@@ -61,10 +68,28 @@ func runMetaForTest(t *testing.T, args ...string) (string, error) {
 	cmd.SetErr(&errOut)
 	cmd.SetArgs(args)
 	err := cmd.Execute()
-	if errOut.Len() > 0 {
-		t.Logf("stderr: %s", errOut.String())
+	return out.String(), errOut.String(), err
+}
+
+func TestMetaCommandSkipsUnsupportedFields(t *testing.T) {
+	pdf := "%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\n"
+	xref := len(pdf)
+	pdf += "xref\n0 2\n0000000000 65535 f\r\n0000000009 00000 n\r\ntrailer\n<</Size 2/Root 1 0 R>>\nstartxref\n" +
+		strconv.Itoa(xref) + "\n%%EOF\n"
+	p := filepath.Join(t.TempDir(), "doc.pdf")
+	if err := os.WriteFile(p, []byte(pdf), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	return out.String(), err
+	out, stderr, err := runMetaWithStderr(t, p, "-t", "Kept", "--series", "Lost", "--isbn", "9780000000002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "PDF files cannot store series, identifier:isbn; skipped.") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+	if plain := ansi.Strip(out); !strings.Contains(plain, "Title    Kept") || strings.Contains(plain, "Lost") {
+		t.Fatalf("output:\n%s", plain)
+	}
 }
 
 func TestMetaCommandWritesAndPrints(t *testing.T) {

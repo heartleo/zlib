@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 )
 
@@ -45,8 +44,6 @@ type fb2Book struct {
 	doc *xdoc
 }
 
-var xmlDeclEncodingRe = regexp.MustCompile(`(?i)(<\?xml[^>]*?encoding\s*=\s*["'])([A-Za-z0-9._-]+)(["'])`)
-
 func openFB2(src io.ReaderAt, size int64) (*fb2Book, error) {
 	if size > maxFB2Size {
 		return nil, fmt.Errorf("%w: FB2 file is larger than %d MiB", ErrMalformed, maxFB2Size>>20)
@@ -56,20 +53,6 @@ func openFB2(src io.ReaderAt, size int64) (*fb2Book, error) {
 		return nil, err
 	}
 	b := &fb2Book{}
-	if enc := declaredEncoding(data); enc != "" {
-		cm, ok := lookupCharmap(enc)
-		if !ok {
-			return nil, fmt.Errorf("%w: unsupported FB2 encoding %q", ErrMalformed, enc)
-		}
-		if cm != nil {
-			// Offsets must refer to the bytes being edited, so convert the
-			// whole document to UTF-8 first.
-			data = []byte(cm.decode(data))
-			if loc := xmlDeclEncodingRe.FindSubmatchIndex(data); loc != nil {
-				data = append(append(append([]byte{}, data[:loc[4]]...), "utf-8"...), data[loc[5]:]...)
-			}
-		}
-	}
 	record := func(p string) bool {
 		return p == fb2Root || p == fb2Desc || strings.HasPrefix(p, fb2Desc+"/") || p == fb2Binary
 	}

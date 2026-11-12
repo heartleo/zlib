@@ -30,6 +30,10 @@ type xdoc struct {
 // indexXML records every element for which record(path) is true, keeping
 // descendant text only where keepText(path) is true.
 func indexXML(data []byte, record, keepText func(path string) bool) (*xdoc, error) {
+	data, err := xmlToUTF8(data)
+	if err != nil {
+		return nil, err
+	}
 	d := &xdoc{data: data, bindings: map[string]string{}}
 	dec := xml.NewDecoder(bytes.NewReader(data))
 	dec.Entity = xml.HTMLEntity
