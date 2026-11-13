@@ -119,6 +119,12 @@ Ctrl+C during the download cancels the update and leaves the executable
 unchanged. Without a terminal (a pipe or CI), the same step lines print without
 the progress bar.
 
+With Homebrew, winget or Go, zlib runs the package manager and shows its own
+output, then prints the same two lines for the version change, or
+`zlib v0.0.13 is up to date` when nothing changed. A package manager exits
+successfully either way, so the version is read from the installed `zlib`
+afterwards; if that fails, zlib asks you to run `zlib version` instead.
+
 If the update cannot identify your package manager, use its normal upgrade
 command: `brew upgrade heartleo/tap/zlib-cli`,
 `winget upgrade --id heartleo.zlib --exact`, or
