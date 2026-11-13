@@ -70,7 +70,6 @@ func (u releaseUpdater) emit(e updateEvent) {
 
 type updateResult struct {
 	version string
-	backup  string
 	updated bool
 }
 
@@ -178,11 +177,10 @@ func (u releaseUpdater) update(ctx context.Context, executable, currentVersion, 
 	if err := staged.Close(); err != nil {
 		return updateResult{}, err
 	}
-	backup, err := replaceExecutable(staged.Name(), executable)
-	if err != nil {
+	if err := replaceExecutable(staged.Name(), executable); err != nil {
 		return updateResult{}, err
 	}
-	result.backup, result.updated = backup, true
+	result.updated = true
 	u.emit(updateEvent{kind: updateInstalled, version: release.TagName, elapsed: time.Since(installStart)})
 	return result, nil
 }
@@ -353,19 +351,25 @@ func copyReleaseBinary(destination io.Writer, source io.Reader) error {
 	return nil
 }
 
-func replaceExecutable(staged, executable string) (string, error) {
+// replaceExecutable swaps staged into place. The old executable is renamed to
+// a backup first so a failed install can put it back; once the install has
+// succeeded the backup is removed. Windows cannot delete the running
+// executable, so there the removal fails quietly and the next update clears
+// the leftover.
+func replaceExecutable(staged, executable string) error {
 	backup := executable + ".previous"
 	if err := os.Remove(backup); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("remove previous update backup: %w", err)
+		return fmt.Errorf("remove previous update backup: %w", err)
 	}
 	if err := os.Rename(executable, backup); err != nil {
-		return "", fmt.Errorf("back up executable: %w", err)
+		return fmt.Errorf("back up executable: %w", err)
 	}
 	if err := os.Rename(staged, executable); err != nil {
 		if restoreErr := os.Rename(backup, executable); restoreErr != nil {
-			return "", errors.Join(fmt.Errorf("install update: %w", err), fmt.Errorf("restore executable from %s: %w", backup, restoreErr))
+			return errors.Join(fmt.Errorf("install update: %w", err), fmt.Errorf("restore executable from %s: %w", backup, restoreErr))
 		}
-		return "", fmt.Errorf("install update (original restored): %w", err)
+		return fmt.Errorf("install update (original restored): %w", err)
 	}
-	return backup, nil
+	_ = os.Remove(backup)
+	return nil
 }

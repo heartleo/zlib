@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -113,9 +114,8 @@ func TestReleaseUpdateChecksAndReplacesExecutable(t *testing.T) {
 			if err != nil || string(updated) != "new executable" {
 				t.Fatalf("updated executable = %q, %v", updated, err)
 			}
-			previous, err := os.ReadFile(result.backup)
-			if err != nil || string(previous) != "old executable" {
-				t.Fatalf("backup = %q, %v", previous, err)
+			if _, err := os.Stat(executable + ".previous"); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("backup left next to the executable after a successful update: %v", err)
 			}
 			result, err = updater.update(t.Context(), executable, "v0.0.8", tt.goos, "amd64")
 			if err != nil || result.updated {
@@ -148,12 +148,35 @@ func TestReplaceExecutableRestoresOriginalAfterFailedInstall(t *testing.T) {
 	if err := os.WriteFile(executable, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := replaceExecutable(filepath.Join(t.TempDir(), "missing"), executable); err == nil {
+	if err := replaceExecutable(filepath.Join(t.TempDir(), "missing"), executable); err == nil {
 		t.Fatal("missing staged file should fail")
 	}
 	data, err := os.ReadFile(executable)
 	if err != nil || string(data) != "old" {
 		t.Fatalf("rollback failed: %q, %v", data, err)
+	}
+	if _, err := os.Stat(executable + ".previous"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("backup left after the restore: %v", err)
+	}
+}
+
+func TestReplaceExecutableClearsStaleBackup(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "zlib")
+	staged := filepath.Join(dir, "staged")
+	for path, content := range map[string]string{executable: "old", staged: "new", executable + ".previous": "stale"} {
+		if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := replaceExecutable(staged, executable); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(executable); err != nil || string(data) != "new" {
+		t.Fatalf("executable = %q, %v", data, err)
+	}
+	if _, err := os.Stat(executable + ".previous"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale backup survived: %v", err)
 	}
 }
 
