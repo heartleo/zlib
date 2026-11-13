@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,7 +20,31 @@ func stubToolUpdate(t *testing.T, run func(name string, args []string, out io.Wr
 	runUpdateCommand = func(_ context.Context, _ io.Reader, out, _ io.Writer, name string, args []string) error {
 		return run(name, args, out)
 	}
-	installedVersion = func(context.Context, string) (string, bool) { return version, ok }
+	installedVersion = func(context.Context, updateMethod, string) (string, bool) { return version, ok }
+}
+
+// Homebrew can keep the old keg (HOMEBREW_NO_INSTALL_CLEANUP), so the running
+// executable may still answer with the old version; the symlink on PATH is the
+// one the upgrade moved. Go and winget replace the file in place.
+func TestVersionProbeOrder(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		method updateMethod
+		onPath string
+		want   []string
+	}{
+		{"brew prefers PATH", updateBrew, "/p/bin/zlib", []string{"/p/bin/zlib", "/k/zlib"}},
+		{"go prefers the executable", updateGo, "/p/bin/zlib", []string{"/k/zlib", "/p/bin/zlib"}},
+		{"winget prefers the executable", updateWinget, "/p/bin/zlib", []string{"/k/zlib", "/p/bin/zlib"}},
+		{"brew without zlib on PATH", updateBrew, "", []string{"/k/zlib"}},
+		{"same file is probed once", updateBrew, "/k/zlib", []string{"/k/zlib"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := versionProbeOrder(tt.method, "/k/zlib", tt.onPath); !slices.Equal(got, tt.want) {
+				t.Errorf("versionProbeOrder = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
 
 func printingTool(line string) func(string, []string, io.Writer) error {

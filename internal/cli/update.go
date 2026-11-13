@@ -83,7 +83,7 @@ func runToolUpdate(ctx context.Context, in io.Reader, out, errOut io.Writer, met
 	}
 	lipgloss.Fprintf(out, "%s %s finished %s\n", colorGreen(symbolSuccess), name, colorFaint("in "+formatElapsed(time.Since(start))))
 
-	after, ok := installedVersion(ctx, executable)
+	after, ok := installedVersion(ctx, method, executable)
 	if !ok {
 		lipgloss.Fprintln(out, colorFaint("Run `zlib version` to confirm."))
 		return nil
@@ -92,15 +92,21 @@ func runToolUpdate(ctx context.Context, in io.Reader, out, errOut io.Writer, met
 	return nil
 }
 
-// installedVersion asks the installed zlib for its version after an update.
-// Homebrew removes the old keg, so the running executable may be gone; the
-// zlib on PATH is the next candidate. A variable so tests can stub it.
-var installedVersion = func(ctx context.Context, executable string) (string, bool) {
-	candidates := []string{executable}
+// installedVersion asks the installed zlib for its version after an update. A
+// variable so tests can stub it.
+var installedVersion = func(ctx context.Context, method updateMethod, executable string) (string, bool) {
+	onPath := ""
 	if found, err := exec.LookPath("zlib"); err == nil {
-		candidates = append(candidates, found)
+		onPath = found
+		if method == updateBrew {
+			// Only a zlib that lives in a Homebrew keg was moved by the upgrade;
+			// any other zlib on PATH says nothing about it.
+			if resolved, err := filepath.EvalSymlinks(found); err != nil || !isHomebrewKeg(resolved) {
+				onPath = ""
+			}
+		}
 	}
-	for _, candidate := range candidates {
+	for _, candidate := range versionProbeOrder(method, executable, onPath) {
 		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		output, err := exec.CommandContext(probeCtx, candidate, "version").Output()
 		cancel()
@@ -112,6 +118,22 @@ var installedVersion = func(ctx context.Context, executable string) (string, boo
 		}
 	}
 	return "", false
+}
+
+// versionProbeOrder lists the executables to ask for the version after an
+// update, best answer first. Go and winget replace the file in place, so the
+// running executable is the one to ask. Homebrew can keep the old keg
+// (HOMEBREW_NO_INSTALL_CLEANUP), so the running executable may still report
+// the old version, while the symlink on PATH points at the upgraded keg; when
+// the old keg was cleaned up the executable is gone and the probe moves on.
+func versionProbeOrder(method updateMethod, executable, onPath string) []string {
+	if onPath == "" || onPath == executable {
+		return []string{executable}
+	}
+	if method == updateBrew {
+		return []string{onPath, executable}
+	}
+	return []string{executable, onPath}
 }
 
 // parseInstalledVersion reads "zlib version v0.0.14" and returns the version.
@@ -157,11 +179,16 @@ func updateCommand(method updateMethod) (string, []string) {
 	}
 }
 
+// isHomebrewKeg reports whether path is inside a zlib-cli keg.
+func isHomebrewKeg(path string) bool {
+	return strings.Contains(strings.ToLower(strings.ReplaceAll(path, `\`, "/")), "/cellar/zlib-cli/")
+}
+
 func detectUpdateMethod(ctx context.Context, executable string) updateMethod {
-	path := strings.ToLower(strings.ReplaceAll(executable, `\`, "/"))
-	if strings.Contains(path, "/cellar/zlib-cli/") {
+	if isHomebrewKeg(executable) {
 		return updateBrew
 	}
+	path := strings.ToLower(strings.ReplaceAll(executable, `\`, "/"))
 	if strings.Contains(path, "/microsoft/winget/packages/heartleo.zlib_") {
 		return updateWinget
 	}
