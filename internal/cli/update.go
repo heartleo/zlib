@@ -52,19 +52,7 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 	out := cmd.OutOrStdout()
 	method := detectUpdateMethod(cmd.Context(), executable)
 	if method != updateRelease {
-		name, args := updateCommand(method)
-		lipgloss.Fprintf(out, "Updating zlib with %s %s\n", name, colorFaint("("+name+" "+strings.Join(args, " ")+")"))
-		start := time.Now()
-		process := exec.CommandContext(cmd.Context(), name, args...)
-		process.Stdout = out
-		process.Stderr = cmd.ErrOrStderr()
-		process.Stdin = cmd.InOrStdin()
-		if err := process.Run(); err != nil {
-			return fmt.Errorf("%s update failed: %w", name, err)
-		}
-		lipgloss.Fprintf(out, "%s %s finished %s. Run `zlib version` to confirm.\n",
-			colorGreen(symbolSuccess), name, colorFaint("in "+formatElapsed(time.Since(start))))
-		return nil
+		return runToolUpdate(cmd.Context(), cmd.InOrStdin(), out, cmd.ErrOrStderr(), method, executable, zlib.Version)
 	}
 
 	currentVersion := zlib.Version
@@ -72,6 +60,67 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("cannot update a development build (%s); install a release or update the source checkout", zlib.Version)
 	}
 	return runReleaseUpdate(cmd.Context(), cmd.InOrStdin(), out, isInteractive(), newReleaseUpdater(), executable, currentVersion)
+}
+
+// runUpdateCommand runs a package manager with the terminal attached, so its
+// own progress bars and prompts keep working. A variable so tests can stub it.
+var runUpdateCommand = func(ctx context.Context, in io.Reader, out, errOut io.Writer, name string, args []string) error {
+	process := exec.CommandContext(ctx, name, args...)
+	process.Stdin, process.Stdout, process.Stderr = in, out, errOut
+	return process.Run()
+}
+
+// runToolUpdate updates through a package manager, passes its output through,
+// then reports the version change the way the release update does. A package
+// manager exits 0 when the version is already current, so the finished
+// command alone does not say whether anything changed.
+func runToolUpdate(ctx context.Context, in io.Reader, out, errOut io.Writer, method updateMethod, executable, current string) error {
+	name, args := updateCommand(method)
+	lipgloss.Fprintf(out, "Updating zlib with %s %s\n", name, colorFaint("("+name+" "+strings.Join(args, " ")+")"))
+	start := time.Now()
+	if err := runUpdateCommand(ctx, in, out, errOut, name, args); err != nil {
+		return fmt.Errorf("%s update failed: %w", name, err)
+	}
+	lipgloss.Fprintf(out, "%s %s finished %s\n", colorGreen(symbolSuccess), name, colorFaint("in "+formatElapsed(time.Since(start))))
+
+	after, ok := installedVersion(ctx, executable)
+	if !ok {
+		lipgloss.Fprintln(out, colorFaint("Run `zlib version` to confirm."))
+		return nil
+	}
+	printUpdateSummary(out, current, updateResult{version: after, updated: after != current}, semver.Compare(current, after) > 0)
+	return nil
+}
+
+// installedVersion asks the installed zlib for its version after an update.
+// Homebrew removes the old keg, so the running executable may be gone; the
+// zlib on PATH is the next candidate. A variable so tests can stub it.
+var installedVersion = func(ctx context.Context, executable string) (string, bool) {
+	candidates := []string{executable}
+	if found, err := exec.LookPath("zlib"); err == nil {
+		candidates = append(candidates, found)
+	}
+	for _, candidate := range candidates {
+		probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		output, err := exec.CommandContext(probeCtx, candidate, "version").Output()
+		cancel()
+		if err != nil {
+			continue
+		}
+		if version, ok := parseInstalledVersion(string(output)); ok {
+			return version, true
+		}
+	}
+	return "", false
+}
+
+// parseInstalledVersion reads "zlib version v0.0.14" and returns the version.
+func parseInstalledVersion(output string) (string, bool) {
+	fields := strings.Fields(output)
+	if len(fields) < 3 || fields[0] != "zlib" || fields[1] != "version" || !semver.IsValid(fields[2]) {
+		return "", false
+	}
+	return fields[2], true
 }
 
 // runReleaseUpdate replaces executable with the latest release asset, showing
