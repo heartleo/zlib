@@ -41,7 +41,7 @@ func TestUpdateMethodCommands(t *testing.T) {
 		name   string
 		args   string
 	}{
-		{updateBrew, "brew", "upgrade heartleo/tap/zlib"},
+		{updateBrew, "brew", "upgrade heartleo/tap/zlib-cli"},
 		{updateWinget, "winget", "upgrade --id heartleo.zlib --exact"},
 		{updateGo, "go", "install " + goInstallPackage},
 	} {
@@ -50,8 +50,24 @@ func TestUpdateMethodCommands(t *testing.T) {
 			t.Fatalf("command for %s = %q %q", tt.method, name, args)
 		}
 	}
-	if got := detectUpdateMethod(t.Context(), "/opt/homebrew/Cellar/zlib/0.0.8/bin/zlib"); got != updateBrew {
-		t.Fatalf("brew path detected as %s", got)
+	for path, want := range map[string]updateMethod{
+		"/opt/homebrew/Cellar/zlib-cli/0.0.14/bin/zlib": updateBrew,
+		"/usr/local/Cellar/zlib-cli/0.0.14/bin/zlib":    updateBrew,
+		"/opt/homebrew/Cellar/zlib/0.0.13/bin/zlib":     updateBrewLegacy,
+		"/usr/local/Cellar/zlib/0.0.13/bin/zlib":        updateBrewLegacy,
+	} {
+		if got := detectUpdateMethod(t.Context(), path); got != want {
+			t.Fatalf("detectUpdateMethod(%q) = %s, want %s", path, got, want)
+		}
+	}
+	if name, args := updateCommand(updateBrewLegacy); name != "" || args != nil {
+		t.Fatalf("legacy brew install has an update command: %q %q", name, args)
+	}
+	msg := legacyBrewError().Error()
+	for _, want := range []string{"brew uninstall heartleo/tap/zlib\n", "brew install heartleo/tap/zlib-cli"} {
+		if !strings.Contains(msg, want) {
+			t.Fatalf("legacy brew message lacks %q:\n%s", want, msg)
+		}
 	}
 	if got := detectUpdateMethod(t.Context(), `C:\Users\test\AppData\Local\Microsoft\WinGet\Packages\heartleo.zlib_123\zlib.exe`); got != updateWinget {
 		t.Fatalf("winget path detected as %s", got)

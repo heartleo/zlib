@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -37,7 +38,19 @@ const (
 	updateBrew    updateMethod = "brew"
 	updateWinget  updateMethod = "winget"
 	updateGo      updateMethod = "go"
+
+	// updateBrewLegacy is an install from the heartleo/tap/zlib formula, which
+	// was renamed to zlib-cli because it clashed with homebrew/core's zlib.
+	updateBrewLegacy updateMethod = "brew-legacy"
 )
+
+// legacyBrewError tells a user of the retired formula how to move to zlib-cli.
+func legacyBrewError() error {
+	return errors.New("this copy of zlib was installed from the retired Homebrew formula heartleo/tap/zlib\n" +
+		"(renamed to zlib-cli: it clashed with the zlib library in homebrew/core). Switch with:\n" +
+		"  brew uninstall heartleo/tap/zlib\n" +
+		"  brew install heartleo/tap/zlib-cli")
+}
 
 func runUpdate(cmd *cobra.Command, _ []string) error {
 	executable, err := os.Executable()
@@ -51,6 +64,9 @@ func runUpdate(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 	method := detectUpdateMethod(cmd.Context(), executable)
+	if method == updateBrewLegacy {
+		return legacyBrewError()
+	}
 	if method != updateRelease {
 		name, args := updateCommand(method)
 		lipgloss.Fprintf(out, "Updating zlib with %s %s\n", name, colorFaint("("+name+" "+strings.Join(args, " ")+")"))
@@ -98,7 +114,7 @@ func runReleaseUpdate(ctx context.Context, in io.Reader, out io.Writer, interact
 func updateCommand(method updateMethod) (string, []string) {
 	switch method {
 	case updateBrew:
-		return "brew", []string{"upgrade", "heartleo/tap/zlib"}
+		return "brew", []string{"upgrade", "heartleo/tap/zlib-cli"}
 	case updateWinget:
 		return "winget", []string{"upgrade", "--id", "heartleo.zlib", "--exact"}
 	case updateGo:
@@ -110,8 +126,12 @@ func updateCommand(method updateMethod) (string, []string) {
 
 func detectUpdateMethod(ctx context.Context, executable string) updateMethod {
 	path := strings.ToLower(strings.ReplaceAll(executable, `\`, "/"))
-	if strings.Contains(path, "/cellar/zlib/") {
+	if strings.Contains(path, "/cellar/zlib-cli/") {
 		return updateBrew
+	}
+	// homebrew/core's zlib installs no bin/zlib, so this keg is ours.
+	if strings.Contains(path, "/cellar/zlib/") {
+		return updateBrewLegacy
 	}
 	if strings.Contains(path, "/microsoft/winget/packages/heartleo.zlib_") {
 		return updateWinget

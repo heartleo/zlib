@@ -41,7 +41,7 @@ Z-Library 命令行工具，你和 AI Agent 都能用。
 macOS / Linux，使用 Homebrew：
 
 ```bash
-brew install heartleo/tap/zlib
+brew install heartleo/tap/zlib-cli
 ```
 
 macOS / Linux，使用安装脚本（安装到 `/usr/local/bin`，可能需要 `sudo`）：

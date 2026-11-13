@@ -15,7 +15,7 @@ the non-interactive forms below.
 1. Run `zlib version` once to confirm the executable is available. If missing,
    install it yourself, then rerun `zlib version`:
    - Windows: `winget install --id heartleo.zlib --exact`
-   - macOS/Linux with Homebrew: `brew install heartleo/tap/zlib`
+   - macOS/Linux with Homebrew: `brew install heartleo/tap/zlib-cli`
    - macOS/Linux without Homebrew:
      `curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh`
      (writes to `/usr/local/bin` and may need `sudo`)
