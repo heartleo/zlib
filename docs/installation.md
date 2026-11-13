@@ -10,7 +10,16 @@ and Windows on x86-64 and ARM64; they do not require Go.
 macOS / Linux:
 
 ```bash
-brew install heartleo/tap/zlib
+brew install heartleo/tap/zlib-cli
+```
+
+The formula is named `zlib-cli` because Homebrew's own `zlib` library already
+uses the name `zlib`; the command it installs is still `zlib`. If you installed
+the earlier `heartleo/tap/zlib` formula, switch to the new one:
+
+```bash
+brew uninstall heartleo/tap/zlib
+brew install heartleo/tap/zlib-cli
 ```
 
 Windows (PowerShell):
@@ -105,7 +114,7 @@ unchanged. Without a terminal (a pipe or CI), the same step lines print without
 the progress bar.
 
 If the update cannot identify your package manager, use its normal upgrade
-command: `brew upgrade heartleo/tap/zlib`,
+command: `brew upgrade heartleo/tap/zlib-cli`,
 `winget upgrade --id heartleo.zlib --exact`, or
 `go install github.com/heartleo/zlib/cmd/zlib@latest`.
 

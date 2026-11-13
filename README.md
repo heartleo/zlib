@@ -41,7 +41,7 @@ English | [简体中文](README.zh.md)
 macOS / Linux with Homebrew:
 
 ```bash
-brew install heartleo/tap/zlib
+brew install heartleo/tap/zlib-cli
 ```
 
 macOS / Linux with the install script (installs to `/usr/local/bin`, may ask for `sudo`):

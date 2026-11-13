@@ -98,7 +98,7 @@ func runReleaseUpdate(ctx context.Context, in io.Reader, out io.Writer, interact
 func updateCommand(method updateMethod) (string, []string) {
 	switch method {
 	case updateBrew:
-		return "brew", []string{"upgrade", "heartleo/tap/zlib"}
+		return "brew", []string{"upgrade", "heartleo/tap/zlib-cli"}
 	case updateWinget:
 		return "winget", []string{"upgrade", "--id", "heartleo.zlib", "--exact"}
 	case updateGo:
@@ -110,7 +110,7 @@ func updateCommand(method updateMethod) (string, []string) {
 
 func detectUpdateMethod(ctx context.Context, executable string) updateMethod {
 	path := strings.ToLower(strings.ReplaceAll(executable, `\`, "/"))
-	if strings.Contains(path, "/cellar/zlib/") {
+	if strings.Contains(path, "/cellar/zlib-cli/") {
 		return updateBrew
 	}
 	if strings.Contains(path, "/microsoft/winget/packages/heartleo.zlib_") {

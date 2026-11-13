@@ -41,7 +41,7 @@ func TestUpdateMethodCommands(t *testing.T) {
 		name   string
 		args   string
 	}{
-		{updateBrew, "brew", "upgrade heartleo/tap/zlib"},
+		{updateBrew, "brew", "upgrade heartleo/tap/zlib-cli"},
 		{updateWinget, "winget", "upgrade --id heartleo.zlib --exact"},
 		{updateGo, "go", "install " + goInstallPackage},
 	} {
@@ -50,8 +50,13 @@ func TestUpdateMethodCommands(t *testing.T) {
 			t.Fatalf("command for %s = %q %q", tt.method, name, args)
 		}
 	}
-	if got := detectUpdateMethod(t.Context(), "/opt/homebrew/Cellar/zlib/0.0.8/bin/zlib"); got != updateBrew {
-		t.Fatalf("brew path detected as %s", got)
+	for _, path := range []string{
+		"/opt/homebrew/Cellar/zlib-cli/0.0.14/bin/zlib",
+		"/usr/local/Cellar/zlib-cli/0.0.14/bin/zlib",
+	} {
+		if got := detectUpdateMethod(t.Context(), path); got != updateBrew {
+			t.Fatalf("brew path %q detected as %s", path, got)
+		}
 	}
 	if got := detectUpdateMethod(t.Context(), `C:\Users\test\AppData\Local\Microsoft\WinGet\Packages\heartleo.zlib_123\zlib.exe`); got != updateWinget {
 		t.Fatalf("winget path detected as %s", got)

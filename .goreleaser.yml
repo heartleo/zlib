@@ -48,7 +48,9 @@ checksum:
   name_template: checksums.txt
 
 brews:
-  - name: zlib
+  # Named zlib-cli because homebrew/core already ships a zlib formula; the
+  # installed binary stays zlib.
+  - name: zlib-cli
     ids:
       - zlib
     repository:

@@ -87,6 +87,6 @@ the Documentation table.
 - Claude marketplace: `.claude-plugin/marketplace.json`.
 - Codex marketplace: `.agents/plugins/marketplace.json`; syntax checked with
   `codex plugin add --help` and `codex plugin marketplace add --help`.
-- [Homebrew tap](https://github.com/heartleo/homebrew-tap/blob/main/zlib.rb) and
+- [Homebrew tap](https://github.com/heartleo/homebrew-tap) and
   [winget manifests](https://github.com/microsoft/winget-pkgs/tree/master/manifests/h/heartleo/zlib)
   identify the package routes. Package installation was not run during these reviews.
