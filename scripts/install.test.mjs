@@ -14,8 +14,8 @@ function realTool(name) {
 }
 
 // sandbox builds a PATH of fake tools so install.sh never touches the network,
-// a real sudo, or anything outside root: curl serves a canned release, and
-// mv, mkdir and sudo refuse paths outside root.
+// a real sudo, or anything outside root: curl serves a canned release, sudo is
+// a stand-in, and mv (its destination) and mkdir refuse paths outside root.
 function sandbox() {
   const root = mkdtempSync(path.join(tmpdir(), 'zlib-install-'));
   const bin = path.join(root, 'fakebin');
@@ -37,7 +37,11 @@ function sandbox() {
   *api.github.com*) echo '  "tag_name": "v9.9.9",' ;;
   *-o*) while [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done; cp "${archive}" "$out" ;;
 esac`);
-  const guard = (name) => tool(name, `for a in "$@"; do
+  // mv checks only its destination: BSD mktemp ignores TMPDIR, so the script's
+  // own temp source can sit outside the sandbox.
+  const guard = (name, lastOnly) => tool(name, `for a in "$@"; do last=$a; done
+for a in "$@"; do
+  if [ "${lastOnly}" = true ] && [ "$a" != "$last" ]; then continue; fi
   case "$a" in
     -*) ;;
     "${root}"/*) ;;
@@ -45,8 +49,8 @@ esac`);
   esac
 done
 exec "${realTool(name)}" "$@"`);
-  guard('mv');
-  guard('mkdir');
+  guard('mv', true);
+  guard('mkdir', false);
   // sudo leaves a trace and stands in for elevation by unlocking the one
   // directory the privilege test locks; the guarded tools still apply.
   tool('sudo', `echo "$*" >> "${root}/sudo.log"\nchmod u+w "${root}/locked" 2>/dev/null\nexec "$@"`);
