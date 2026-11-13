@@ -3,7 +3,7 @@ set -e
 
 REPO="heartleo/zlib"
 BIN="zlib"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${ZLIB_INSTALL_DIR:-/usr/local/bin}"
 
 # Detect OS
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -38,6 +38,12 @@ trap 'rm -rf "$TMP"' EXIT
 
 curl -fsSL "$URL" -o "$TMP/$ARCHIVE"
 tar -xzf "$TMP/$ARCHIVE" -C "$TMP"
+
+# /usr/local/bin does not exist on every Mac, for example one that only has
+# Homebrew under /opt/homebrew.
+if [ ! -d "$INSTALL_DIR" ]; then
+  mkdir -p "$INSTALL_DIR" 2>/dev/null || sudo mkdir -p "$INSTALL_DIR"
+fi
 
 if [ -w "$INSTALL_DIR" ]; then
   mv "$TMP/$BIN" "$INSTALL_DIR/$BIN"
