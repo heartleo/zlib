@@ -75,6 +75,19 @@ test('creates a missing install directory', { skip: !canRun }, () => {
   }
 });
 
+test('installs into a directory whose path has a space', { skip: !canRun }, () => {
+  const env = sandbox();
+  try {
+    const dir = path.join(env.root, 'Application Support', 'bin');
+    const result = install(env, dir);
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.ok(existsSync(path.join(dir, 'zlib')), 'binary was not installed');
+    assert.match(result.stdout, /zlib version v9\.9\.9/);
+  } finally {
+    rmSync(env.root, { recursive: true, force: true });
+  }
+});
+
 test('installs into an existing directory', { skip: !canRun }, () => {
   const env = sandbox();
   try {
