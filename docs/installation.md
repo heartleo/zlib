@@ -52,8 +52,12 @@ Archives published after v0.0.14 carry signed build provenance. To check one
 before extracting it:
 
 ```sh
-gh attestation verify zlib_<version>_<os>_<arch>.tar.gz --repo heartleo/zlib
+gh attestation verify zlib_0.0.15_linux_x86_64.tar.gz --repo heartleo/zlib
 ```
+
+Use the archive's own name: Windows ships a `.zip`, such as
+`zlib_0.0.15_windows_x86_64.zip`, and ARM builds say `arm64` where Intel and
+AMD builds say `x86_64`.
 
 ## Go install
 
