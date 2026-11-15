@@ -37,6 +37,24 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 curl -fsSL "$URL" -o "$TMP/$ARCHIVE"
+curl -fsSL "https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt" -o "$TMP/checksums.txt"
+
+# Install nothing that does not match the release's checksums.txt, as
+# `zlib update` does.
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL=$(sha256sum "$TMP/$ARCHIVE" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL=$(shasum -a 256 "$TMP/$ARCHIVE" | awk '{print $1}')
+else
+  echo "Neither sha256sum nor shasum was found; cannot verify the download" >&2
+  exit 1
+fi
+EXPECTED=$(awk -v name="$ARCHIVE" '$2 == name { print $1 }' "$TMP/checksums.txt")
+if [ -z "$EXPECTED" ] || [ "$EXPECTED" != "$ACTUAL" ]; then
+  echo "Checksum mismatch for ${ARCHIVE}; nothing was installed" >&2
+  exit 1
+fi
+
 tar -xzf "$TMP/$ARCHIVE" -C "$TMP"
 
 # /usr/local/bin does not exist on every Mac, for example one that only has

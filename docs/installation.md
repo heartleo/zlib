@@ -36,8 +36,10 @@ On macOS / Linux:
 curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | sh
 ```
 
-The script installs `zlib` to `/usr/local/bin`, creating the directory if it is
-missing and asking for `sudo` when your user cannot write there. Set
+The script checks the archive against the release's `checksums.txt` and installs
+nothing on a mismatch. It installs `zlib` to `/usr/local/bin`, creating the
+directory if it is missing and asking for `sudo` when your user cannot write
+there. Set
 `ZLIB_INSTALL_DIR` to install somewhere else, for example
 `curl -fsSL https://raw.githubusercontent.com/heartleo/zlib/main/install.sh | ZLIB_INSTALL_DIR="$HOME/.local/bin" sh`;
 that directory must be on your `PATH`.
