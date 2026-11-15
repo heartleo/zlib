@@ -79,7 +79,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: ./.github/actions/setup-go
+      - id: go
+        uses: ./.github/actions/setup-go
         with:
           cache-key: build
 
@@ -95,7 +96,7 @@ jobs:
       - if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/save-go-cache
         with:
-          cache-key: build
+          key: ${{ steps.go.outputs.cache-primary-key }}
 
   # Type-check every release target, including build-tagged files and tests;
   # scripts/check.sh runs the same loop before each commit. One job per OS
@@ -111,7 +112,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: ./.github/actions/setup-go
+      - id: go
+        uses: ./.github/actions/setup-go
         with:
           cache-key: vet-${{ matrix.goos }}
 
@@ -125,7 +127,7 @@ jobs:
       - if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/save-go-cache
         with:
-          cache-key: vet-${{ matrix.goos }}
+          key: ${{ steps.go.outputs.cache-primary-key }}
 
   # Path handling, file names and terminal detection differ per OS, so the
   # tests run natively on each platform zlib is released for. Linux also runs
@@ -144,7 +146,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: ./.github/actions/setup-go
+      - id: go
+        uses: ./.github/actions/setup-go
         with:
           cache-key: test-${{ matrix.os }}
 
@@ -153,7 +156,7 @@ jobs:
       - if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/save-go-cache
         with:
-          cache-key: test-${{ matrix.os }}
+          key: ${{ steps.go.outputs.cache-primary-key }}
 
 
   # A change without Go skips this; govulncheck.yml still scans main daily for
@@ -165,7 +168,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: ./.github/actions/setup-go
+      - id: go
+        uses: ./.github/actions/setup-go
         with:
           cache-key: govulncheck
 
@@ -180,7 +184,7 @@ jobs:
       - if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/save-go-cache
         with:
-          cache-key: govulncheck
+          key: ${{ steps.go.outputs.cache-primary-key }}
 
   # The one check to require before merging. A skipped matrix job reports as
   # `test`, not `test (ubuntu-latest)`, so requiring the jobs themselves would

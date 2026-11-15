@@ -12,6 +12,13 @@ inputs:
       another's.
     required: true
 
+outputs:
+  cache-primary-key:
+    description: >-
+      The key a cache for this commit is saved under. Pass it to save-go-cache,
+      so restore and save cannot disagree about it.
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+
 runs:
   using: composite
   steps:
@@ -28,7 +35,8 @@ runs:
         echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
-    - uses: actions/cache/restore@v6
+    - id: restore
+      uses: actions/cache/restore@v6
       with:
         path: |
           ${{ steps.paths.outputs.build }}
