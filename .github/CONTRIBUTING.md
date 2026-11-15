@@ -40,8 +40,11 @@ request per branch, one squashed commit on `main` per pull request.
 - **The title is the commit.** It becomes the subject of the squashed commit
   and a line in the release notes, so it follows the commit rules above,
   including the 50-character limit (the `commit-msg` hook does not see it).
-  `feat`, `fix`, `perf` and `build` titles appear in the release notes;
-  `docs`, `test`, `ci`, `chore` and `refactor` do not (`.goreleaser.yml`).
+  `feat`, `fix`, `perf` and `build` titles appear in the release notes, under
+  Features, Fixes, Performance and Build; `docs`, `test`, `ci`, `chore` and
+  `refactor` do not, and neither does `build(plugin)`. A subject that is not a
+  Conventional Commit, such as a revert, is listed under Others
+  (`.goreleaser.yml`).
 - Fill in the template: what changed, why, and how it was verified. Link the
   issue it resolves with `Fixes #123`.
 - Open a draft while work is in progress; mark it ready when it is.

@@ -96,8 +96,29 @@ winget:
 
 changelog:
   sort: asc
+  # Sections for readers, a line per change without the commit hash.
+  format: "{{ .Message }}"
+  groups:
+    - title: Features
+      regexp: '^feat(\(.+\))?!?:'
+      order: 0
+    - title: Fixes
+      regexp: '^fix(\(.+\))?!?:'
+      order: 1
+    - title: Performance
+      regexp: '^perf(\(.+\))?!?:'
+      order: 2
+    - title: Build
+      regexp: '^build(\(.+\))?!?:'
+      order: 3
+    # Anything the filters below keep and no group claims, such as a revert,
+    # still reaches the notes.
+    - title: Others
+      order: 999
   filters:
     exclude:
+      # The plugin has its own version; its bumps say nothing about the CLI.
+      - '^build\(plugin\)!?:'
       - '^docs(\(.+\))?!?:'
       - '^test(\(.+\))?!?:'
       - '^chore(\(.+\))?!?:'
