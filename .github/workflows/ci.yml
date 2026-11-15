@@ -82,7 +82,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Tidy
-        run: go mod tidy && git diff --exit-code go.sum
+        run: go mod tidy -diff
 
       - name: Vet
         run: go vet ./...
@@ -90,20 +90,34 @@ jobs:
       - name: Build
         run: go build ./...
 
-      # Type-check every release target, including build-tagged files and
-      # tests; scripts/check.sh runs the same loop before each commit.
-      - name: Vet release targets
+  # Type-check every release target, including build-tagged files and tests;
+  # scripts/check.sh runs the same loop before each commit. One job per OS
+  # keeps the six targets from running one after another.
+  vet:
+    needs: changes
+    if: needs.changes.outputs.go == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Vet ${{ matrix.goos }}
         run: |
-          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
-            echo "go vet $target"
-            GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go vet ./...
+          for arch in amd64 arm64; do
+            echo "go vet ${{ matrix.goos }}/$arch"
+            GOOS=${{ matrix.goos }} GOARCH=$arch CGO_ENABLED=0 go vet ./...
           done
 
-      - name: Test
-        run: go test -race ./...
-
   # Path handling, file names and terminal detection differ per OS, so the
-  # tests run natively on each platform zlib is released for.
+  # tests run natively on each platform zlib is released for. Linux also runs
+  # them with the race detector, instead of a second run in another job.
   test:
     needs: changes
     if: needs.changes.outputs.go == 'true'
@@ -111,6 +125,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            race: -race
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -120,7 +137,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Test
-        run: go test ./...
+        run: go test ${{ matrix.race }} ./...
 
   # A change without Go skips this; govulncheck.yml still scans main daily for
   # newly published advisories.
@@ -150,7 +167,7 @@ jobs:
   # succeeded too.
   ci-ok:
     if: always()
-    needs: [changes, checks, build, test, govulncheck]
+    needs: [changes, checks, build, vet, test, govulncheck]
     runs-on: ubuntu-latest
     steps:
       - name: Check every job's result
@@ -160,7 +177,7 @@ jobs:
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           required="changes checks"
-          if [ "$GO" != "false" ]; then required="$required build test govulncheck"; fi
+          if [ "$GO" != "false" ]; then required="$required build vet test govulncheck"; fi
           failed=""
           for job in $required; do
             result=$(echo "$NEEDS" | jq -r --arg job "$job" '.[$job].result')
