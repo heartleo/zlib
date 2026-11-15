@@ -11,6 +11,11 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # Declared here, on the job, so a later permission added to this job cannot
+    # silently replace it: the release-commit gate reads ci-ok's check run.
+    permissions:
+      contents: write
+      checks: read
     steps:
       - name: Checkout
         # Actions in this job see the publishing tokens, so each is pinned to a
@@ -18,6 +23,31 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      # A tag can be pushed from any commit, but a release must be exactly what
+      # main shipped through review: refuse a tag that is not on main or whose
+      # commit did not pass ci-ok. ci-ok runs on every push to main, so a tag
+      # pushed right after a merge waits for it instead of failing.
+      - name: Require a reviewed, passing release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main; tag a commit that has been merged"
+            exit 1
+          fi
+          for attempt in $(seq 1 30); do
+            conclusion=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=ci-ok" \
+              --jq '.check_runs | map(select(.status == "completed")) | first | .conclusion // "pending"')
+            case "$conclusion" in
+              success) echo "ci-ok passed for $GITHUB_SHA"; exit 0 ;;
+              pending) echo "waiting for ci-ok ($attempt/30)"; sleep 30 ;;
+              *) echo "::error::ci-ok concluded $conclusion for $GITHUB_SHA"; exit 1 ;;
+            esac
+          done
+          echo "::error::ci-ok did not finish for $GITHUB_SHA within 15 minutes"
+          exit 1
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
