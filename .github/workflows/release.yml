@@ -16,6 +16,9 @@ jobs:
       contents: write
       # The release-commit gate reads ci-ok's check run.
       checks: read
+      # Signing the build provenance.
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout
         # Actions in this job see the publishing tokens, so each is pinned to a
@@ -76,3 +79,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
+
+      # Signed build provenance ties every archive and checksums.txt to this
+      # workflow run and commit; `gh attestation verify` checks it.
+      - name: Attest release artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
