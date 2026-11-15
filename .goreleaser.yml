@@ -118,7 +118,7 @@ changelog:
   filters:
     exclude:
       # The plugin has its own version; its bumps say nothing about the CLI.
-      - '^build\(plugin\):'
+      - '^build\(plugin\)!?:'
       - '^docs(\(.+\))?!?:'
       - '^test(\(.+\))?!?:'
       - '^chore(\(.+\))?!?:'
