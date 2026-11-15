@@ -140,9 +140,9 @@ terminal detection differ between them. Code that touches one of those must be
 correct on all three. Branch on `runtime.GOOS` behind a parameter, as
 `sanitizeFilenameFor` does, so every platform's branch is tested on any OS.
 
-The Go jobs (`build`, `test`, `govulncheck`) run only when a change can affect
-the Go build or tests. `scripts/ci-changes.mjs` decides: they are skipped only
-if every changed file is on its list of paths that no Go code or test reads
+The Go jobs (`build`, `vet`, `test`, `govulncheck`) run only when a change can
+affect the Go build or tests. `scripts/ci-changes.mjs` decides: they are skipped
+only if every changed file is on its list of paths that no Go code or test reads
 (docs, the site, skills, plugin manifests, the other workflows, the node
 tooling). Anything else, including a new directory or file, runs them. When a
 Go test starts reading a file, take that path off the list. The `checks` job
