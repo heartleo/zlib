@@ -1,4 +1,4 @@
-name: gitleaks
+name: Secret Scan
 
 on:
   push:

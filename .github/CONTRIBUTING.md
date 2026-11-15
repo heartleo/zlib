@@ -73,7 +73,7 @@ request per branch, one squashed commit on `main` per pull request.
 ### Merging
 
 - Merge with **Squash and merge** only, after the required checks pass:
-  `ci-ok` and `gitleaks`. `ci-ok` succeeds only when every `ci` job it needs
+  `ci-ok` and `gitleaks`. `ci-ok` succeeds only when every `CI` job it needs
   succeeded; it is the one to require, because a skipped matrix job reports
   as `test` rather than `test (ubuntu-latest)` and would never satisfy a rule
   that names the platform jobs.
@@ -149,6 +149,16 @@ Go test starts reading a file, take that path off the list. The `checks` job
 (skills, docs privacy, script tests) runs on every change, and
 `govulncheck.yml` still scans `main` daily. A new push to a pull request
 cancels its older run; runs on `main` are never cancelled.
+
+## Workflow names
+
+A workflow's `name:` is a short Title Case noun phrase for what it does: `CI`,
+`Release`, `Pages`, `Secret Scan`, `Vulnerability Scan`. The file keeps a
+lowercase name (`ci.yml`, `release.yml`); the README badge and the links in
+these docs point at files, so renaming a workflow does not break them. Job IDs
+are lowercase kebab-case. The required checks are matched by job name, so
+never rename `ci-ok` or `gitleaks`. `pullfrog.yml` is written by Pullfrog and
+keeps its own name and header.
 
 ## Issue forms
 

@@ -1,4 +1,4 @@
-name: govulncheck
+name: Vulnerability Scan
 
 # New vulnerabilities are published without any change to this repository,
 # so scan main daily. ci.yml runs the same scan on pushes and pull requests
