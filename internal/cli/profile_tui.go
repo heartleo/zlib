@@ -167,9 +167,6 @@ func renderProfilePage(profile zlib.UserProfile, width int) string {
 			fraction = min(1, max(0, float64(limits.DailyAmount)/float64(limits.DailyAllowed)))
 		}
 		rows = append(rows, bar.ViewAs(fraction))
-		if limits.DailyReset != "" {
-			rows = append(rows, muted.Render("Resets at ")+primary.Render(bookCell(limits.DailyReset)))
-		}
 	}
 	fields := []profileField{}
 	addField := func(label, value string) {
