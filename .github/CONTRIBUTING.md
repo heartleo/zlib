@@ -150,6 +150,12 @@ Go test starts reading a file, take that path off the list. The `checks` job
 `govulncheck.yml` still scans `main` daily. A new push to a pull request
 cancels its older run; runs on `main` are never cancelled.
 
+Each Go job keeps its own build cache (`.github/actions/setup-go`), because jobs
+that compile different things, such as another target or the race detector,
+cannot share one. Only `main` saves them (`save-go-cache`); a pull request
+restores the newest one and writes nothing, so it cannot evict `main`'s caches.
+The `CI` workflow can also be started by hand on `main` to time a warm run.
+
 ## Workflow names
 
 A workflow's `name:` is a short Title Case noun phrase for what it does: `CI`,

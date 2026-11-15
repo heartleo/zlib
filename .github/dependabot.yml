@@ -11,3 +11,25 @@ updates:
       actions:
         patterns:
           - "*"
+  - package-ecosystem: github-actions
+    directory: /.github/actions/setup-go
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns:
+          - "*"
+  - package-ecosystem: github-actions
+    directory: /.github/actions/save-go-cache
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns:
+          - "*"

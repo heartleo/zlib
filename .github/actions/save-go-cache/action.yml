@@ -1,0 +1,26 @@
+name: Save Go cache
+description: >-
+  Save the build cache that setup-go restored, under a key for this commit.
+  Call it as the last step of a job, only on main:
+  `if: github.ref == 'refs/heads/main'`.
+
+inputs:
+  key:
+    description: The cache-primary-key output of the job's setup-go step.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - id: paths
+      shell: bash
+      run: |
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/cache/save@v6
+      with:
+        path: |
+          ${{ steps.paths.outputs.build }}
+          ${{ steps.paths.outputs.modules }}
+        key: ${{ inputs.key }}

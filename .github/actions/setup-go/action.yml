@@ -1,0 +1,47 @@
+name: Set up Go
+description: >-
+  Install the Go release on the go line of go.mod and restore this job's build
+  cache. Only main saves caches (save-go-cache), so a pull request reads the
+  newest one main wrote and writes nothing.
+
+inputs:
+  cache-key:
+    description: >-
+      Names the job's cache. Jobs that compile different things (other targets,
+      the race detector) get their own, so one job's cache never stands in for
+      another's.
+    required: true
+
+outputs:
+  cache-primary-key:
+    description: >-
+      The key a cache for this commit is saved under. Pass it to save-go-cache,
+      so restore and save cannot disagree about it.
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+
+runs:
+  using: composite
+  steps:
+    # The built-in cache of setup-go has one key per OS and go.sum, so the job
+    # that happens to save it first decides what every other job restores.
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache: false
+
+    - id: paths
+      shell: bash
+      run: |
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+    - id: restore
+      uses: actions/cache/restore@v6
+      with:
+        path: |
+          ${{ steps.paths.outputs.build }}
+          ${{ steps.paths.outputs.modules }}
+        key: go-${{ runner.os }}-${{ inputs.cache-key }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ inputs.cache-key }}-${{ hashFiles('go.sum') }}-
+          go-${{ runner.os }}-${{ inputs.cache-key }}-
