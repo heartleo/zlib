@@ -50,7 +50,11 @@ else
   exit 1
 fi
 EXPECTED=$(awk -v name="$ARCHIVE" '$2 == name { print $1 }' "$TMP/checksums.txt")
-if [ -z "$EXPECTED" ] || [ "$EXPECTED" != "$ACTUAL" ]; then
+if [ -z "$EXPECTED" ]; then
+  echo "checksums.txt does not list ${ARCHIVE}; nothing was installed" >&2
+  exit 1
+fi
+if [ "$EXPECTED" != "$ACTUAL" ]; then
   echo "Checksum mismatch for ${ARCHIVE}; nothing was installed" >&2
   exit 1
 fi

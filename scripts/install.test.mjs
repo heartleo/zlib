@@ -160,7 +160,8 @@ test('refuses an archive that checksums.txt does not list', { skip: !canRun }, (
     const dir = path.join(env.root, 'prefix', 'bin');
     const result = install(env, dir);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Checksum mismatch/);
+    assert.match(result.stderr, /checksums\.txt does not list/);
+    assert.doesNotMatch(result.stderr, /Checksum mismatch/);
     assert.equal(existsSync(path.join(dir, 'zlib')), false);
   } finally {
     rmSync(env.root, { recursive: true, force: true });
