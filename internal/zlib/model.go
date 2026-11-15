@@ -31,10 +31,9 @@ type SearchResult struct {
 }
 
 type DownloadLimit struct {
-	DailyAmount    int    `json:"daily_amount"`
-	DailyAllowed   int    `json:"daily_allowed"`
-	DailyRemaining int    `json:"daily_remaining"`
-	DailyReset     string `json:"daily_reset"`
+	DailyAmount    int `json:"daily_amount"`
+	DailyAllowed   int `json:"daily_allowed"`
+	DailyRemaining int `json:"daily_remaining"`
 }
 
 // UserProfile contains the account fields safe to display or serialize.

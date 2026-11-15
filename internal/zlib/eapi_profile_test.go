@@ -75,6 +75,25 @@ func TestGetLimitsEAPI(t *testing.T) {
 	}
 }
 
+func TestProfileJSONOmitsResetTime(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"success":1,"user":{"downloads_today":3,"downloads_limit":10}}`)
+	}))
+	defer server.Close()
+
+	profile, err := newLoggedInEAPITestClient(server.URL).GetProfile()
+	if err != nil {
+		t.Fatalf("GetProfile() error = %v", err)
+	}
+	data, err := json.Marshal(profile)
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	if bytes.Contains(data, []byte("daily_reset")) {
+		t.Errorf("profile JSON advertises a reset time EAPI does not provide: %s", data)
+	}
+}
+
 func TestDownloadHistoryEAPI(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/eapi/user/book/downloaded" || r.URL.Query().Get("page") != "2" {
