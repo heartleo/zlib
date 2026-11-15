@@ -53,3 +53,7 @@ Some formats are owned by other tools, so the rule does not apply to them.
    `main` and tag the tip.
 3. Download one archive and run `zlib version`. It must print
    `zlib version vX.Y.Z`.
+
+Release builds are reproducible: `-trimpath`, and a build date and file time
+taken from the tagged commit, so rebuilding a tag gives byte-identical binaries
+for a given Go release.

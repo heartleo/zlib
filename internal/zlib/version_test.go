@@ -43,3 +43,25 @@ func TestGoReleaserLdflagsTargetThisPackage(t *testing.T) {
 		}
 	}
 }
+
+// TestGoReleaserBuildsAreReproducible guards the settings that make rebuilding
+// a tag give the same binary: a lost one would only show after a tag is pushed.
+func TestGoReleaserBuildsAreReproducible(t *testing.T) {
+	data, err := os.ReadFile("../../.goreleaser.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := string(data)
+	for _, c := range []struct{ name, pattern string }{
+		{"-trimpath flag", `(?m)^\s*flags:\s*\n\s*-\s*-trimpath\s*$`},
+		{"commit-based file time", `(?m)^\s*mod_timestamp:\s*"\{\{\s*\.CommitTimestamp\s*\}\}"\s*$`},
+		{"commit-based build date", `-X [^=\s]+\.Date=\{\{\s*\.CommitDate\s*\}\}`},
+	} {
+		if !regexp.MustCompile(c.pattern).MatchString(config) {
+			t.Errorf(".goreleaser.yml lost the %s that keeps release builds reproducible", c.name)
+		}
+	}
+	if regexp.MustCompile(`\{\{\s*\.(Date|Now)\s*\}\}`).MatchString(config) {
+		t.Error(".goreleaser.yml uses the build clock; use .CommitDate so rebuilds match")
+	}
+}
