@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +10,15 @@ import { fileURLToPath } from 'node:url';
 const script = fileURLToPath(new URL('../install.sh', import.meta.url));
 const canRun = process.platform !== 'win32';
 
+// The release asset name install.sh derives from uname.
+function osName() {
+  return process.platform === 'darwin' ? 'darwin' : 'linux';
+}
+
+function archName() {
+  return process.arch === 'arm64' ? 'arm64' : 'x86_64';
+}
+
 function realTool(name) {
   return execFileSync('sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).trim();
 }
@@ -16,7 +26,7 @@ function realTool(name) {
 // sandbox builds a PATH of fake tools so install.sh never touches the network,
 // a real sudo, or anything outside root: curl serves a canned release, sudo is
 // a stand-in, and mv (its destination) and mkdir refuse paths outside root.
-function sandbox() {
+function sandbox({ checksums = 'valid' } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'zlib-install-'));
   const bin = path.join(root, 'fakebin');
   const work = path.join(root, 'work');
@@ -29,12 +39,18 @@ function sandbox() {
   const archive = path.join(work, 'release.tar.gz');
   execFileSync(realTool('tar'), ['-czf', archive, '-C', path.join(work, 'archive'), 'zlib']);
 
+  // A release publishes checksums.txt beside the archive, in sha256sum format.
+  const sum = createHash('sha256').update(readFileSync(archive)).digest('hex');
+  const listed = checksums === 'valid' ? sum : '0'.repeat(64);
+  writeFileSync(path.join(work, 'checksums.txt'), checksums === 'missing' ? '' : `${listed}  zlib_9.9.9_${osName()}_${archName()}.tar.gz\n`);
+
   const tool = (name, body) => {
     writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\n`);
     chmodSync(path.join(bin, name), 0o755);
   };
   tool('curl', `case "$*" in
   *api.github.com*) echo '  "tag_name": "v9.9.9",' ;;
+  *checksums.txt*) while [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done; cp "${path.join(work, 'checksums.txt')}" "$out" ;;
   *-o*) while [ $# -gt 0 ]; do [ "$1" = -o ] && out=$2; shift; done; cp "${archive}" "$out" ;;
 esac`);
   // mv checks only its destination: BSD mktemp ignores TMPDIR, so the script's
@@ -121,6 +137,33 @@ test('uses sudo to create a directory the user cannot write', { skip: !canRun ||
     assert.match(log, /mkdir -p/);
   } finally {
     chmodSync(locked, 0o755);
+    rmSync(env.root, { recursive: true, force: true });
+  }
+});
+
+test('refuses an archive that does not match checksums.txt', { skip: !canRun }, () => {
+  const env = sandbox({ checksums: 'wrong' });
+  try {
+    const dir = path.join(env.root, 'prefix', 'bin');
+    const result = install(env, dir);
+    assert.notEqual(result.status, 0, 'a mismatched archive was installed');
+    assert.match(result.stderr, /Checksum mismatch/);
+    assert.equal(existsSync(path.join(dir, 'zlib')), false, 'binary was installed despite the mismatch');
+  } finally {
+    rmSync(env.root, { recursive: true, force: true });
+  }
+});
+
+test('refuses an archive that checksums.txt does not list', { skip: !canRun }, () => {
+  const env = sandbox({ checksums: 'missing' });
+  try {
+    const dir = path.join(env.root, 'prefix', 'bin');
+    const result = install(env, dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /checksums\.txt does not list/);
+    assert.doesNotMatch(result.stderr, /Checksum mismatch/);
+    assert.equal(existsSync(path.join(dir, 'zlib')), false);
+  } finally {
     rmSync(env.root, { recursive: true, force: true });
   }
 });
