@@ -22,9 +22,14 @@ builds:
     goarch:
       - amd64
       - arm64
+    # Rebuilding a tag must give the same binary: no checkout paths in the
+    # binary, a file time and a build date taken from the commit, not the clock.
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       # {{.Version}} drops the tag's v; zlib reports versions as vX.Y.Z.
-      - -s -w -X github.com/heartleo/zlib/internal/zlib.Version=v{{.Version}} -X github.com/heartleo/zlib/internal/zlib.Commit={{.Commit}} -X github.com/heartleo/zlib/internal/zlib.Date={{.Date}}
+      - -s -w -X github.com/heartleo/zlib/internal/zlib.Version=v{{.Version}} -X github.com/heartleo/zlib/internal/zlib.Commit={{.Commit}} -X github.com/heartleo/zlib/internal/zlib.Date={{.CommitDate}}
 
 archives:
   - id: zlib
