@@ -44,12 +44,12 @@ Some formats are owned by other tools, so the rule does not apply to them.
 
 ## Releasing
 
-1. Tag the release commit on `main` with an annotated tag:
+1. Pull `main` and tag its tip with an annotated tag:
    `git tag -a vX.Y.Z -m vX.Y.Z`.
 2. Push the tag with `git push origin vX.Y.Z`. The release workflow first
-   requires the tagged commit to be on `main` and to have passed `ci-ok`
-   (waiting up to 15 minutes if the run is still going), then runs
-   GoReleaser. A tag that fails the gate publishes nothing; delete it and tag
-   the right commit.
+   requires the tagged commit to be the tip of `main` and to have passed
+   `ci-ok` (waiting up to 15 minutes if the run is still going), then runs
+   GoReleaser. A tag that fails the gate publishes nothing; delete it, pull
+   `main` and tag the tip.
 3. Download one archive and run `zlib version`. It must print
    `zlib version vX.Y.Z`.

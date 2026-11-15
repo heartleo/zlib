@@ -5,16 +5,16 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
+# A job's permissions replace the workflow's, they do not add to them, so each
+# job lists everything it needs and the workflow grants nothing by default.
+permissions: {}
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
-    # Declared here, on the job, so a later permission added to this job cannot
-    # silently replace it: the release-commit gate reads ci-ok's check run.
     permissions:
       contents: write
+      # The release-commit gate reads ci-ok's check run.
       checks: read
     steps:
       - name: Checkout
@@ -24,17 +24,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A tag can be pushed from any commit, but a release must be exactly what
-      # main shipped through review: refuse a tag that is not on main or whose
-      # commit did not pass ci-ok. ci-ok runs on every push to main, so a tag
-      # pushed right after a merge waits for it instead of failing.
+      # A tag can be pushed from any commit, but a release must be what main
+      # shipped through review: refuse a tag that is not the tip of main or whose
+      # commit did not pass ci-ok. There are no release branches, so an older
+      # commit is a stale checkout, not a deliberate release. ci-ok runs on every
+      # push to main, so a tag pushed right after a merge waits for it instead of
+      # failing.
       - name: Require a reviewed, passing release commit
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git fetch --no-tags origin main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::$GITHUB_REF_NAME is not on main; tag a commit that has been merged"
+          if [ "$GITHUB_SHA" != "$(git rev-parse origin/main)" ]; then
+            if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+              behind=$(git rev-list --count "$GITHUB_SHA"..origin/main)
+              echo "::error::$GITHUB_REF_NAME is $behind commit(s) behind main; pull main and tag its tip"
+            else
+              echo "::error::$GITHUB_REF_NAME is not on main; tag a commit that has been merged"
+            fi
             exit 1
           fi
           for attempt in $(seq 1 30); do
