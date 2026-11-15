@@ -48,6 +48,13 @@ For a manual install, download the archive for your OS and architecture from
 [Releases](https://github.com/heartleo/zlib/releases/latest). Extract `zlib`
 (`zlib.exe` on Windows) into a directory on your `PATH`.
 
+Archives published after v0.0.14 carry signed build provenance. To check one
+before extracting it:
+
+```sh
+gh attestation verify zlib_<version>_<os>_<arch>.tar.gz --repo heartleo/zlib
+```
+
 ## Go install
 
 Requires Go 1.26 or later:
