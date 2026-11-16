@@ -67,8 +67,8 @@ zlib meta book.epub --fetch -t "Dune" -a "Frank Herbert"
 zlib meta book.epub --fetch --isbn 9780441013593
 ```
 
-`--fetch` asks Open Library and Google Books about the book and lists the
-best matches. It only reads: it never changes the file, and it cannot be
+`--fetch` asks Open Library and Google Books about the book (and Douban, once
+you [enable it](#douban)) and lists the best matches. It only reads: it never changes the file, and it cannot be
 combined with the field options. `-t`, `-a` and `--isbn` set what to search
 for instead of what the file says. To use a match, copy the values into the
 field options above; the terminal interface applies a match for you.
@@ -85,6 +85,49 @@ What it does:
 - A result is marked `ISBN match`, or `ISBN match, title differs` when the
   ISBN belongs to a book with another title (files often carry a wrong
   ISBN), or `title match` with a percentage.
+- A volume number is part of the title: a title ending in the Roman numeral
+  glyph `Ⅱ` agrees with the same title ending in `2`, and neither is mistaken
+  for the first volume. Dates written with the Chinese year and month
+  characters are read.
+
+### Where the ISBN comes from
+
+A lookup searches, in this order of trust: the ISBN in the file's metadata; an
+ISBN recorded by a [download](usage.md#download) under the identifier
+`zlib-isbn`; and, when there is none, an ISBN printed in the book itself.
+
+- **Recorded by a download.** `zlib download` writes the ISBN from Z-Library's
+  record into the saved file. It becomes the file's `isbn` only when the file
+  has none and the record's title agrees closely with the file's title.
+  Otherwise it is stored as `zlib-isbn`, a hint that is searched but never
+  taken as the book's own ISBN. A later lookup that finds the same ISBN on a
+  book with the same title confirms it, and the page then offers to fill the
+  empty `isbn`. Use `--no-embed` to skip this.
+- **Printed in the book.** For a book without either, the lookup reads the
+  front and last pages of an EPUB or DOCX for an ISBN after the word `ISBN`
+  (or a hyphenated ISBN-13). Only a number with a correct check digit counts,
+  and the result is checked against the title like any other ISBN. MOBI, AZW3
+  and PDF text is compressed and is not read. This is how books downloaded
+  before the download recorded an ISBN get an exact match.
+
+### Douban
+
+Douban Books covers Chinese editions that Open Library and Google Books lack,
+and each Douban entry is one edition. It is off by default, because it sends
+the title to a third party. Turn it on with a source list:
+
+```sh
+ZLIB_METADATA_SOURCES=douban,openlibrary,google zlib meta book.epub --fetch
+```
+
+Add the line to `.env` to keep it. The names are `openlibrary`, `google` and
+`douban`; an unknown name is reported as a failing source. An ISBN is resolved
+through Douban's ISBN address and a title through its mobile search, then up to
+three entries are read. Editions of one title stay separate results, so you
+choose the edition. Requests carry no cookie or login, but the mobile
+endpoints need a `Referer` of `m.douban.com`, which is sent. Douban throttles:
+a refusal is reported like any other source failing. Covers are not taken from
+Douban.
 
 On a terminal, plain `--fetch` opens an interactive page (also available as
 `/meta` in the [terminal interface](tui.md)): pick a match, review each field

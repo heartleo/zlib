@@ -185,7 +185,7 @@ existing book.
 | `get_download_history` | Read | Paged download history with optional format filter |
 | `get_profile` | Read | Account profile and daily quota |
 | `check_domains` | Read | Probe known mirrors to find reachable domains |
-| `download_book` | Write | Download a book by `id:hash` with MCP progress notifications |
+| `download_book` | Write | Download a book by `id:hash` with MCP progress notifications. Writes the record's valid ISBN into the saved file's metadata and reports it as `isbn`; pass `no_embed` to leave the file untouched ([details](usage.md#download)) |
 | `delete_download_history` | Write | Remove an entry from remote history by ID or `id:hash` |
 | `send_to_kindle` | Write | Send a local ebook file to Kindle via SMTP |
 | `import_to_weread` | Write | Import a local EPUB, PDF, MOBI, AZW3 or TXT file into WeRead ([guide](weread.md)) |

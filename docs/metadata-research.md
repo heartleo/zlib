@@ -106,9 +106,57 @@ only:
   shared, so a lookup treats it as that source being unavailable and still
   returns the other sources' results.
 
+## Douban and Chinese matching
+
+Studied revision: `Marvae/douban-cli` (MIT), the `search`, `book` and
+`resolve` modules. zlib's code is written in Go from the behaviour below and
+shares none of it.
+
+| Behaviour | What zlib does |
+| --- | --- |
+| An ISBN is resolved through the `/isbn/<isbn>/` redirect, which is not throttled like search | Reads the subject ID from the `Location` header and downloads no page |
+| Title search through the mobile search API, details through the mobile detail API; both need a `Referer` on `m.douban.com` | Same endpoints, no cookie, no login, a generic User-Agent, `Referer` only |
+| An exact title wins over a subtitle match, and several editions of one title are never collapsed to the first hit | Results are ranked by title similarity and each Douban entry stays its own candidate; two different Douban entries are never pooled, like two ISBNs |
+| A sequel whose title ends in a Roman numeral glyph such as `Ⅱ` must not collapse into the first volume | `foldText` turns Roman numeral glyphs into digits, so the volume is part of the key (before, the glyph was dropped and the sequel scored as a perfect match) |
+
+Not taken from Douban: covers (another host, with hotlink rules), ratings and
+series. Tags are the first five readers' labels that do not repeat the title or
+an author.
+
+The endpoints are the ones `douban-cli` uses and are not an API Douban
+documents. The field names come from that project's source and have not been
+measured against the live service. The detail response's `isbn` field in
+particular is unverified: it is parsed when present and validated, and nothing
+depends on it, because an ISBN lookup already knows the ISBN it asked for.
+
+## ISBNs recorded by a download
+
+The Z-Library record's ISBN is the cheapest way to fix a Chinese book's
+metadata, since a title search finds little. It is not trustworthy enough to
+write as the file's ISBN unchecked: a written ISBN is read as exact by every
+later lookup, and records and files do carry the ISBN of another book. So:
+
+- It is written as `isbn` only when the file has no ISBN and the record's
+  title is at least 0.8 similar to the file's (the matcher's own threshold is
+  0.5, since a write is permanent).
+- Otherwise it is written as `zlib-isbn`. A lookup searches it, and the
+  matcher's existing rule does the verifying: a hit whose title agrees is a
+  certain ISBN match and offers to fill `isbn`; a hit whose title disagrees is
+  scored 0.5 and flagged `may be another book`.
+- An ISBN in the file is never replaced, and a format that cannot store
+  `zlib-isbn` (MOBI keeps ISBN and ASIN only) simply records nothing.
+
+For books downloaded earlier, the book's own text is read: the front 16 and
+last 4 content documents of an EPUB and the body of a DOCX, for the text after
+an `ISBN` label or a hyphenated ISBN-13, kept only when the check digit is
+right. MOBI, AZW3 and PDF text is compressed, and a scan of it is not done.
+
 ## Limits
 
-- Coverage of Chinese-language books is thin in both catalogues.
+- Coverage of Chinese-language books is thin in both default catalogues;
+  Douban is the opt-in answer.
+- Simplified and Traditional Chinese are not folded together: a Traditional
+  title in a file does not match a Simplified one by text alone, only by ISBN.
 - A title search is only as good as the title in the file. ISBNs give exact
   editions.
 - Without a Google Books API key, Google answers from a shared quota and

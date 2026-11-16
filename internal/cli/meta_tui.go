@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -131,10 +130,10 @@ func withMetaHint(h metaHint) metaOption {
 		if len(q.Authors) == 0 {
 			q.Authors = h.Authors
 		}
+		// A record's ISBN is a hint, not the file's own: it confirms a match
+		// only when the title agrees closely.
 		for _, raw := range h.ISBNs {
-			if isbn := metasource.NormalizeISBN(raw); isbn != "" && !slices.Contains(q.ISBNs, isbn) {
-				q.ISBNs = append(q.ISBNs, isbn)
-			}
+			q.AddUnconfirmedISBN(metasource.NormalizeISBN(raw))
 		}
 	}
 }
@@ -157,6 +156,7 @@ func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, o
 	for _, opt := range opts {
 		opt(&m)
 	}
+	addScannedISBNs(&m.query, path)
 	if m.query.Empty() {
 		return metaPageModel{}, fmt.Errorf("%s has no title, author or ISBN to search with; set one with zlib meta first", filepath.Base(path))
 	}

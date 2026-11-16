@@ -94,8 +94,11 @@ zlib download "id:hash" --dir ./books --json
 `download --json` prints one document, `{"id","name","path","size"}`, with the
 absolute `path` of the saved file; add `--send-to-kindle` and it gains a
 `kindle` object (`sent`, `to` or `error`); `--send-to-weread` adds a `weread`
-object (`imported`, `book_id`, `already_existed` or `error`). Progress lines go to stderr, so
-read stdout only.
+object (`imported`, `book_id`, `already_existed` or `error`). When Z-Library's
+record has a valid ISBN, the download also writes it into the saved file's
+metadata and the document gains `isbn` (`scheme` is `isbn`, or `zlib-isbn` when
+the record's title did not agree with the file's; `value`); `--no-embed` skips
+it. Progress lines go to stderr, so read stdout only.
 
 Branch on the [exit code](usage.md#exit-codes) rather than on message text: `3`
 means the session needs `zlib login`, `4` a network or mirror problem

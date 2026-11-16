@@ -64,6 +64,15 @@ or `{"sent":false,"error":"..."}` when the book was saved but delivery failed.
 or `{"imported":false,"error":"..."}`.
 `history --download` accepts `--json` the same way.
 
+When Z-Library's record has a valid ISBN, the download writes it into the saved
+file's metadata before any Kindle or WeRead delivery, so a later
+[`zlib meta --fetch`](metadata.md#look-a-book-up) finds the exact edition. The
+JSON document then has `isbn`: `{"scheme":"isbn","value":"978..."}`, or
+`{"scheme":"zlib-isbn","value":"978..."}` when the record's title did not agree
+with the file's. An existing ISBN is never replaced. Add `--no-embed` to leave
+the file untouched. Downloads from a direct URL (`history --download`) have no
+record and write nothing.
+
 ## Saved books, recommendations and history
 
 In the history browser, press `d` to delete the selected entry, then `y` to

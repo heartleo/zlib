@@ -95,6 +95,10 @@ says why; do not download again); `130` means it was cancelled. If the command t
 the destination before retrying; a partial file or matching displayed size alone
 does not prove completion. Avoid repeating downloads after an uncertain outcome.
 
+A download records Z-Library's ISBN in the saved file's metadata when it has a
+valid one; the JSON `isbn` object says what was written. Add `--no-embed` only
+when the user wants the file left byte-for-byte as downloaded.
+
 For history re-downloads, use `zlib history --download "id:hash"`. For delivery
 requested by the user, follow the bundled [Kindle skill](../kindle/SKILL.md).
 Use `--send-to-kindle` only when delivery was requested and SMTP is configured.

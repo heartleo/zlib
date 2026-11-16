@@ -26,10 +26,16 @@ var errNoMetadataMatch = errors.New("no matching metadata found")
 // the sources are built, never logged, and shown masked everywhere.
 const googleBooksKeyEnv = "ZLIB_GOOGLE_BOOKS_KEY"
 
+// metaSourcesEnv selects the lookup sources, a comma-separated list of
+// openlibrary, google and douban. Unset means openlibrary and google; douban
+// is opt-in.
+const metaSourcesEnv = "ZLIB_METADATA_SOURCES"
+
 // newMetaSources builds the lookup sources; tests replace it to stay
 // offline.
 var newMetaSources = func(rt http.RoundTripper) []metasource.Source {
-	return metasource.DefaultSources(rt, strings.TrimSpace(os.Getenv(googleBooksKeyEnv)))
+	return metasource.NewSources(rt, metasource.ParseSourceNames(os.Getenv(metaSourcesEnv)),
+		strings.TrimSpace(os.Getenv(googleBooksKeyEnv)))
 }
 
 // metaSourceError words a source failure for the screen, adding the next step
@@ -108,6 +114,25 @@ func metaFetchQuery(cmd *cobra.Command, m *ebookmeta.Metadata) (metasource.Query
 	return q, nil
 }
 
+// addScannedISBNs searches the book's own text for an ISBN when the query has
+// none, which is the usual case for a book downloaded before zlib recorded the
+// Z-Library ISBN, or made from a typeset file without a metadata identifier.
+// An ISBN found this way goes through the same title check as any other, so a
+// stray number on the copyright page cannot pass as the book's own. A file the
+// scan cannot read adds nothing.
+func addScannedISBNs(q *metasource.Query, path string) {
+	if len(q.ISBNs) > 0 {
+		return
+	}
+	snippets, err := ebookmeta.ISBNSnippets(path)
+	if err != nil {
+		return
+	}
+	for _, isbn := range metasource.ISBNsFromSnippets(snippets) {
+		q.AddUnconfirmedISBN(isbn)
+	}
+}
+
 // metaFetchHasOverrides reports whether -t, -a or --isbn were given, which
 // the interactive page does not take.
 func metaFetchHasOverrides(cmd *cobra.Command) bool {
@@ -140,6 +165,9 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 	q, err := metaFetchQuery(cmd, m)
 	if err != nil {
 		return err
+	}
+	if !cmd.Flags().Changed("isbn") {
+		addScannedISBNs(&q, path)
 	}
 	ctx := cmd.Context()
 	if ctx == nil {
