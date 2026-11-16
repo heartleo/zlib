@@ -98,6 +98,18 @@ func TestEmbedDownloadISBN(t *testing.T) {
 		}
 	})
 
+	t.Run("a record listing several editions only gives a hint", func(t *testing.T) {
+		p := writeEPUB(t, "三体", "<p>x</p>")
+		book := zlib.Book{Name: "三体", ISBN13: embedTestISBN, ISBN10: "7536692935", ISBN: embedTestISBN + ",7536692935,9780140328721"}
+		got, err := embedDownloadISBN(p, book)
+		if err != nil || got == nil || got.Scheme != metasource.SchemeZlibISBN {
+			t.Fatalf("got %+v, %v", got, err)
+		}
+		if m, _, _ := ebookmeta.ReadFile(p); m.Identifier("isbn") != "" {
+			t.Errorf("an ambiguous ISBN became the file's own: %+v", m.Identifiers)
+		}
+	})
+
 	t.Run("nothing to record", func(t *testing.T) {
 		p := writeEPUB(t, "三体", "<p>x</p>")
 		before, _ := os.ReadFile(p)

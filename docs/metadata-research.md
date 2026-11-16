@@ -184,9 +184,13 @@ metadata, since a title search finds little. It is not trustworthy enough to
 write as the file's ISBN unchecked: a written ISBN is read as exact by every
 later lookup, and records and files do carry the ISBN of another book. So:
 
-- It is written as `isbn` only when the file has no ISBN and the record's
+- It is written as `isbn` only when the file has no ISBN, the record's
   title is at least 0.8 similar to the file's (the matcher's own threshold is
-  0.5, since a write is permanent).
+  0.5, since a write is permanent), and the record names one edition. Z-Library's
+  `identifier` sometimes lists the ISBNs of several editions (about 12% of the
+  results of one measured search, 3% of one history page), and a title cannot say
+  which of them the file is. An ISBN-10 counts as the ISBN-13 it converts to, so a
+  book's own pair is one edition.
 - Otherwise it is written as `zlib-isbn`. A lookup searches it, and the
   matcher's existing rule does the verifying: a hit whose title agrees is a
   certain ISBN match and offers to fill `isbn`; a hit whose title disagrees is

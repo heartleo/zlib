@@ -142,6 +142,9 @@ func (c *Client) downloadHistoryEAPIContext(ctx context.Context, page int) (Down
 			Extension:   book.Extension,
 			Size:        book.Size,
 			Date:        date,
+			ISBN:        book.ISBN,
+			ISBN10:      book.ISBN10,
+			ISBN13:      book.ISBN13,
 		})
 	}
 	current := result.Pagination.Current

@@ -118,3 +118,31 @@ func TestDownloadHistoryEAPI(t *testing.T) {
 		t.Errorf("DownloadURL = %q", item.DownloadURL)
 	}
 }
+
+// The list response already names a book's ISBN; the history item keeps it, as
+// a book from any other list does, so the card shows it before the details load.
+func TestDownloadHistoryKeepsTheISBN(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"success":1,"books":[
+{"id":1,"hash":"a","title":"Both","isbn10":"7115390576","isbn13":"9787115390578"},
+{"id":2,"hash":"b","title":"Identifier only","identifier":"978-7-5366-9293-0"},
+{"id":3,"hash":"c","title":"None"}],"pagination":{"current":1,"total_pages":1}}`)
+	}))
+	defer server.Close()
+
+	result, err := newLoggedInEAPITestClient(server.URL).DownloadHistory(1)
+	if err != nil || len(result.Items) != 3 {
+		t.Fatalf("DownloadHistory() = %+v, %v", result, err)
+	}
+	both, derived, none := result.Items[0], result.Items[1], result.Items[2]
+	if both.ISBN10 != "7115390576" || both.ISBN13 != "9787115390578" {
+		t.Errorf("both = %+v", both)
+	}
+	// ISBN 10 and 13 supply each other's equivalent, as they do for other lists.
+	if derived.ISBN13 != "9787536692930" || derived.ISBN10 != "7536692935" || derived.ISBN == "" {
+		t.Errorf("derived = %+v", derived)
+	}
+	if none.ISBN != "" || none.ISBN10 != "" || none.ISBN13 != "" {
+		t.Errorf("none = %+v", none)
+	}
+}

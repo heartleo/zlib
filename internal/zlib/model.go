@@ -63,6 +63,11 @@ type DownloadHistoryItem struct {
 	Extension   string   `json:"extension,omitempty"`
 	Size        string   `json:"size,omitempty"`
 	Date        string   `json:"date"`
+	// ISBN, ISBN10 and ISBN13 are what the list response says, with the same
+	// meaning and normalization as on Book.
+	ISBN   string `json:"isbn,omitempty"`
+	ISBN10 string `json:"isbn_10,omitempty"`
+	ISBN13 string `json:"isbn_13,omitempty"`
 }
 
 type DownloadHistoryResult struct {

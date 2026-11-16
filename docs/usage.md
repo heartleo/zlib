@@ -69,7 +69,8 @@ file's metadata before any Kindle or WeRead delivery, so a later
 [`zlib meta --fetch`](metadata.md#look-a-book-up) finds the exact edition. The
 JSON document then has `isbn`: `{"scheme":"isbn","value":"978..."}`, or
 `{"scheme":"zlib-isbn","value":"978..."}` when the record's title did not agree
-with the file's. An existing ISBN is never replaced. Add `--no-embed` to leave
+with the file's, or the record lists the ISBNs of several editions. An existing
+ISBN is never replaced. Add `--no-embed` to leave
 the file untouched. Downloads from a direct URL (`history --download`) have no
 record and write nothing.
 

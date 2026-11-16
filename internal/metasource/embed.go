@@ -30,24 +30,37 @@ const (
 //     is not allowed to contradict it quietly;
 //   - the file already carries this ISBN under SchemeZlibISBN.
 //
-// The scheme is "isbn" only when the file has a title and the record's title
-// agrees with it, so the ISBN belongs to the book the file holds. Otherwise
-// it is SchemeZlibISBN.
+// The scheme is "isbn" only when the file has a title, the record's title
+// agrees with it, and the record names one edition: an identifier can list the
+// ISBNs of several editions, and a title cannot say which one the file is.
+// Otherwise it is SchemeZlibISBN.
 func PlanDownloadISBN(cur *ebookmeta.Metadata, recordTitle string, isbns ...string) (string, *ebookmeta.Changes) {
 	var isbn string
+	editions := map[string]bool{}
 	for _, raw := range isbns {
-		if isbn = NormalizeISBN(raw); isbn != "" {
-			break
+		for _, value := range splitIdentifiers(raw) {
+			if v := NormalizeISBN(value); v != "" {
+				editions[v] = true // an ISBN-10 counts as its ISBN-13
+				if isbn == "" {
+					isbn = v
+				}
+			}
 		}
 	}
 	if isbn == "" || strings.TrimSpace(cur.Identifier("isbn")) != "" || NormalizeISBN(cur.Identifier(SchemeZlibISBN)) == isbn {
 		return "", nil
 	}
 	scheme := SchemeZlibISBN
-	if cur.Title != "" && recordTitle != "" && titleSimilarity(recordTitle, cur.Title) >= embedMinTitleSimilarity {
+	if cur.Title != "" && recordTitle != "" && len(editions) == 1 && titleSimilarity(recordTitle, cur.Title) >= embedMinTitleSimilarity {
 		scheme = "isbn"
 	}
 	return scheme, &ebookmeta.Changes{Identifiers: map[string]string{scheme: isbn}}
+}
+
+// splitIdentifiers splits an identifier field that lists several values, as
+// Z-Library's does ("9787229042066,7229042062").
+func splitIdentifiers(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' || r == '|' || r == '\n' })
 }
 
 // ISBNsFromSnippets reads ISBNs from the text that follows an "ISBN" label in

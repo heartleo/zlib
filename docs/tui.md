@@ -124,7 +124,10 @@ Search, Favorites, Recommended, Most popular, and History share one list layout:
   uses 13 rows when the page has at least 24 rows. Otherwise it uses 8 rows.
 - The expanded card shows category, year, edition, publisher, language, pages,
   and ISBN 10/13 when available. Missing EAPI fields are left blank. Valid
-  ISBN 10 and `978` ISBN 13 values can supply each other's equivalent.
+  ISBN 10 and `978` ISBN 13 values can supply each other's equivalent. History
+  keeps the ISBN its list response names, as the other lists do, so its card
+  shows it before the details load; `zlib history --json` carries it as `isbn`,
+  `isbn_10` and `isbn_13` when present.
 - Leave one empty row between the card and the column header.
 - At a page height of 15 rows or more, leave one empty row between the list area
   and the bottom controls.

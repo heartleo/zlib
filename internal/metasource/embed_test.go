@@ -29,6 +29,13 @@ func TestPlanDownloadISBN(t *testing.T) {
 		{"no file title cannot confirm", &ebookmeta.Metadata{}, "三体", []string{isbn}, SchemeZlibISBN},
 		{"no record title cannot confirm", &ebookmeta.Metadata{Title: "三体"}, "", []string{isbn}, SchemeZlibISBN},
 		{"invalid ISBNs are skipped", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{"9787536692931", "abc"}, ""},
+		// A record's identifier can list several editions' ISBNs, and a title
+		// cannot say which edition the file is.
+		{"one book's ISBN-13 and ISBN-10 are one edition", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "7-5366-9293-5"}, "isbn"},
+		{"several editions give only a hint", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "7-5366-9293-5", "9780140328721,9781593272203"}, SchemeZlibISBN},
+		{"a 978 and a 979 ISBN-13 are two editions", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "9798666362525"}, SchemeZlibISBN},
+		{"a repeated ISBN is still one edition", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "9787536692930,9787536692930"}, "isbn"},
+		{"an ASIN beside the ISBN is not an edition", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "B07S7CCQGL," + isbn}, "isbn"},
 		{"an existing ISBN is never replaced", withISBN, "三体", []string{isbn}, ""},
 		{"an already recorded hint is not rewritten", alreadyHeld, "三体", []string{isbn}, ""},
 	} {

@@ -99,8 +99,10 @@ ISBN recorded by a [download](usage.md#download) under the identifier
 
 - **Recorded by a download.** `zlib download` writes the ISBN from Z-Library's
   record into the saved file. It becomes the file's `isbn` only when the file
-  has none and the record's title agrees closely with the file's title.
-  Otherwise it is stored as `zlib-isbn`, a hint that is searched but never
+  has none, the record's title agrees closely with the file's title, and the
+  record names one edition: a record that lists the ISBNs of several editions
+  cannot say which one the file is. Otherwise it is stored as `zlib-isbn`, a
+  hint that is searched but never
   taken as the book's own ISBN. A later lookup that finds the same ISBN on a
   book with the same title confirms it, and the page then offers to fill the
   empty `isbn`. Use `--no-embed` to skip this.
