@@ -299,8 +299,9 @@ for every format `zlib meta` reads. It opens the same page, adds the Z-Library
 record's ISBN to the search, and returns to the saved file with the outcome.
 
 The lookup starts in `Init`, once however often `Init` runs, and a late answer
-to a lookup the user already left is ignored. `zlib meta <file> --fetch` opens
-the same page on a terminal; with `--json`, `-t`, `-a` or `--isbn`, or when
+to a lookup the user already left is ignored. `zlib meta` with no file or only
+`--fetch` opens the same file picker as `/meta` on a terminal, and
+`zlib meta <file> --fetch` opens the page itself; with `--json`, `-t`, `-a` or `--isbn`, or when
 output is redirected, it prints the candidates instead.
 
 The QR code is drawn with half-block characters, two modules per cell: one

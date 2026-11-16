@@ -30,7 +30,10 @@ The format is detected from the file contents:
         description, cover (replacing an existing one)
   PDF   title, authors, tags, description
 
-Fields a format cannot store are reported on stderr and skipped.`
+Fields a format cannot store are reported on stderr and skipped.
+
+On a terminal, zlib meta with no file (or only --fetch) opens a file picker,
+then looks the book up online so you can review, edit and write its metadata.`
 
 var metaCmd = &cobra.Command{
 	Use:   "meta <file>",
@@ -42,12 +45,27 @@ var metaCmd = &cobra.Command{
   zlib meta book.azw3 --get-cover cover.jpg --to-opf book.opf
   zlib meta book.epub --json`,
 	Args: func(cmd *cobra.Command, args []string) error {
-		if len(args) != 1 {
-			return &usageError{errors.New("provide one e-book file: zlib meta <file>")}
+		if len(args) == 1 || metaOpensPicker(cmd, args) {
+			return nil
 		}
-		return nil
+		return &usageError{errors.New("provide one e-book file: zlib meta <file>")}
 	},
 	RunE: runMeta,
+}
+
+// metaIsInteractive is isInteractive, replaced in tests.
+var metaIsInteractive = isInteractive
+
+// metaOpensPicker reports whether `zlib meta` with no file should open the file
+// picker: only on a terminal, and only with no option but --fetch, which also
+// means "look the book up". Any other option works on a file, so without one
+// it stays a usage error, and so does a pipe, where no picker could run.
+func metaOpensPicker(cmd *cobra.Command, args []string) bool {
+	if len(args) != 0 || !metaIsInteractive() {
+		return false
+	}
+	flags := cmd.Flags()
+	return flags.NFlag() == 0 || (flags.NFlag() == 1 && flags.Changed("fetch"))
 }
 
 func init() {
@@ -87,6 +105,9 @@ type metaJSON struct {
 }
 
 func runMeta(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 { // Args allowed it: a terminal and no other option
+		return runStandaloneShellCommand("/meta")
+	}
 	path := args[0]
 	if fetch, _ := cmd.Flags().GetBool("fetch"); fetch {
 		return runMetaFetch(cmd, path)

@@ -167,8 +167,10 @@ entries of one title stay separate results. Covers are not taken from WeRead.
 A gateway notice asking clients to upgrade is reported as a failing source
 with fixed wording; its text is never shown or followed.
 
-On a terminal, plain `--fetch` opens an interactive page (also available as
-`/meta` in the [terminal interface](tui.md)): pick a match, review each field
+On a terminal, `zlib meta` with no file (or with only `--fetch`) opens a file
+picker for the formats below, then the lookup page for the file you choose. With
+a file, plain `--fetch` opens that page directly. The page is also available as
+`/meta` in the [terminal interface](tui.md): pick a match, review each field
 as `old → new`, and write the ones you choose. What starts selected depends on
 how sure the match is, and nothing already in the file is replaced unless you
 select it:
