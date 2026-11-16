@@ -41,6 +41,7 @@ type Change struct {
 	Note string
 
 	preselect bool
+	edited    bool
 	apply     func(*ebookmeta.Changes)
 	coverURL  string
 }

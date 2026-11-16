@@ -1,0 +1,112 @@
+package metasource
+
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/heartleo/zlib/internal/ebookmeta"
+)
+
+// NoteEdited marks a row whose new value the user typed in place of the
+// catalogue's.
+const NoteEdited = "edited"
+
+// ErrNotEditable means a change has no value that can be edited by hand.
+var ErrNotEditable = errors.New("this field cannot be edited here")
+
+// Editable reports whether the new value of c can be edited by hand: the text
+// fields, the ISBN and the date. A description is several paragraphs, a cover
+// is an image and the other identifiers are catalogue IDs, so they are not.
+func (c Change) Editable() bool {
+	switch c.Field {
+	case FieldTitle, FieldAuthors, FieldPublisher, FieldLanguages, FieldTags, FieldPublished, "identifier:isbn":
+		return true
+	}
+	return false
+}
+
+// Edited reports whether the new value was typed by the user.
+func (c Change) Edited() bool { return c.edited }
+
+// Edit returns c with its new value replaced by text, read the way the field
+// is written: authors separated by "&", languages and tags by commas, a date
+// as a year, month or day, and an ISBN as one valid ISBN. Typed text is cleaned
+// of control characters, and a value that does not read as the field's kind is
+// refused with a message that says what is expected.
+//
+// Choosing a value by hand is an explicit decision, so the edited row starts
+// selected and is marked NoteEdited. c itself is left as it was, so a failed
+// or repeated edit starts from what the catalogue said.
+func (c Change) Edit(text string) (Change, error) {
+	if !c.Editable() {
+		return c, ErrNotEditable
+	}
+	var shown string
+	var apply func(*ebookmeta.Changes)
+	switch c.Field {
+	case FieldTitle:
+		v := clean(text)
+		if v == "" {
+			return c, errors.New("The title cannot be empty")
+		}
+		shown, apply = v, func(ch *ebookmeta.Changes) { ch.Title = &v }
+	case FieldPublisher:
+		v := clean(text)
+		if v == "" {
+			return c, errors.New("The publisher cannot be empty")
+		}
+		shown, apply = v, func(ch *ebookmeta.Changes) { ch.Publisher = &v }
+	case FieldAuthors:
+		v := cleanList(strings.Split(text, "&"))
+		if len(v) == 0 {
+			return c, errors.New("Enter at least one author, separated by &")
+		}
+		shown, apply = strings.Join(v, " & "), func(ch *ebookmeta.Changes) { ch.Authors = &v }
+	case FieldLanguages:
+		var v []string
+		for part := range strings.SplitSeq(text, ",") {
+			if part = clean(part); part == "" {
+				continue
+			}
+			code := normalizeLanguage(part)
+			if code == "" {
+				return c, fmt.Errorf("%q is not a language code: use codes such as en, zh or fr", part)
+			}
+			if !slices.Contains(v, code) {
+				v = append(v, code)
+			}
+		}
+		if len(v) == 0 {
+			return c, errors.New("Enter at least one language code, such as en or zh")
+		}
+		shown, apply = strings.Join(v, ", "), func(ch *ebookmeta.Changes) { ch.Languages = &v }
+	case FieldTags:
+		v := cleanList(strings.Split(text, ","))
+		if len(v) == 0 {
+			return c, errors.New("Enter at least one tag, separated by commas")
+		}
+		shown, apply = strings.Join(v, ", "), func(ch *ebookmeta.Changes) { ch.Tags = &v }
+	case FieldPublished:
+		v := normalizeDate(clean(text))
+		if v == "" {
+			return c, errors.New("The date must look like 2008, 2008-01 or 2008-01-05")
+		}
+		shown, apply = v, func(ch *ebookmeta.Changes) { ch.Published = &v }
+	case "identifier:isbn":
+		v := NormalizeISBN(clean(text))
+		if v == "" {
+			return c, errors.New("That is not a valid ISBN: check the digits and the check digit")
+		}
+		shown = v
+		apply = func(ch *ebookmeta.Changes) {
+			if ch.Identifiers == nil {
+				ch.Identifiers = map[string]string{}
+			}
+			ch.Identifiers["isbn"] = v
+		}
+	}
+	c.New, c.apply, c.Note, c.preselect, c.edited = shown, apply, NoteEdited, true, true
+	return c, nil
+}

@@ -264,7 +264,13 @@ lookup and moves through candidates, fields and writing:
   five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
   the title is different, or a percentage for a title match. The pane under the
   list shows the selected match's details. A source that failed while others
-  answered is named on the status line.
+  answered is named on the status line. `e` edits what is searched for: the
+  title, authors (separated by `&`) and ISBNs (separated by commas), then
+  Enter searches again, Tab moves between the fields and Esc cancels. This
+  changes only the search, never the file. An ISBN you type counts as
+  confirmed, like `--isbn`; an ISBN the download or the book itself supplied
+  stays a hint while you leave it in the field, so editing only the title does
+  not turn it into a certain match.
 - **Fields** show one row per change as `[x] Field  old → new`. What starts
   selected depends on the match. With `ISBN`, the fields the file leaves empty.
   With a percentage (a title match), the empty fields that describe the book;
@@ -274,8 +280,16 @@ lookup and moves through candidates, fields and writing:
   A replacement is marked `(replaces)` and always starts unselected. Space
   toggles a row, Ctrl+S or the Apply button writes, Esc goes back. Fields the
   format cannot store are not offered and are named on the status line.
+  `e` edits the focused row's new value in place before it is written: the
+  title, authors (separated by `&`), publisher, languages and tags (separated
+  by commas), date, and ISBN. Enter accepts, and an invalid value stays open
+  with the reason (an ISBN needs a correct check digit, a date must be a year,
+  month or day, a language must be a code such as `en`). An edited row is
+  marked `(edited)` and selected. Esc closes only the editor; going back to the
+  candidates and reopening restores what the catalogue said. The description,
+  cover and catalogue IDs cannot be edited.
 - **Failures** stay on the page. When nothing matched, or no source could be
-  reached, the page names why and `r` retries. A write error keeps the field
+  reached, the page names why; `r` retries and `e` changes the search first. A write error keeps the field
   choices so Apply can be pressed again.
 
 A match with a cover adds a `Cover` row, preselected only when the file has none.

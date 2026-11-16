@@ -100,6 +100,13 @@ type metaPageModel struct {
 	focus    int // plan index, len(plan) = Apply, len(plan)+1 = Back
 	message  string
 
+	// editor is the text entry open over the fields (editing a proposed
+	// value). While editing is set it owns the keyboard.
+	editor   metaEditor
+	editing  bool
+	editKind metaEditKind
+	editRow  int // plan index being edited, when editKind is editValue
+
 	gen int
 	run *metaRun
 
@@ -209,6 +216,9 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		if m.editing {
+			m.editor.resize(m.width)
+		}
 		return m, nil
 	case spinner.TickMsg:
 		if m.stage != metaLooking && m.stage != metaWriting {
@@ -226,6 +236,13 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.written(msg)
 	case tea.KeyPressMsg:
 		return m.key(msg)
+	default:
+		// A paste and the input's cursor blink belong to the editor.
+		if m.editing {
+			var cmd tea.Cmd
+			m.editor, cmd = m.editor.update(msg)
+			return m, cmd
+		}
 	}
 	return m, nil
 }
@@ -241,6 +258,11 @@ func (m metaPageModel) lookedUp(msg metaLookupDone) metaPageModel {
 }
 
 func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// An open editor takes every key first, so q, j, k, e and space type into
+	// it instead of acting on the page.
+	if m.editing {
+		return m.editKey(msg)
+	}
 	k := msg.String()
 	switch m.stage {
 	case metaLooking:
@@ -254,17 +276,18 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "esc", "ctrl+c", "q":
 			m.cancelled = true
 			return m, tea.Quit
+		case "e":
+			return m.startQueryEdit()
 		case "r":
-			m.gen++
-			m.stage, m.err, m.res = metaLooking, nil, metasource.Result{}
-			m.run = newMetaRun() // a fresh lookup on a fresh channel
-			return m, tea.Batch(m.spinner.Tick, m.start())
+			return m.search()
 		}
 	case metaCandidates:
 		switch k {
 		case "esc", "ctrl+c", "q":
 			m.cancelled = true
 			return m, tea.Quit
+		case "e":
+			return m.startQueryEdit()
 		case "enter":
 			return m.openFields(), nil
 		default:
@@ -339,6 +362,8 @@ func (m metaPageModel) fieldsKey(k string) (tea.Model, tea.Cmd) {
 			m.selected[m.focus] = !m.selected[m.focus]
 			m.message = ""
 		}
+	case "e":
+		return m.startValueEdit()
 	case "ctrl+s":
 		return m.apply()
 	case "enter":
@@ -421,21 +446,30 @@ func (m metaPageModel) listRows() int {
 
 func (m metaPageModel) View() tea.View {
 	subtitle := safeText(filepath.Base(m.path)) + " · " + strings.ToUpper(string(m.format))
+	if m.editing && m.editKind == editQuery {
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.editor.view(max(20, m.width)), "",
+			uiKey("enter", "search"), uiKey("tab", "next field"), uiKey("esc", "cancel"))
+	}
 	switch m.stage {
 	case metaLooking:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.lookingBody(), "", uiKey("esc", "cancel"))
 	case metaFailed:
-		return screenView(m.width, m.height, "Fix metadata", subtitle, m.failedBody(), "", uiKey("r", "retry"), uiKey("esc", "back"))
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.failedBody(), "",
+			uiKey("e", "edit search"), uiKey("r", "retry"), uiKey("esc", "back"))
 	case metaCandidates:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.candidatesBody(), m.sourceNote(),
-			uiKey("↑/↓", "choose"), uiKey("enter", "review fields"), uiKey("esc", "back"))
+			uiKey("↑/↓", "choose"), uiKey("enter", "review fields"), uiKey("e", "edit search"), uiKey("esc", "back"))
 	case metaFields:
+		if m.editing {
+			return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsRows()+"\n\n"+m.editor.view(max(20, m.width)), "",
+				uiKey("enter", "accept"), uiKey("esc", "cancel"))
+		}
 		status := m.message
 		if status == "" && len(m.hidden) > 0 {
 			status = strings.ToUpper(string(m.format)) + " files cannot store: " + strings.Join(m.hidden, ", ")
 		}
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), status,
-			uiKey("↑/↓", "move"), uiKey("space", "select"), uiKey("ctrl+s", "apply"), uiKey("esc", "back"))
+			uiKey("↑/↓", "move"), uiKey("space", "select"), uiKey("e", "edit"), uiKey("ctrl+s", "apply"), uiKey("esc", "back"))
 	}
 	note := "Writing the file…"
 	for i, ch := range m.plan {
@@ -466,7 +500,8 @@ func (m metaPageModel) failedBody() string {
 		lines = append(lines, "  "+colorRed(symbolError)+" No catalogue could be reached", "")
 	default:
 		lines = append(lines, "  No catalogue knows this book", "",
-			"    Editions without an ISBN, and books in other languages, are often missing.")
+			"    Editions without an ISBN, and books in other languages, are often missing.",
+			"    Press e to change the title, authors or ISBN and search again.")
 	}
 	for _, e := range m.res.Errors {
 		lines = append(lines, "    "+colorFaint(metaSourceError(e)))
@@ -548,7 +583,21 @@ func metaDetailRows(c metasource.Candidate) [][2]string {
 	return rows
 }
 
+// fieldsBody is the rows with the Apply and Back buttons under them.
 func (m metaPageModel) fieldsBody() string {
+	width := max(20, m.width)
+	lines := []string{m.fieldsRows(), ""}
+	n := len(m.plan)
+	// Button focus is one-based: Apply is plan index n, Back is n+1.
+	buttons := actionButtonRows([]string{"Apply", "Back"}, max(0, m.focus-n+1), width)
+	if n == 0 {
+		buttons = actionButtonRows([]string{"", "Back"}, 2, width)
+	}
+	return strings.Join(append(lines, buttons...), "\n")
+}
+
+// fieldsRows is the match header and one row per proposed change.
+func (m metaPageModel) fieldsRows() string {
 	width := max(20, m.width)
 	lines := []string{"  " + colorFaint("From ") + safeText(m.cand.Title) + colorFaint(" · "+strings.Join(m.cand.Sources, ", ")), ""}
 	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
@@ -583,14 +632,7 @@ func (m metaPageModel) fieldsBody() string {
 	if len(m.plan) == 0 {
 		lines = append(lines, "  "+colorFaint("Nothing to change."))
 	}
-	lines = append(lines, "")
-	n := len(m.plan)
-	// Button focus is one-based: Apply is plan index n, Back is n+1.
-	buttons := actionButtonRows([]string{"Apply", "Back"}, max(0, m.focus-n+1), width)
-	if n == 0 {
-		buttons = actionButtonRows([]string{"", "Back"}, 2, width)
-	}
-	return strings.Join(append(lines, buttons...), "\n")
+	return strings.Join(lines, "\n")
 }
 
 func metaFieldLabel(f metasource.Field) string {
