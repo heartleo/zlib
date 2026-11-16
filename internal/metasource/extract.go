@@ -132,6 +132,26 @@ func Extract(fileName string, m *ebookmeta.Metadata, scanned []string, hint Hint
 	return x
 }
 
+// UseOtherTitle returns x with the query using AltTitle, the title it did not
+// pick: the file name's for the file's own, or the reverse. The other title
+// takes its place as AltTitle, so switching twice returns where it started.
+// Whether the title counts as a guess follows the new title: the file's own
+// is never a guess, and the name's is one unless the file's title agrees.
+func (x Extraction) UseOtherTitle() Extraction {
+	if x.AltTitle == "" {
+		return x
+	}
+	x.Query.Title, x.AltTitle = x.AltTitle, x.Query.Title
+	switch {
+	case sameFolded(x.Query.Title, x.Embedded.Title):
+		x.TitleFrom, x.Query.TitleGuessed = "embedded", false
+	default:
+		x.TitleFrom = "file name"
+		x.Query.TitleGuessed = x.Embedded.Title == "" || !titlesAgree(x.Query.Title, x.Embedded.Title)
+	}
+	return x
+}
+
 // embeddedOf reads what is useful in a file's metadata. A placeholder title or
 // author is dropped, authors are cleaned and split, and the year is the first
 // four digits of the date.
@@ -245,5 +265,30 @@ func titlesAgree(a, b string) bool {
 	if len([]rune(fa)) < 2 || len([]rune(fb)) < 2 {
 		return fa != "" && fa == fb
 	}
-	return strings.Contains(fa, fb) || strings.Contains(fb, fa)
+	long, short := fa, fb
+	if len(fb) > len(fa) {
+		long, short = fb, fa
+	}
+	if !strings.Contains(long, short) {
+		return false
+	}
+	// What the longer title adds is a marketing line or subtitle, unless it is
+	// only a volume mark (an Ⅱ, a 2): that is the next book of a series.
+	extra := strings.TrimSpace(strings.Replace(long, short, "", 1))
+	return !volumeMark(extra)
+}
+
+// volumeMark reports whether s, folded, is only what numbers a volume: up to
+// three digits or Roman-numeral letters.
+func volumeMark(s string) bool {
+	r := []rune(s)
+	if len(r) == 0 || len(r) > 3 {
+		return false
+	}
+	for _, c := range r {
+		if !strings.ContainsRune("0123456789ivxIVX", c) {
+			return false
+		}
+	}
+	return true
 }

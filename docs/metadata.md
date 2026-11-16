@@ -65,6 +65,7 @@ zlib meta book.epub --fetch
 zlib meta book.epub --fetch --json
 zlib meta book.epub --fetch -t "Dune" -a "Frank Herbert"
 zlib meta book.epub --fetch --isbn 9780441013593
+zlib meta book.epub --fetch --source douban,weread
 ```
 
 `--fetch` asks Open Library and Google Books about the book (and Douban or
@@ -73,6 +74,12 @@ the best matches. It only reads: it never changes the file, and it cannot be
 combined with the field options. `-t`, `-a` and `--isbn` set what to search
 for instead of what the file says. To use a match, copy the values into the
 field options above; the terminal interface applies a match for you.
+
+`--source` picks the catalogues for that run: `openlibrary`, `google`,
+`douban` and `weread`, comma-separated or repeated. It needs `--fetch`, it
+beats `ZLIB_METADATA_SOURCES`, and an unknown name is a usage error (exit `2`).
+It is never saved. Without it a lookup asks the sources in
+`ZLIB_METADATA_SOURCES`, or Open Library and Google Books when that is unset.
 
 What it does:
 
@@ -83,19 +90,47 @@ What it does:
   searched, and results are ranked by how well they agree. A result found
   from a title alone is a guess about the edition: check it before using its
   ISBN or date.
-- A result is marked `ISBN match`, or `ISBN match, title differs` when the
-  ISBN belongs to a book with another title (files often carry a wrong
-  ISBN), or `title match` with a percentage.
+- A result is marked `ISBN match`, or `ISBN match, not confirmed` when
+  nothing vouches for the ISBN: it belongs to a book with another title (files
+  often carry a wrong ISBN), or it is only a hint and the search has no title
+  that was not read from the same source. Otherwise it is `title match` with a
+  percentage.
 - A volume number is part of the title: a title ending in the Roman numeral
   glyph `Ⅱ` agrees with the same title ending in `2`, and neither is mistaken
   for the first volume. Dates written with the Chinese year and month
   characters are read.
 
+### What the search is built from
+
+The search is built from the file name first and then the file's own
+metadata, the same way in the terminal page and in `--fetch`:
+
+- **Title.** A Z-Library name such as `Title (Author).epub` is usually cleaner
+  than the embedded title, which may carry a marketing line or a placeholder
+  (`Unknown`, a UUID, a long number such as an ISBN or a date; a short one such as `1984` is a title), so the file name's title is used and the
+  embedded one is kept as the other choice (`t` on the page). A title read
+  from a name or a download record is a guess: it cannot by itself confirm an
+  ISBN that is only a hint.
+- **Authors.** For a Chinese title, the side that writes the names in Chinese
+  when only one does. Otherwise the file's authors when they name the same
+  person as the file name (a name often adds the translator), and the file
+  name's authors when they do not.
+- **Edition hints.** The file's publisher and year rank editions of one title a
+  little; they never exclude one.
+
+`--json` adds an `extraction` object with what the file name and the file said
+and where the title, authors and each ISBN came from.
+
 ### Where the ISBN comes from
 
 A lookup searches, in this order of trust: the ISBN in the file's metadata; an
 ISBN recorded by a [download](usage.md#download) under the identifier
-`zlib-isbn`; and, when there is none, an ISBN printed in the book itself.
+`zlib-isbn`; an ISBN printed in the book itself; the Z-Library record of a
+download just made; and an ISBN written in the file name. Only the first is
+the file's own and confirmed. The others are hints: a hint is confirmed only
+when a result carries it and its title agrees with the file's own title or one
+you edited, never with a title that was itself read from the file name or the
+download record.
 
 - **Recorded by a download.** `zlib download` writes the ISBN from Z-Library's
   record into the saved file. It becomes the file's `isbn` only when the file
@@ -123,8 +158,10 @@ the title to a third party. Turn it on with a source list:
 ZLIB_METADATA_SOURCES=douban,openlibrary,google zlib meta book.epub --fetch
 ```
 
-Add the line to `.env` to keep it. The names are `openlibrary`, `google`,
-`douban` and `weread`; an unknown name is reported as a failing source. An ISBN is resolved
+Add the line to `.env` to keep it, or press `r` on the prepare page of the
+terminal interface, which writes it for you. The names are `openlibrary`, `google`,
+`douban` and `weread`; with `--fetch` an unknown name is reported as a failing
+source, and the prepare page leaves it out. An ISBN is resolved
 through Douban's ISBN address and a title through its mobile search, then up to
 three entries are read. Editions of one title stay separate results, so you
 choose the edition. Requests carry no cookie or login, but the mobile
@@ -167,7 +204,8 @@ entries of one title stay separate results. Covers are not taken from WeRead.
 A gateway notice asking clients to upgrade is reported as a failing source
 with fixed wording; its text is never shown or followed.
 
-On a terminal, `zlib meta` with no file (or with only `--fetch`) opens a file
+On a terminal, `zlib meta` with no file (or with only `--fetch`, optionally
+with `--source`) opens a file
 picker for the formats below, then the lookup page for the file you choose. With
 a file, plain `--fetch` opens that page directly. The page is also available as
 `/meta` in the [terminal interface](tui.md): pick a match, review each field
@@ -179,10 +217,25 @@ select it:
 | --- | --- |
 | `ISBN match` | Every field the file leaves empty |
 | `title match` | Empty fields that describe the book (authors, description, tags, cover). The publisher, date, language and every identifier, which differ between editions, are shown tagged `check edition` and start unselected |
-| `ISBN match, title differs` | Nothing: the rows are tagged `may be another book` |
+| `ISBN match, not confirmed` | Nothing: the rows are tagged `may be another book` |
 
 A guessed ISBN would later be read as an exact ISBN match, so keep one only
 after checking the edition.
+
+The page opens on a prepare step and sends nothing until you press Enter. It
+shows what the file name and the file said, the search built from them and
+where each part came from, and the sources to ask with `[x]` or `[ ]`. Space
+toggles a source, `e` edits the search, `t` uses the other title and `r` saves
+the sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
+`.env`); nothing is saved unless you press it. The page starts from, in this
+order, `--source`, a real environment variable, a `.env` in the working
+directory, the saved default and then Open Library with Google Books. When a
+real environment variable or the working-directory `.env` overrides the saved
+default, the page says so after saving. Saving also replaces `--source` for the
+rest of that session unless the environment overrides the saved list.
+`zlib config metadata sources` (or the metadata page of `zlib config`) shows
+the saved list, changes it, and clears it, which restores Open Library and
+Google Books.
 
 The page lets you steer the lookup and fix what it proposes, before anything
 is written:
@@ -190,7 +243,7 @@ is written:
 | Key | Where | What it does |
 | --- | --- | --- |
 | `e` | Candidates, or no match | Edit the title, authors and ISBNs searched for, then search again. Only the search changes, never the file. A file with no title, author or ISBN opens on this editor |
-| `s` | Candidates, or no match | Choose which sources this search asks: Open Library, Google Books, Douban, WeRead. Lasts for this search only and is never saved to `.env`. A source whose key is missing says so |
+| `s` | Candidates, or no match | Go back to the prepare page to change the sources: Open Library, Google Books, Douban, WeRead. A source whose key is missing says so |
 | `e` | Fields | Edit the proposed value of the focused row (title, authors, publisher, languages, tags, date, ISBN) before it is written. An invalid value is refused with the reason, and an edited row is marked `edited` |
 
 Each candidate row ends with the sources behind it in brackets, and the
@@ -207,9 +260,10 @@ is capped at 10 MiB. A MOBI or AZW3 file can only have an existing cover
 replaced, so the row is not offered for one without a cover.
 
 After a download in the terminal interface, choose **Fix metadata** on the
-saved-file page. The lookup also searches the ISBN from the Z-Library record,
-and uses its title and authors when the file has none. Leaving the page
-returns to the saved file.
+saved-file page. The page opens on the prepare step like any other: the
+Z-Library record's ISBN is among the hints, and its title and authors fill in
+what neither the file name nor the file gives. Leaving the page returns to the
+saved file.
 
 With `--json`, the document has the `query`, the ranked `candidates` (with
 `match`, `score`, `sources`, `edition_level` and the fields) and any

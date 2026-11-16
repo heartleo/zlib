@@ -48,7 +48,7 @@ var settingsSections = []settingsSection{
 	{"SEARCH", "search", []string{searchExtensionsEnv}},
 	{"KINDLE", "kindle", kindleSettingKeys},
 	{"WEREAD", "weread", []string{wereadAccountKey, wereadProxyEnv}},
-	{"METADATA", "metadata", []string{googleBooksKeyEnv}},
+	{"METADATA", "metadata", []string{metaSourcesEnv, googleBooksKeyEnv}},
 }
 
 var settingLabels = map[string]string{
@@ -65,6 +65,7 @@ var settingLabels = map[string]string{
 	wereadAccountKey:    "WeRead account",
 	wereadProxyEnv:      "WeRead proxy",
 	googleBooksKeyEnv:   "Google Books key",
+	metaSourcesEnv:      "Lookup sources",
 }
 
 // settingsPageKeys lists the setting rows of a list page in display order.
@@ -938,7 +939,7 @@ func (m settingsModel) View() tea.View {
 		return m.settingsListView(w, h, titles[m.page])
 	} else if m.page == "edit" {
 		v := m.value(m.key)
-		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key"}
+		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", metaSourcesEnv: "Lookup sources"}
 		if v.Override != "" {
 			subtitle = "Using " + v.Override
 		}
@@ -951,6 +952,12 @@ func (m settingsModel) View() tea.View {
 		}
 		if m.key == wereadProxyEnv {
 			lines = append(lines, "Empty: system proxy (HTTPS_PROXY)", "direct: connect without any proxy", "Proxy URL: http, https, socks5 or socks5h", "The Z-Library proxy (ZLIB_PROXY) never applies", "")
+		}
+		if m.key == metaSourcesEnv {
+			lines = append(lines, "Comma-separated: openlibrary, google, douban, weread",
+				"Empty: Open Library and Google Books",
+				"douban sends the title to Douban; weread sends it to Tencent",
+				"Saved to the global .env; "+metaSourcesEnv+" overrides it.", "")
 		}
 		if m.key == googleBooksKeyEnv {
 			status := "No key is set: lookups use Google's shared quota"

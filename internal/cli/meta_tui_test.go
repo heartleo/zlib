@@ -47,16 +47,40 @@ func answerWith(res metasource.Result, err error, calls *atomic.Int32) metaLooku
 	}
 }
 
-// metaPageAfterLookup runs the lookup and feeds its answer to the page.
+// searchFromPrepare presses Enter on the prepare page and feeds the answer of
+// the lookup it starts back to the page.
+func searchFromPrepare(t *testing.T, m metaPageModel) metaPageModel {
+	t.Helper()
+	if m.stage != metaPrepare {
+		t.Fatalf("stage = %v, want the prepare page", m.stage)
+	}
+	m, cmd := metaStep(t, m, key("enter"))
+	if m.stage != metaLooking || cmd == nil {
+		t.Fatalf("enter did not start a search: stage=%v editing=%v", m.stage, m.editing)
+	}
+	for _, c := range batchCmds(cmd) {
+		if done, ok := c().(metaLookupDone); ok {
+			m, _ = metaStep(t, m, done)
+		}
+	}
+	return m
+}
+
+// searchFromPrepareModel is searchFromPrepare for a page held by another model,
+// such as the shell, and returns it as a tea.Model.
+func searchFromPrepareModel(t *testing.T, m metaPageModel) tea.Model {
+	t.Helper()
+	return searchFromPrepare(t, m)
+}
+
+// metaPageAfterLookup opens the page, searches and feeds the answer to it.
 func metaPageAfterLookup(t *testing.T, lookup metaLookupFunc, write metaWriteFunc, opts ...metaOption) metaPageModel {
 	t.Helper()
 	m, err := newMetaPageModel(writeTestEPUB(t), lookup, write, opts...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := m.start()()
-	m, _ = metaStep(t, m, msg)
-	return m
+	return searchFromPrepare(t, m)
 }
 
 func twoCandidates() metasource.Result {
@@ -296,7 +320,7 @@ func TestMetaPageNoMatchAndRetry(t *testing.T) {
 		t.Fatalf("stage = %v:\n%s", m.stage, metaScreen(m))
 	}
 	m, cmd := metaStep(t, m, metaKey("r"))
-	if m.stage != metaLooking || m.gen != 1 || cmd == nil {
+	if m.stage != metaLooking || m.gen != 2 || cmd == nil { // the first search was gen 1
 		t.Fatalf("stage = %v, gen = %d", m.stage, m.gen)
 	}
 	// The retry runs a second lookup on a fresh run.
@@ -307,12 +331,12 @@ func TestMetaPageNoMatchAndRetry(t *testing.T) {
 	if got := calls.Load(); got != 2 {
 		t.Fatalf("lookup ran %d times, want 2", got)
 	}
-	// A late answer to the first lookup is ignored.
-	m, _ = metaStep(t, m, metaLookupDone{gen: 0, res: twoCandidates()})
+	// A late answer to the first lookup (generation 1) is ignored.
+	m, _ = metaStep(t, m, metaLookupDone{gen: 1, res: twoCandidates()})
 	if m.stage != metaLooking {
 		t.Fatalf("a stale answer changed the page to %v", m.stage)
 	}
-	m, _ = metaStep(t, m, metaLookupDone{gen: 1, res: twoCandidates()})
+	m, _ = metaStep(t, m, metaLookupDone{gen: 2, res: twoCandidates()})
 	if m.stage != metaCandidates {
 		t.Fatalf("stage = %v", m.stage)
 	}
@@ -349,10 +373,14 @@ func TestMetaPageEscCancelsALookupInFlight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.start() // the lookup is running and blocked on its context
+	m, _ = metaStep(t, m, metaKey("enter")) // the lookup is running and blocked on its context
+	if m.stage != metaLooking {
+		t.Fatalf("stage = %v", m.stage)
+	}
+	// Esc stops the lookup and goes back to the page the search started from.
 	m, cmd := metaStep(t, m, metaKey("esc"))
-	if !m.cancelled || cmd == nil {
-		t.Fatalf("cancelled = %v", m.cancelled)
+	if m.cancelled || cmd != nil || m.stage != metaPrepare {
+		t.Fatalf("cancelled = %v, stage = %v", m.cancelled, m.stage)
 	}
 	select {
 	case <-cancelled:
@@ -361,7 +389,9 @@ func TestMetaPageEscCancelsALookupInFlight(t *testing.T) {
 	}
 }
 
-func TestMetaPageLooksUpOnceHoweverOftenInitRuns(t *testing.T) {
+// Init searches nothing, however often it runs: the page waits on the prepare
+// step, and Enter starts exactly one lookup.
+func TestMetaPageSearchesOnlyOnEnterHoweverOftenInitRuns(t *testing.T) {
 	var calls atomic.Int32
 	m, err := newMetaPageModel(writeTestEPUB(t), answerWith(twoCandidates(), nil, &calls), nil)
 	if err != nil {
@@ -369,9 +399,17 @@ func TestMetaPageLooksUpOnceHoweverOftenInitRuns(t *testing.T) {
 	}
 	m.Init()
 	m.Init()
-	m.start()()
+	time.Sleep(50 * time.Millisecond)
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("Init searched: the lookup ran %d times", got)
+	}
+	m = searchFromPrepare(t, m)
+	m.Init()
 	if got := calls.Load(); got != 1 {
-		t.Fatalf("lookup ran %d times", got)
+		t.Fatalf("lookup ran %d times after Enter, want 1", got)
+	}
+	if m.stage != metaCandidates {
+		t.Errorf("stage = %v", m.stage)
 	}
 }
 

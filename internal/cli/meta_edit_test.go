@@ -392,7 +392,7 @@ func TestMetaPageSearchEditKeepsHintISBNsUnconfirmed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ = metaStep(t, m, m.start()())
+	m = searchFromPrepare(t, m)
 	if !reflect.DeepEqual(queries[0].Unconfirmed, []string{"9780441013593"}) {
 		t.Fatalf("the hint was not unconfirmed: %+v", queries[0])
 	}

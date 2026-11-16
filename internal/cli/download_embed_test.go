@@ -219,24 +219,30 @@ func TestPlainDownloadMismatchedTitleRecordsAHint(t *testing.T) {
 	}
 }
 
-func TestAddScannedISBNsFindsTheCopyrightPageISBN(t *testing.T) {
+func TestScannedISBNsFindsTheCopyrightPageISBN(t *testing.T) {
 	p := writeEPUB(t, "三体", "<p>书号：ISBN 978-7-5366-9293-0</p><p>定价：38.00元</p>")
-	var q metasource.Query
-	addScannedISBNs(&q, p)
-	if len(q.ISBNs) != 1 || q.ISBNs[0] != embedTestISBN {
-		t.Fatalf("query = %+v", q)
+	cur, _, err := ebookmeta.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// A query that already names an ISBN is left as it was.
-	q = metasource.Query{ISBNs: []string{"9780140328721"}}
-	addScannedISBNs(&q, p)
-	if len(q.ISBNs) != 1 || q.ISBNs[0] != "9780140328721" {
-		t.Fatalf("query = %+v", q)
+	if got := scannedISBNs(p, cur); len(got) != 1 || got[0] != embedTestISBN {
+		t.Fatalf("scanned = %v", got)
+	}
+	// A file that carries a valid ISBN of its own is not scanned.
+	cur.SetIdentifier("isbn", "9780140328721")
+	if got := scannedISBNs(p, cur); got != nil {
+		t.Errorf("a file with its own ISBN was scanned: %v", got)
 	}
 	// A stray number that fails the check digit is not an ISBN.
 	bad := writeEPUB(t, "三体", "<p>ISBN 978-7-5366-9293-1</p>")
-	q = metasource.Query{}
-	addScannedISBNs(&q, bad)
-	if len(q.ISBNs) != 0 {
-		t.Fatalf("query = %+v", q)
+	cur, _, _ = ebookmeta.ReadFile(bad)
+	if got := scannedISBNs(bad, cur); len(got) != 0 {
+		t.Errorf("scanned = %v", got)
+	}
+	// Through the extraction the scanned ISBN is a hint, labelled by where it was.
+	cur, _, _ = ebookmeta.ReadFile(p)
+	x := metasource.Extract("book.epub", cur, scannedISBNs(p, cur), metasource.Hint{})
+	if len(x.Query.ISBNs) != 1 || x.ISBNFrom[0] != "copyright page" || len(x.Query.Unconfirmed) != 1 {
+		t.Errorf("extraction = %+v from %v", x.Query, x.ISBNFrom)
 	}
 }

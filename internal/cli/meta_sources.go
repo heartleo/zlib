@@ -6,12 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/heartleo/zlib/internal/metasource"
 )
 
-// metaSourceChoice is one catalogue on the source panel.
+// metaSourceChoice is one catalogue on the prepare page.
 type metaSourceChoice struct {
 	name      string // the name in ZLIB_METADATA_SOURCES
 	label     string
@@ -50,7 +48,7 @@ func newMetaLookupFor(names []string) metaLookupFunc {
 // defaultMetaSourceChoices lists the built-in sources with what the
 // environment enables. It says whether a key is set and never shows one.
 func defaultMetaSourceChoices() []metaSourceChoice {
-	listed := metasource.ParseSourceNames(os.Getenv(metaSourcesEnv))
+	listed := configuredMetaSources()
 	on := func(name string) bool { return slices.Contains(listed, name) }
 	googleNote := "shared quota"
 	if strings.TrimSpace(os.Getenv(googleBooksKeyEnv)) != "" {
@@ -75,6 +73,42 @@ func defaultMetaSourceChoices() []metaSourceChoice {
 	}
 }
 
+// saveMetaSources writes the sources as the default in the global .env, which
+// is what the user asked for with r on the prepare page.
+func saveMetaSources(names []string) (string, error) {
+	store, err := newSettingsStore()
+	if err != nil {
+		return "", err
+	}
+	return saveMetaSourcesTo(store, names)
+}
+
+// saveMetaSourcesTo saves through store and returns the name of the setting
+// that overrides the saved list, or "" when it takes effect. A saved list that
+// takes effect is also applied to this process, so the next page opened in the
+// same session starts from it; a real environment variable or a .env in the
+// working directory keeps its precedence.
+func saveMetaSourcesTo(store settingsStore, names []string) (string, error) {
+	if err := store.save(metaSourcesEnv, strings.Join(names, ",")); err != nil {
+		return "", err
+	}
+	values, err := store.values()
+	if err != nil {
+		return "", err
+	}
+	for _, v := range values {
+		if v.Key != metaSourcesEnv {
+			continue
+		}
+		if v.Override != "" {
+			return v.Override, nil
+		}
+		metaSourcesFlag = "" // the choice just saved replaces --source for the pages that follow
+		return "", os.Setenv(metaSourcesEnv, v.Value)
+	}
+	return "", nil
+}
+
 // enabledNames are the names of the sources that are on, in panel order.
 func enabledMetaSources(choices []metaSourceChoice) []string {
 	var names []string
@@ -86,9 +120,14 @@ func enabledMetaSources(choices []metaSourceChoice) []string {
 	return names
 }
 
-// wereadOn reports whether the WeRead source is among the enabled ones.
+// wereadOn reports whether the WeRead source is among the enabled ones: on the
+// prepare page the choice being made, elsewhere the one the search used.
 func (m metaPageModel) wereadOn() bool {
-	for _, c := range m.sources {
+	choices := m.sources
+	if m.stage == metaPrepare {
+		choices = m.draft
+	}
+	for _, c := range choices {
 		if c.name == metasource.NameWeRead && c.enabled {
 			return true
 		}
@@ -103,69 +142,4 @@ func (m metaPageModel) titleNote() string {
 		return "WeRead needs a title: it cannot search by ISBN"
 	}
 	return ""
-}
-
-// openPanel shows the source panel over a copy of the choices, so Esc leaves
-// them as they were.
-func (m metaPageModel) openPanel() (tea.Model, tea.Cmd) {
-	if len(m.sources) == 0 || m.lookupFor == nil {
-		return m, nil
-	}
-	m.draft = append([]metaSourceChoice(nil), m.sources...)
-	m.panel, m.sourceCursor, m.message = true, 0, ""
-	return m, nil
-}
-
-// panelKey handles a key on the source panel. The panel is not a text input,
-// so q closes it like Esc.
-func (m metaPageModel) panelKey(k string) (tea.Model, tea.Cmd) {
-	n := len(m.draft)
-	switch k {
-	case "esc", "ctrl+c", "q":
-		m.panel, m.message = false, ""
-	case "up", "shift+tab", "k":
-		m.sourceCursor = (m.sourceCursor + n - 1) % n
-	case "down", "tab", "j":
-		m.sourceCursor = (m.sourceCursor + 1) % n
-	case "space", " ":
-		c := &m.draft[m.sourceCursor]
-		if !c.available && !c.enabled { // it can be turned off, but not on without its key
-			m.message = c.label + " " + c.note
-			return m, nil
-		}
-		c.enabled = !c.enabled
-		m.message = ""
-	case "enter", "ctrl+s":
-		names := enabledMetaSources(m.draft)
-		if len(names) == 0 {
-			m.message = "Enable at least one source"
-			return m, nil
-		}
-		m.remember() // before the sources and the lookup change
-		m.sources, m.panel, m.message = m.draft, false, ""
-		m.lookup = m.lookupFor(names)
-		return m.search()
-	}
-	return m, nil
-}
-
-// panelBody draws one row per source, then the privacy note.
-func (m metaPageModel) panelBody() string {
-	width := max(20, m.width)
-	lines := []string{"  " + colorBold("Sources for this search"), ""}
-	for i, c := range m.draft {
-		box := "[ ]"
-		if c.enabled {
-			box = "[x]"
-		}
-		label := box + " " + c.label
-		if c.note != "" {
-			label += "  " + c.note
-		}
-		lines = append(lines, styledListRow(label, i == m.sourceCursor, width, currentTheme))
-	}
-	lines = append(lines, "",
-		"  "+colorFaint(ansi.Truncate("This search only: nothing is saved to .env.", max(1, width-4), "…")),
-		"  "+colorFaint(ansi.Truncate("WeRead sends each title to Tencent under your account.", max(1, width-4), "…")))
-	return strings.Join(lines, "\n")
 }

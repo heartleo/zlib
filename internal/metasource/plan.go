@@ -63,7 +63,8 @@ func (c Change) CoverURL() string { return c.coverURL }
 // opts out. Only fills are, and only when the match is sure of the book (and,
 // for edition-specific fields, of the edition): a title-only match leaves
 // publisher, date, language and identifiers unselected, and a match whose
-// ISBN agrees but whose title differs selects nothing.
+// ISBN agrees but is not confirmed (its title differs, or nothing independent
+// vouches for a hint) selects nothing.
 func (c Change) DefaultSelected() bool { return c.preselect }
 
 // editionField reports whether a field differs between editions of a book.

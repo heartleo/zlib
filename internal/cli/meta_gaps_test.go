@@ -84,10 +84,18 @@ func TestMetaPageOpensTheSearchEditorForAFileWithNoMetadata(t *testing.T) {
 	if !m.editing || !strings.Contains(metaScreen(m), "title, an author or an ISBN") || len(queries) != 0 {
 		t.Fatalf("an empty search was accepted:\n%s", metaScreen(m))
 	}
-	// Typing a title searches.
+	// Typing a title and accepting it returns to the prepare page, which shows
+	// it as typed; Enter there searches.
 	m = typeIntoEditor(t, m, "Dune")
-	m = submitQuery(t, m)
-	if len(queries) != 1 || queries[0].Title != "Dune" || m.stage != metaCandidates {
+	m, _ = metaStep(t, m, key("enter"))
+	if m.editing || m.stage != metaPrepare || m.query.Title != "Dune" || len(queries) != 0 {
+		t.Fatalf("editing=%v stage=%v query=%+v lookups=%d", m.editing, m.stage, m.query, len(queries))
+	}
+	if screen := metaScreen(m); !strings.Contains(screen, "typed by you") || !strings.Contains(screen, "Dune") {
+		t.Errorf("the typed title is not shown as typed:\n%s", screen)
+	}
+	m = searchFromPrepare(t, m)
+	if len(queries) != 1 || queries[0].Title != "Dune" || queries[0].TitleGuessed || m.stage != metaCandidates {
 		t.Fatalf("queries = %+v, stage = %v", queries, m.stage)
 	}
 }
@@ -99,16 +107,16 @@ func TestMetaPageWithNoMetadataCanBeCancelledAndReopened(t *testing.T) {
 		t.Fatal(err)
 	}
 	m, _ = metaStep(t, m, key("esc"))
-	if m.editing || m.stage != metaFailed || m.cancelled {
+	if m.editing || m.stage != metaPrepare || m.cancelled {
 		t.Fatalf("esc: editing=%v stage=%v cancelled=%v", m.editing, m.stage, m.cancelled)
 	}
 	if screen := metaScreen(m); !strings.Contains(screen, "Nothing to search with") || !strings.Contains(screen, "e edit search") {
 		t.Errorf("the page does not explain itself:\n%s", screen)
 	}
-	// r must not send an empty search; it asks what to search for instead.
-	m, _ = metaStep(t, m, key("r"))
+	// Enter must not send an empty search; it asks what to search for instead.
+	m, _ = metaStep(t, m, key("enter"))
 	if !m.editing || len(queries) != 0 {
-		t.Fatalf("r: editing=%v lookups=%d", m.editing, len(queries))
+		t.Fatalf("enter: editing=%v lookups=%d", m.editing, len(queries))
 	}
 	m, _ = metaStep(t, m, key("esc"))
 	m, cmd := metaStep(t, m, key("esc"))
@@ -134,8 +142,8 @@ func TestShellMetaEditorTakesSlashQCtrlKAndPaste(t *testing.T) {
 	useMetaSources(t, &fakeMetaSource{name: "Fake", cands: []metasource.Candidate{dune()}})
 	m := newShellModel()
 	m.dispatch(`/meta "` + writeTestEPUB(t) + `"`)
-	page := m.page.(metaPageModel)
-	m, _ = shellStep(m, shellEvent{generation: m.generation, msg: page.start()()})
+	// Search from the prepare page, then hand the page back to the shell.
+	m.page = searchFromPrepareModel(t, m.page.(metaPageModel))
 	if got := m.page.(metaPageModel); got.stage != metaCandidates {
 		t.Fatalf("stage = %v", got.stage)
 	}
@@ -146,7 +154,7 @@ func TestShellMetaEditorTakesSlashQCtrlKAndPaste(t *testing.T) {
 	for _, k := range []tea.Msg{key("/"), key("q"), tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl}, key("j"), tea.PasteMsg{Content: " pasted"}} {
 		m, _ = shellStep(m, k)
 	}
-	page = m.page.(metaPageModel)
+	page := m.page.(metaPageModel)
 	if !page.editing || m.kind != "meta" || m.typing || m.input.Value() != "" {
 		t.Fatalf("the shell took a key: editing=%v kind=%q typing=%v input=%q", page.editing, m.kind, m.typing, m.input.Value())
 	}

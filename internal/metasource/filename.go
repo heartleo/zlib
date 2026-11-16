@@ -32,14 +32,18 @@ var ebookExtensions = map[string]bool{
 	"lit": true, "prc": true, "pdb": true, "lrf": true, "htm": true, "html": true, "zip": true,
 }
 
+// siteRe is one download site's name, with or without its domain: browser
+// downloads list several of them in one group.
+const siteRe = `(?:(?:z-?lib(?:rary)?|1lib|libgen|b-?ok|singlelogin)(?:\.[a-z]{2,})?|anna['’]?s\s*archive)`
+
 var (
 	// noiseGroupRe is a trailing group a download site or a duplicate adds: a
 	// site name, a copy number, or a bare ISBN in brackets.
-	noiseGroupRe = regexp.MustCompile(`(?i)\s*[(\[（【]\s*(?:z-?lib(?:rary)?(?:\.(?:org|sk|rs|is))?|libgen(?:\.[a-z]+)?|anna['’]?s\s*archive|\d{1,2}|[0-9Xx\- ]{9,17})\s*[)\]）】]\s*$`)
+	noiseGroupRe = regexp.MustCompile(`(?i)\s*[(\[（【]\s*(?:` + siteRe + `(?:\s*[,，]\s*` + siteRe + `)*|\d{1,2}|(?:1[5-9]|20)\d{2}|[0-9Xx\- ]{9,17})\s*[)\]）】]\s*$`)
 	// trailingISBNRe is an ISBN written after the title, with or without "ISBN".
 	trailingISBNRe = regexp.MustCompile(`(?i)\s+(?:isbn[\s:：-]*)?[0-9][0-9\-]{8,16}[0-9Xx]?\s*$`)
 	editionRe      = regexp.MustCompile(`(?i)^(?:第\s*[0-9一二三四五六七八九十]+\s*[版卷册部]|[0-9]+(?:st|nd|rd|th)?\s*ed(?:ition|\.)?|(?:revised|updated|new)\s+edition|[0-9.]+\s*版|修订版|增订版|增补版|全译版|珍藏版|纪念版|典藏版|精装版|套装.*|全\s*[0-9一二三四五六七八九十]+\s*[册卷部]|vol(?:ume)?\.?\s*[0-9]+|v[0-9]+(?:\.[0-9]+)*)$`)
-	roleSplitRe    = regexp.MustCompile(`(?:编著|主编|等著|著|撰|编)(?:\s+|$)`)
+	roleSplitRe    = regexp.MustCompile(`(?:编著|主编|等著|著|撰|编)(?:\s+|[,，、;；]\s*|$)`)
 	translatorRe   = regexp.MustCompile(`(?:译者?|翻译)\s*$`)
 	nameSplitRe    = regexp.MustCompile(`(?i)\s*[,，、;；&]\s*|\s+and\s+|\s+和\s+|\s{2,}`)
 	spaceRunRe     = regexp.MustCompile(`\s{2,}`)
@@ -93,7 +97,7 @@ func GuessFromFileName(name string) FileGuess {
 		}
 	}
 	g.Title = cleanFileTitle(title)
-	if numberLike(g.Title) {
+	if numberLike(g.Title) && !shortNumber(g.Title) {
 		g.Title, g.Structured = "", false
 	}
 	if g.Title == "" {
@@ -143,9 +147,15 @@ func cleanFileTitle(s string) string {
 // translator, who is left out.
 func parseFileAuthors(inner string) []string {
 	var out []string
-	for _, part := range roleSplitRe.Split(inner, -1) {
+	parts := roleSplitRe.Split(inner, -1)
+	for _, part := range parts {
 		part = strings.TrimSpace(part)
-		if part == "" || translatorRe.MatchString(part) {
+		if part == "" {
+			continue
+		}
+		// A part ending in 译 is the translators. Without a role word a group such
+		// as "A, B 译" cannot say which name is the author, so it gives none.
+		if translatorRe.MatchString(part) {
 			continue
 		}
 		for _, name := range nameSplitRe.Split(bracketed.ReplaceAllString(part, " "), -1) {
@@ -209,6 +219,20 @@ func numberLike(s string) bool {
 	return digits > 0
 }
 
+// shortNumber reports whether s is three or four digits and nothing else: too
+// short to be an ISBN, a date or a timestamp, so it can be a title such as 1984.
+func shortNumber(s string) bool {
+	if n := len(s); n < 3 || n > 4 {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // junkTitles are words a program writes where a title belongs.
 var junkTitles = map[string]bool{
 	"unknown": true, "untitled": true, "title": true, "document": true, "book": true, "ebook": true,
@@ -226,7 +250,7 @@ func UsefulTitle(t string) bool {
 	}
 	lower := strings.ToLower(t)
 	switch {
-	case junkTitles[lower], strings.HasPrefix(lower, "microsoft word"), uuidRe.MatchString(t), fileLikeRe.MatchString(t), numberLike(t):
+	case junkTitles[lower], strings.HasPrefix(lower, "microsoft word"), uuidRe.MatchString(t), fileLikeRe.MatchString(t), numberLike(t) && !shortNumber(t):
 		return false
 	case len([]rune(t)) < 2 && !hasHan(t):
 		return false

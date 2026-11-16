@@ -197,7 +197,7 @@ func TestAFileNameTitleDoesNotConfirmAHintISBN(t *testing.T) {
 		t.Errorf("the file's own title did not confirm it: score=%v selected=%v", score, sel)
 	}
 
-	// The user types the title: that is their claim, and it confirms.
+	// A title the user leaves alone keeps its mark; one they change is theirs.
 	typed, err := ParseQueryEdit(x.Query, "Matilda", "", hint)
 	if err != nil {
 		t.Fatal(err)
@@ -262,5 +262,39 @@ func TestParseQueryEditKeepsTheEditionHints(t *testing.T) {
 	}
 	if q.Publisher != "重庆出版社" || q.Year != "2008" || !q.TitleGuessed {
 		t.Errorf("an unchanged title lost what was known: %+v", q)
+	}
+}
+
+// The page offers the other title: the file name's for the file's own and the
+// reverse. Switching twice is a no-op, and the guessed mark follows the title.
+func TestUseOtherTitleSwapsAndRecomputesTheGuess(t *testing.T) {
+	b := realBooks()[2] // 一读就上瘾的中国史, with a polluted embedded title
+	x := Extract(b.name, b.metadata(), nil, Hint{})
+	if x.Query.Title != "一读就上瘾的中国史" || x.AltTitle != b.embTitle {
+		t.Fatalf("start: %q / %q", x.Query.Title, x.AltTitle)
+	}
+	y := x.UseOtherTitle()
+	if y.Query.Title != b.embTitle || y.TitleFrom != "embedded" || y.Query.TitleGuessed || y.AltTitle != "一读就上瘾的中国史" {
+		t.Errorf("after one switch: title=%q from=%q guessed=%v alt=%q", y.Query.Title, y.TitleFrom, y.Query.TitleGuessed, y.AltTitle)
+	}
+	z := y.UseOtherTitle()
+	if z.Query.Title != x.Query.Title || z.TitleFrom != x.TitleFrom || z.Query.TitleGuessed != x.Query.TitleGuessed || z.AltTitle != x.AltTitle {
+		t.Errorf("two switches differ from the start: %+v vs %+v", z, x)
+	}
+	// Nothing to switch to: unchanged.
+	d := Extract(realBooks()[1].name, realBooks()[1].metadata(), nil, Hint{})
+	if d.AltTitle != "" || d.UseOtherTitle().Query.Title != "Dune" {
+		t.Errorf("a book with one title changed: %+v", d.UseOtherTitle())
+	}
+	// A file with no usable title of its own: the name's is a guess, and going
+	// back to it after an embedded title exists keeps it a guess only while the
+	// file does not agree.
+	n := Extract("亲密关系 (第8版).epub", &ebookmeta.Metadata{Title: "Unknown"}, nil, Hint{})
+	if n.AltTitle != "" || !n.Query.TitleGuessed {
+		t.Errorf("no embedded title: %+v", n.Query)
+	}
+	// The switch keeps the rest of the query: authors, ISBNs, edition hints.
+	if y.Query.Publisher != x.Query.Publisher || !reflect.DeepEqual(y.Query.Authors, x.Query.Authors) || !reflect.DeepEqual(y.Query.ISBNs, x.Query.ISBNs) {
+		t.Errorf("the switch changed more than the title: %+v vs %+v", y.Query, x.Query)
 	}
 }

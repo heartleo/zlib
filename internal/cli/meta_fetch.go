@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -41,7 +42,44 @@ const metaSourcesEnv = "ZLIB_METADATA_SOURCES"
 // offline. WeRead uses its own proxy setting (ZLIB_WEREAD_PROXY), like the
 // importer, while the others use rt.
 var newMetaSources = func(rt http.RoundTripper) []metasource.Source {
-	return metasource.NewSources(metasource.ParseSourceNames(os.Getenv(metaSourcesEnv)), metaSourceConfig(rt))
+	return metasource.NewSources(configuredMetaSources(), metaSourceConfig(rt))
+}
+
+// metaSourcesFlag is the list --source gave for this run. It wins over
+// ZLIB_METADATA_SOURCES, which in turn wins over the saved default (the
+// environment is loaded from the .env files before the command runs).
+var metaSourcesFlag string
+
+// configuredMetaSources is the list of sources a lookup asks now: the --source
+// flag, else ZLIB_METADATA_SOURCES, else the default.
+func configuredMetaSources() []string {
+	if metaSourcesFlag != "" {
+		return metasource.ParseSourceNames(metaSourcesFlag)
+	}
+	return metasource.ParseSourceNames(os.Getenv(metaSourcesEnv))
+}
+
+// applyMetaSourceFlag reads --source: it needs --fetch, and every name must be
+// a built-in source, so a typo is a usage error instead of a silent failing
+// source. It is the user's choice for this run only and is never saved.
+func applyMetaSourceFlag(cmd *cobra.Command) error {
+	metaSourcesFlag = ""
+	if !cmd.Flags().Changed("source") {
+		return nil
+	}
+	if fetch, _ := cmd.Flags().GetBool("fetch"); !fetch {
+		return &usageError{errors.New("--source only applies with --fetch")}
+	}
+	names, _ := cmd.Flags().GetStringSlice("source")
+	list, err := metasource.NormalizeSourceList(strings.Join(names, ","))
+	if err != nil {
+		return &usageError{fmt.Errorf("--source: %w", err)}
+	}
+	if list == "" {
+		return &usageError{fmt.Errorf("--source needs at least one of %s", strings.Join(metasource.KnownSourceNames, ", "))}
+	}
+	metaSourcesFlag = list
+	return nil
 }
 
 // metaSourceConfig is what the sources need: the transports and the keys, read
@@ -113,16 +151,22 @@ func metaFetchCheckFlags(cmd *cobra.Command) error {
 	return nil
 }
 
-// metaFetchQuery builds the lookup query: what the file says, overridden by
-// -t, -a and --isbn.
-func metaFetchQuery(cmd *cobra.Command, m *ebookmeta.Metadata) (metasource.Query, error) {
+// metaFetchQuery builds the lookup query the way the page does: the file name
+// first, then what the file carries, then the copyright page, through
+// metasource.Extract. -t, -a and --isbn are the user's own words and replace
+// what was read: a title they give is theirs and no guess, and an ISBN they give
+// is confirmed, like the file's own.
+func metaFetchQuery(cmd *cobra.Command, path string, m *ebookmeta.Metadata) (metasource.Extraction, error) {
 	flags := cmd.Flags()
 	if err := metaFetchCheckFlags(cmd); err != nil {
-		return metasource.Query{}, err
+		return metasource.Extraction{}, err
 	}
-	q := metasource.QueryFromMetadata(m)
+	x := metasource.Extract(filepath.Base(path), m, scannedISBNs(path, m), metasource.Hint{})
+	q := &x.Query
 	if flags.Changed("title") {
 		q.Title, _ = flags.GetString("title")
+		q.TitleGuessed = false
+		x.TitleFrom = "edited"
 	}
 	if flags.Changed("authors") {
 		v, _ := flags.GetString("authors")
@@ -132,35 +176,17 @@ func metaFetchQuery(cmd *cobra.Command, m *ebookmeta.Metadata) (metasource.Query
 				q.Authors = append(q.Authors, a)
 			}
 		}
+		x.AuthorsFrom = "edited"
 	}
 	if flags.Changed("isbn") {
 		v, _ := flags.GetString("isbn")
 		isbn := metasource.NormalizeISBN(v)
 		if isbn == "" {
-			return metasource.Query{}, &usageError{fmt.Errorf("--isbn %q is not a valid ISBN", v)}
+			return metasource.Extraction{}, &usageError{fmt.Errorf("--isbn %q is not a valid ISBN", v)}
 		}
-		q.ISBNs = []string{isbn}
+		q.ISBNs, q.Unconfirmed, x.ISBNFrom = []string{isbn}, nil, []string{"typed"}
 	}
-	return q, nil
-}
-
-// addScannedISBNs searches the book's own text for an ISBN when the query has
-// none, which is the usual case for a book downloaded before zlib recorded the
-// Z-Library ISBN, or made from a typeset file without a metadata identifier.
-// An ISBN found this way goes through the same title check as any other, so a
-// stray number on the copyright page cannot pass as the book's own. A file the
-// scan cannot read adds nothing.
-func addScannedISBNs(q *metasource.Query, path string) {
-	if len(q.ISBNs) > 0 {
-		return
-	}
-	snippets, err := ebookmeta.ISBNSnippets(path)
-	if err != nil {
-		return
-	}
-	for _, isbn := range metasource.ISBNsFromSnippets(snippets) {
-		q.AddUnconfirmedISBN(isbn)
-	}
+	return x, nil
 }
 
 // metaFetchHasOverrides reports whether -t, -a or --isbn were given, which
@@ -171,10 +197,23 @@ func metaFetchHasOverrides(cmd *cobra.Command) bool {
 }
 
 type metaFetchJSON struct {
-	File       string                 `json:"file"`
-	Query      metasource.Query       `json:"query"`
+	File  string           `json:"file"`
+	Query metasource.Query `json:"query"`
+	// Extraction says what the file name and the file offered and where each
+	// part of the query came from.
+	Extraction metaExtractionJSON     `json:"extraction"`
 	Candidates []metasource.Candidate `json:"candidates"`
 	Errors     []metaFetchErrorJSON   `json:"errors,omitempty"`
+}
+
+// metaExtractionJSON is the extraction as the --json document shows it.
+type metaExtractionJSON struct {
+	FileName    metasource.FileGuess `json:"file_name"`
+	Embedded    metasource.Embedded  `json:"embedded"`
+	TitleFrom   string               `json:"title_from,omitempty"`
+	AuthorsFrom string               `json:"authors_from,omitempty"`
+	AltTitle    string               `json:"alt_title,omitempty"`
+	ISBNFrom    []string             `json:"isbn_from,omitempty"`
 }
 
 type metaFetchErrorJSON struct {
@@ -195,13 +234,11 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 	if err != nil {
 		return metaError(path, err)
 	}
-	q, err := metaFetchQuery(cmd, m)
+	x, err := metaFetchQuery(cmd, path, m)
 	if err != nil {
 		return err
 	}
-	if !cmd.Flags().Changed("isbn") {
-		addScannedISBNs(&q, path)
-	}
+	q := x.Query
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -225,7 +262,9 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 		return errNoMetadataMatch
 	}
 	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
-		doc := metaFetchJSON{File: path, Query: q, Candidates: res.Candidates}
+		doc := metaFetchJSON{File: path, Query: q, Candidates: res.Candidates, Extraction: metaExtractionJSON{
+			FileName: x.FileName, Embedded: x.Embedded, TitleFrom: x.TitleFrom, AuthorsFrom: x.AuthorsFrom, AltTitle: x.AltTitle, ISBNFrom: x.ISBNFrom,
+		}}
 		for _, e := range res.Errors {
 			doc.Errors = append(doc.Errors, metaFetchErrorJSON{Source: e.Source, Error: e.Err.Error()})
 		}
@@ -239,7 +278,7 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 func metaMatchLabel(c metasource.Candidate) string {
 	if c.Match == metasource.MatchISBN {
 		if c.Score < 1 {
-			return "ISBN match, title differs"
+			return "ISBN match, not confirmed"
 		}
 		return "ISBN match"
 	}

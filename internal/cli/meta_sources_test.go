@@ -2,12 +2,16 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/metasource"
 )
 
@@ -20,15 +24,104 @@ func fakeSourceChoices() []metaSourceChoice {
 	}
 }
 
-// sourcesPage is a page on its candidates, with a source panel whose factory
-// records the sources it was asked to search and answers offline.
+// sourcesPage is a page on its candidates, built with a choice of sources whose
+// factory records the sources it was asked to search and answers offline. The
+// first search, made from the prepare page, is already behind it and is not
+// counted in asked.
 func sourcesPage(t *testing.T, choices []metaSourceChoice, asked *[][]string, queries *[]metasource.Query) metaPageModel {
+	t.Helper()
+	m := preparedSourcesPage(t, choices, asked, queries)
+	m = searchFromPrepare(t, m)
+	*asked = nil
+	return m
+}
+
+// preparedSourcesPage is the same page before any search: on the prepare page.
+func preparedSourcesPage(t *testing.T, choices []metaSourceChoice, asked *[][]string, queries *[]metasource.Query) metaPageModel {
 	t.Helper()
 	factory := func(names []string) metaLookupFunc {
 		*asked = append(*asked, names)
 		return recordingLookup(twoCandidates(), queries)
 	}
-	return metaPageAfterLookup(t, recordingLookup(twoCandidates(), queries), nil, withMetaSources(choices, factory))
+	m, err := newMetaPageModel(writeTestEPUB(t), recordingLookup(twoCandidates(), queries), nil, withMetaSources(choices, factory))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+// The page opens on what is known and which sources will be asked. Nothing is
+// sent until Enter.
+func TestMetaPageOpensOnThePrepareStepAndSearchesNothingYet(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	m.Init() // what the program does first
+	if m.stage != metaPrepare || len(queries) != 0 || len(asked) != 0 {
+		t.Fatalf("stage=%v after %d searches and %d source builds", m.stage, len(queries), len(asked))
+	}
+	screen := metaScreen(m)
+	for _, want := range []string{
+		"Search for", "Title", "Before", "from the file", // the embedded title of the test file
+		"[x] Open Library", "[x] Google Books", "[ ] Douban", "[ ] WeRead", "shared quota", "needs ZLIB_WEREAD_API_KEY (not set)",
+		"In the file", "Name", "book.epub", "Embedded",
+	} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the prepare page lacks %q:\n%s", want, screen)
+		}
+	}
+	// Enter is the only thing that sends anything.
+	m = searchFromPrepare(t, m)
+	if len(queries) != 1 || m.stage != metaCandidates {
+		t.Errorf("after Enter: %d searches, stage %v", len(queries), m.stage)
+	}
+}
+
+// The file name is read first and the file second, and the page says which gave
+// what.
+func TestMetaPagePrepareShowsTheFileNameBeforeTheEmbeddedMetadata(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "一读就上瘾的中国史 (温伯陵).epub")
+	data, err := os.ReadFile(writeTestEPUB(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ebookmeta.WriteFile(p, &ebookmeta.Changes{
+		Title: new("一读就上瘾的中国史(爆款历史大号“温乎”首部作品集)"), Authors: &[]string{"温伯陵"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	m, err := newMetaPageModel(p, recordingLookup(twoCandidates(), new([]metasource.Query)), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.query.Title != "一读就上瘾的中国史" || m.extraction.TitleFrom != "file name" || m.extraction.AltTitle == "" {
+		t.Fatalf("query = %+v, from %q, alt %q", m.query, m.extraction.TitleFrom, m.extraction.AltTitle)
+	}
+	screen := metaScreen(m)
+	for _, want := range []string{"一读就上瘾的中国史", "from the file name", "press t to use it", "温伯陵", "温乎"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the prepare page lacks %q:\n%s", want, screen)
+		}
+	}
+	// The file name's reading comes before what the file embeds, and the terms
+	// before both.
+	search, name, embedded := strings.Index(screen, "Search for"), strings.Index(screen, "Name"), strings.Index(screen, "Embedded")
+	if search < 0 || name < 0 || embedded < 0 || search >= name || name >= embedded {
+		t.Errorf("the order is wrong (search %d, name %d, embedded %d):\n%s", search, name, embedded, screen)
+	}
+	// t switches to the file's own title, and again back.
+	m, _ = metaStep(t, m, key("t"))
+	if !strings.Contains(m.query.Title, "爆款历史大号") || m.extraction.TitleFrom != "embedded" || m.query.TitleGuessed {
+		t.Errorf("after t: %q from %q guessed=%v", m.query.Title, m.extraction.TitleFrom, m.query.TitleGuessed)
+	}
+	m, _ = metaStep(t, m, key("t"))
+	if m.query.Title != "一读就上瘾的中国史" {
+		t.Errorf("after t twice: %q", m.query.Title)
+	}
 }
 
 func TestMetaPageSourcePanelListsEverySourceAndWhyOneIsOff(t *testing.T) {
@@ -36,16 +129,19 @@ func TestMetaPageSourcePanelListsEverySourceAndWhyOneIsOff(t *testing.T) {
 	var queries []metasource.Query
 	m := sourcesPage(t, fakeSourceChoices(), &asked, &queries)
 	if !strings.Contains(metaScreen(m), "s sources") {
-		t.Errorf("the candidates page does not offer the source panel:\n%s", metaScreen(m))
+		t.Errorf("the candidates page does not offer the sources:\n%s", metaScreen(m))
 	}
 	m, _ = metaStep(t, m, key("s"))
+	if m.stage != metaPrepare {
+		t.Fatalf("s did not open the prepare page: stage=%v", m.stage)
+	}
 	screen := metaScreen(m)
 	for _, want := range []string{
 		"[x] Open Library", "[x] Google Books", "[ ] Douban", "[ ] WeRead",
-		"shared quota", "needs ZLIB_WEREAD_API_KEY (not set)", "Tencent", "this search",
+		"shared quota", "needs ZLIB_WEREAD_API_KEY (not set)",
 	} {
 		if !strings.Contains(screen, want) {
-			t.Errorf("the panel lacks %q:\n%s", want, screen)
+			t.Errorf("the page lacks %q:\n%s", want, screen)
 		}
 	}
 }
@@ -76,8 +172,8 @@ func TestMetaPageSourcePanelTogglesAndSearchesAgainWithTheChosenSources(t *testi
 			m, _ = metaStep(t, m, done)
 		}
 	}
-	if m.stage != metaCandidates || len(queries) != 2 || m.panel {
-		t.Errorf("stage=%v lookups=%d panel=%v", m.stage, len(queries), m.panel)
+	if m.stage != metaCandidates || len(queries) != 2 {
+		t.Errorf("stage=%v lookups=%d", m.stage, len(queries))
 	}
 	// The query is the same: only the sources changed.
 	if !reflect.DeepEqual(queries[0], queries[1]) {
@@ -88,8 +184,7 @@ func TestMetaPageSourcePanelTogglesAndSearchesAgainWithTheChosenSources(t *testi
 func TestMetaPageSourcePanelRefusesASourceThatCannotRun(t *testing.T) {
 	var asked [][]string
 	var queries []metasource.Query
-	m := sourcesPage(t, fakeSourceChoices(), &asked, &queries)
-	m, _ = metaStep(t, m, key("s"))
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
 	m, _ = metaStep(t, m, metaKey("up")) // WeRead, which has no key
 	m, _ = metaStep(t, m, metaKey("space"))
 	screen := metaScreen(m)
@@ -104,17 +199,18 @@ func TestMetaPageSourcePanelRefusesASourceThatCannotRun(t *testing.T) {
 func TestMetaPageSourcePanelNeedsAtLeastOneSource(t *testing.T) {
 	var asked [][]string
 	var queries []metasource.Query
-	m := sourcesPage(t, fakeSourceChoices(), &asked, &queries)
-	m, _ = metaStep(t, m, key("s"))
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
 	m, _ = metaStep(t, m, metaKey("space")) // Open Library off
 	m, _ = metaStep(t, m, metaKey("down"))
 	m, _ = metaStep(t, m, metaKey("space")) // Google Books off
 	m, _ = metaStep(t, m, key("enter"))
-	if !m.panel || len(asked) != 0 || !strings.Contains(m.message, "at least one source") {
-		t.Fatalf("a search with no source was started: panel=%v asked=%v message=%q", m.panel, asked, m.message)
+	if m.stage != metaPrepare || len(asked) != 0 || len(queries) != 0 || !strings.Contains(m.message, "at least one source") {
+		t.Fatalf("a search with no source was started: stage=%v asked=%v message=%q", m.stage, asked, m.message)
 	}
 }
 
+// Leaving the prepare page that the results opened goes back to them, with the
+// choice they were made with.
 func TestMetaPageSourcePanelCancelKeepsTheChoicesAndTheResults(t *testing.T) {
 	var asked [][]string
 	var queries []metasource.Query
@@ -123,8 +219,8 @@ func TestMetaPageSourcePanelCancelKeepsTheChoicesAndTheResults(t *testing.T) {
 	m, _ = metaStep(t, m, metaKey("space")) // Open Library off, not applied
 	for _, k := range []string{"esc", "ctrl+c", "q"} {
 		next, cmd := metaStep(t, m, key(k))
-		if next.panel || next.stage != metaCandidates || next.cancelled || cmd != nil || len(asked) != 0 {
-			t.Errorf("%s: panel=%v stage=%v cancelled=%v asked=%v", k, next.panel, next.stage, next.cancelled, asked)
+		if next.stage != metaCandidates || next.cancelled || cmd != nil || len(asked) != 0 || len(next.res.Candidates) != 2 {
+			t.Errorf("%s: stage=%v cancelled=%v asked=%v", k, next.stage, next.cancelled, asked)
 		}
 	}
 	m, _ = metaStep(t, m, key("esc"))
@@ -134,23 +230,141 @@ func TestMetaPageSourcePanelCancelKeepsTheChoicesAndTheResults(t *testing.T) {
 	}
 }
 
-func TestMetaPageWithoutChoicesHasNoSourcePanel(t *testing.T) {
+// With nothing to go back to, Esc on the prepare page closes the page.
+func TestMetaPagePrepareEscLeavesWhenItIsTheFirstPage(t *testing.T) {
+	var asked [][]string
 	var queries []metasource.Query
-	m := metaPageAfterLookup(t, recordingLookup(twoCandidates(), &queries), nil)
-	if strings.Contains(metaScreen(m), "sources") {
-		t.Errorf("the page offers sources it cannot rebuild:\n%s", metaScreen(m))
-	}
-	m, _ = metaStep(t, m, key("s"))
-	if m.panel {
-		t.Error("s opened a panel with no sources")
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	m, cmd := metaStep(t, m, key("esc"))
+	if !m.cancelled || cmd == nil || len(queries) != 0 {
+		t.Errorf("cancelled=%v quit=%v searches=%d", m.cancelled, cmd != nil, len(queries))
 	}
 }
 
-func TestMetaPageSourcePanelFitsCompactTerminals(t *testing.T) {
+// Esc during the first search comes back to the prepare page, not out of it.
+func TestMetaPageEscDuringTheFirstSearchReturnsToThePreparePage(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	m, _ = metaStep(t, m, metaKey("space")) // Open Library off, so there is a draft to keep
+	m, _ = metaStep(t, m, key("enter"))
+	if m.stage != metaLooking {
+		t.Fatalf("stage = %v", m.stage)
+	}
+	m, cmd := metaStep(t, m, key("esc"))
+	if m.stage != metaPrepare || m.cancelled || cmd != nil {
+		t.Fatalf("esc: stage=%v cancelled=%v", m.stage, m.cancelled)
+	}
+	if !strings.Contains(metaScreen(m), "[ ] Open Library") {
+		t.Errorf("the toggles made before the search were lost:\n%s", metaScreen(m))
+	}
+}
+
+// From the results, s opens the prepare page and Enter searches again. Esc
+// during that search returns to the prepare page with the toggles as they were,
+// and a second Esc returns to the results the search would have replaced.
+func TestMetaPageEscDuringARepeatSearchReturnsToTheReopenedPreparePage(t *testing.T) {
 	var asked [][]string
 	var queries []metasource.Query
 	m := sourcesPage(t, fakeSourceChoices(), &asked, &queries)
 	m, _ = metaStep(t, m, key("s"))
+	m, _ = metaStep(t, m, metaKey("space")) // Open Library off
+	m, _ = metaStep(t, m, key("enter"))
+	if m.stage != metaLooking {
+		t.Fatalf("stage = %v", m.stage)
+	}
+	m, _ = metaStep(t, m, key("esc"))
+	if m.stage != metaPrepare || !strings.Contains(metaScreen(m), "[ ] Open Library") {
+		t.Fatalf("esc did not return to the prepare page with its toggles: stage=%v\n%s", m.stage, metaScreen(m))
+	}
+	m, _ = metaStep(t, m, key("esc"))
+	if m.stage != metaCandidates || m.cancelled {
+		t.Fatalf("a second esc: stage=%v cancelled=%v", m.stage, m.cancelled)
+	}
+	m, _ = metaStep(t, m, key("s"))
+	if !strings.Contains(metaScreen(m), "[x] Open Library") {
+		t.Errorf("the results forgot the sources they came from:\n%s", metaScreen(m))
+	}
+}
+
+func TestMetaPageWithoutChoicesHasNoSources(t *testing.T) {
+	var queries []metasource.Query
+	m, err := newMetaPageModel(writeTestEPUB(t), recordingLookup(twoCandidates(), &queries), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if screen := metaScreen(m); strings.Contains(screen, "Sources") || strings.Contains(screen, "[x]") {
+		t.Errorf("the page offers sources it cannot rebuild:\n%s", screen)
+	}
+	m = searchFromPrepare(t, m)
+	if strings.Contains(metaScreen(m), "sources") {
+		t.Errorf("the results offer sources:\n%s", metaScreen(m))
+	}
+	m, _ = metaStep(t, m, key("s"))
+	if m.stage != metaCandidates {
+		t.Error("s left the results with no sources to choose")
+	}
+}
+
+// r saves the sources that are on as the default, and only when asked.
+func TestMetaPageRemembersTheSourcesOnlyWhenAsked(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	var saved [][]string
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	m.saveSources = func(names []string) (string, error) { saved = append(saved, names); return "", nil }
+	m, _ = metaStep(t, m, metaKey("up")) // WeRead
+	m, _ = metaStep(t, m, metaKey("up")) // Douban
+	m, _ = metaStep(t, m, metaKey("space"))
+	if len(saved) != 0 {
+		t.Fatalf("toggling saved: %v", saved)
+	}
+	m, _ = metaStep(t, m, key("r"))
+	if want := [][]string{{"openlibrary", "google", "douban"}}; !reflect.DeepEqual(saved, want) {
+		t.Fatalf("saved = %v, want %v", saved, want)
+	}
+	if !strings.Contains(m.message, "Saved as the default") || !strings.Contains(m.message, "Douban") {
+		t.Errorf("message = %q", m.message)
+	}
+	// Searching saves nothing more.
+	m, _ = metaStep(t, m, key("enter"))
+	if len(saved) != 1 {
+		t.Errorf("searching saved again: %v", saved)
+	}
+}
+
+func TestMetaPageRememberReportsAFailureAndRefusesNothing(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	m, _ = metaStep(t, m, key("r"))
+	if !strings.Contains(m.message, "cannot be saved") {
+		t.Errorf("no way to save: %q", m.message)
+	}
+	m.saveSources = func([]string) (string, error) { return "", errors.New("disk full") }
+	m, _ = metaStep(t, m, key("r"))
+	if !strings.Contains(m.message, "Could not save") || !strings.Contains(m.message, "disk full") {
+		t.Errorf("a failed save: %q", m.message)
+	}
+	m.saveSources = func([]string) (string, error) { return "Process environment", nil }
+	m, _ = metaStep(t, m, key("r"))
+	if !strings.Contains(m.message, "Saved, but Process environment takes precedence") {
+		t.Errorf("an overridden save: %q", m.message)
+	}
+	// With no source on there is nothing to save.
+	m, _ = metaStep(t, m, metaKey("space"))
+	m, _ = metaStep(t, m, metaKey("down"))
+	m, _ = metaStep(t, m, metaKey("space"))
+	m, _ = metaStep(t, m, key("r"))
+	if !strings.Contains(m.message, "at least one source") {
+		t.Errorf("saving nothing: %q", m.message)
+	}
+}
+
+func TestMetaPagePrepareFitsCompactTerminals(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
 	m.message = "Set ZLIB_WEREAD_API_KEY in .env first"
 	for _, size := range [][2]int{{80, 24}, {60, 24}, {60, 16}, {40, 12}, {24, 8}, {20, 5}} {
 		next, _ := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
@@ -163,6 +377,27 @@ func TestMetaPageSourcePanelFitsCompactTerminals(t *testing.T) {
 				t.Errorf("%dx%d: line wider than the terminal: %q", size[0], size[1], l)
 				break
 			}
+		}
+	}
+}
+
+// What matters on this page is what will be searched, and the sources: they
+// must be on screen on the terminals people use, and when the page is the
+// shell's, which has one row fewer.
+func TestMetaPagePrepareShowsTheTermsAndSourcesOnShortTerminals(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	for _, size := range [][2]int{{80, 24}, {80, 23}, {60, 16}} {
+		next, _ := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
+		screen := ansi.Strip(next.(metaPageModel).View().Content)
+		for _, want := range []string{"Search for", "Title", "Before", "[x] Open Library", "[ ] WeRead"} {
+			if !strings.Contains(screen, want) {
+				t.Errorf("%dx%d: %q is not on screen:\n%s", size[0], size[1], want, screen)
+			}
+		}
+		if got := footer(screen); !strings.Contains(got, "enter") || !strings.Contains(got, "esc") {
+			t.Errorf("%dx%d: the footer %q lost enter or esc", size[0], size[1], got)
 		}
 	}
 }

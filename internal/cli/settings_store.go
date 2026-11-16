@@ -19,7 +19,7 @@ import (
 // settingKeys lists the settings backed by .env files and the environment, in
 // the order store.values returns them. New keys go at the end: a few pages
 // still index values by position.
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv}
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv}
 
 // googleKeyNotSet is what the key row shows when there is no key. It is not a
 // value: displaySetting leaves it alone and masks everything else.
@@ -128,6 +128,8 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Value, v.Source = "Any format", "Default"
 			case googleBooksKeyEnv:
 				v.Value, v.Source = googleKeyNotSet, "Default"
+			case metaSourcesEnv:
+				v.Value, v.Source = strings.Join(metasource.DefaultSourceNames, ","), "Default"
 			}
 		}
 		values = append(values, v)
@@ -189,6 +191,8 @@ func validateSetting(key, value string) (string, error) {
 		if !metasource.ValidAPIKey(value) {
 			return "", fmt.Errorf("a Google API key is 20 to 128 letters, digits, - and _")
 		}
+	case metaSourcesEnv:
+		return metasource.NormalizeSourceList(value)
 	case downloadDirEnvVar:
 		path, err := expandTilde(value)
 		if err != nil {

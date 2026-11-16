@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/textinput"
@@ -39,31 +40,66 @@ type metaSnapshot struct {
 	res         metasource.Result
 	err         error
 	query       metasource.Query
+	extraction  metasource.Extraction
 	cursor, top int
 	lookup      metaLookupFunc
 	sources     []metaSourceChoice
+	draft       []metaSourceChoice
+	// outer is the snapshot this one was taken over: a prepare page opened from
+	// the results holds the results here, so Esc steps back one page at a time.
+	outer *metaSnapshot
 }
 
-// remember keeps the page as it is so Esc can come back to it. Callers do it
-// before they change the query or the sources; a snapshot already taken is
-// kept, and the first search has nothing to keep.
+// remember keeps the page as it is so Esc can come back to it: the results, or
+// the prepare page a search started from. Callers do it before they change the
+// query or the sources; a snapshot already taken is kept. The prepare page
+// itself is never remembered by an edit, only by the search that leaves it.
 func (m *metaPageModel) remember() {
-	if m.prev != nil || (m.stage != metaCandidates && m.stage != metaFailed) {
+	if m.prev != nil || (m.stage != metaCandidates && m.stage != metaFailed && m.stage != metaPrepare) {
 		return
 	}
-	m.prev = &metaSnapshot{stage: m.stage, res: m.res, err: m.err, query: m.query, cursor: m.cursor, top: m.top,
-		lookup: m.lookup, sources: m.sources}
+	m.prev = m.snapshot()
 }
 
-// abandonSearch stops a repeat search the user gave up on and puts back the
-// results it replaced. A late answer to it is dropped: the generation moves on.
+// snapshot is the page as it is now, over whatever snapshot is already kept.
+func (m *metaPageModel) snapshot() *metaSnapshot {
+	return &metaSnapshot{stage: m.stage, res: m.res, err: m.err, query: m.query, extraction: m.extraction, cursor: m.cursor, top: m.top,
+		lookup: m.lookup, sources: m.sources, draft: append([]metaSourceChoice(nil), m.draft...), outer: m.prev}
+}
+
+// abandonSearch stops a search the user gave up on, or leaves the prepare page
+// opened from the results, and puts back the page it replaced. A late answer to
+// the search is dropped: the generation moves on.
 func (m metaPageModel) abandonSearch() metaPageModel {
 	p := m.prev
 	m.stop()
 	m.gen++
-	m.stage, m.res, m.err, m.query, m.cursor, m.top, m.lookup, m.sources = p.stage, p.res, p.err, p.query, p.cursor, p.top, p.lookup, p.sources
-	m.prev, m.run = nil, newMetaRun()
+	m.stage, m.res, m.err, m.query, m.extraction, m.cursor, m.top, m.lookup, m.sources, m.draft =
+		p.stage, p.res, p.err, p.query, p.extraction, p.cursor, p.top, p.lookup, p.sources, p.draft
+	m.prev, m.run, m.message = p.outer, newMetaRun(), ""
 	return m
+}
+
+// adoptQuery makes q the search and updates where each part came from: a
+// title or authors the user changed are theirs, and an ISBN they added is typed.
+func (m *metaPageModel) adoptQuery(q metasource.Query) {
+	old, x := m.query, m.extraction
+	if q.Title != old.Title {
+		x.TitleFrom = "edited"
+	}
+	if !slices.Equal(q.Authors, old.Authors) {
+		x.AuthorsFrom = "edited"
+	}
+	from := make([]string, len(q.ISBNs))
+	for i, isbn := range q.ISBNs {
+		if j := slices.Index(old.ISBNs, isbn); j >= 0 && j < len(x.ISBNFrom) {
+			from[i] = x.ISBNFrom[j]
+		} else {
+			from[i] = "typed"
+		}
+	}
+	x.ISBNFrom, x.Query = from, q
+	m.query, m.extraction = q, x
 }
 
 // startQueryEdit opens the editor on the search: title, authors and ISBNs, as
@@ -92,8 +128,14 @@ func (m metaPageModel) acceptQueryEdit() (tea.Model, tea.Cmd) {
 		m.editor.err = err.Error()
 		return m, nil
 	}
+	m.editing = false
+	if m.stage == metaPrepare {
+		// On the prepare page the terms are kept; Enter there starts the search.
+		m.adoptQuery(q)
+		return m, nil
+	}
 	m.remember() // before the query changes
-	m.query, m.editing = q, false
+	m.adoptQuery(q)
 	return m.search()
 }
 

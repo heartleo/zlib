@@ -29,6 +29,7 @@ const (
 	metaCandidates                  // choosing which match to use
 	metaFields                      // choosing which fields to write
 	metaWriting                     // rewriting the file
+	metaPrepare                     // what is known about the book, and which sources to ask, before any search
 )
 
 // metaCoverError marks a failed cover download, which happens before
@@ -108,15 +109,22 @@ type metaPageModel struct {
 	editKind metaEditKind
 	editRow  int // plan index being edited, when editKind is editValue
 
-	// sources and lookupFor give the page its source panel: what is searched
-	// now, and how to build a lookup for another choice. Both are empty when
-	// the page was built with a fixed lookup. draft is the panel's copy of the
-	// choices, committed only by Enter.
+	// extraction is what the file name and the file said about the book, and
+	// hint the download's record, if any. query is what will be searched; it
+	// starts as extraction.Query and changes when the user edits it.
+	extraction metasource.Extraction
+	hint       metasource.Hint
+
+	// sources and lookupFor give the page its choice of sources: what is
+	// searched now, and how to build a lookup for another choice. Both are
+	// empty when the page was built with a fixed lookup. draft is the copy the
+	// user toggles on the prepare page, committed only by a search.
+	// saveSources writes the enabled sources as the default, when the user asks.
 	sources      []metaSourceChoice
 	lookupFor    metaSourceLookup
 	draft        []metaSourceChoice
-	panel        bool
 	sourceCursor int
+	saveSources  func(names []string) (overriddenBy string, err error)
 
 	// blink is the editor's first cursor command, for a page that opens on it.
 	blink tea.Cmd
@@ -135,8 +143,8 @@ type metaPageModel struct {
 
 // metaHint adds what is known about the book from outside the file, such as
 // the Z-Library record of a download. Hints only fill gaps: they never
-// replace the file's own title or authors, and their ISBNs are searched as
-// well.
+// replace a title or authors read from the file name or the file, and their
+// ISBNs are searched as well, as unconfirmed ones.
 type metaHint struct {
 	Title   string
 	Authors []string
@@ -148,44 +156,41 @@ type metaOption func(*metaPageModel)
 
 func withMetaHint(h metaHint) metaOption {
 	return func(m *metaPageModel) {
-		q := &m.query
-		if q.Title == "" {
-			q.Title = h.Title
-		}
-		if len(q.Authors) == 0 {
-			q.Authors = h.Authors
-		}
-		// A record's ISBN is a hint, not the file's own: it confirms a match
-		// only when the title agrees closely.
-		for _, raw := range h.ISBNs {
-			q.AddUnconfirmedISBN(metasource.NormalizeISBN(raw))
-		}
+		m.hint = metasource.Hint{Title: h.Title, Authors: h.Authors, ISBNs: h.ISBNs}
 	}
+}
+
+// withMetaSourceSaver lets the prepare page save the sources that are on as the
+// default. save returns the name of a setting that overrides what it saved, or
+// "" when the saved list takes effect.
+func withMetaSourceSaver(save func(names []string) (overriddenBy string, err error)) metaOption {
+	return func(m *metaPageModel) { m.saveSources = save }
 }
 
 func withMetaCover(fetch metaCoverFunc) metaOption {
 	return func(m *metaPageModel) { m.cover = fetch }
 }
 
-// newMetaPageModel reads path and prepares the lookup. The lookup runs on
-// the first Init, not here, so building the page costs nothing.
+// newMetaPageModel reads path and prepares the page. Nothing is searched here
+// or on Init: the page opens on what the file name and the file say about the
+// book, with the sources to ask, and the search starts when the user presses
+// Enter. A file with nothing to search with opens on the search editor.
 func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, opts ...metaOption) (metaPageModel, error) {
 	cur, format, err := ebookmeta.ReadFile(path)
 	if err != nil {
 		return metaPageModel{}, metaError(path, err)
 	}
 	m := metaPageModel{
-		path: path, format: format, current: cur, query: metasource.QueryFromMetadata(cur), lookup: lookup, write: write,
-		spinner: newLoadingSpinner(), width: 80, height: 24, run: newMetaRun(),
+		path: path, format: format, current: cur, lookup: lookup, write: write,
+		spinner: newLoadingSpinner(), width: 80, height: 24, run: newMetaRun(), stage: metaPrepare,
 	}
 	for _, opt := range opts {
 		opt(&m)
 	}
-	addScannedISBNs(&m.query, path)
+	m.extraction = metasource.Extract(filepath.Base(path), cur, scannedISBNs(path, cur), m.hint)
+	m.query = m.extraction.Query
+	m.draft = append([]metaSourceChoice(nil), m.sources...)
 	if m.query.Empty() {
-		// Nothing to search with yet, but the user can say what to search for:
-		// the page opens on the search editor instead of refusing the file.
-		m.stage, m.err = metaFailed, metasource.ErrNoQuery
 		m.blink = m.beginQueryEdit()
 	}
 	return m, nil
@@ -210,8 +215,8 @@ func newDefaultMetaLookup() metaLookupFunc {
 }
 
 func (m metaPageModel) Init() tea.Cmd {
-	if m.stage == metaFailed && errors.Is(m.err, metasource.ErrNoQuery) {
-		return m.blink // nothing to look up until the user types a search
+	if m.stage == metaPrepare {
+		return m.blink // nothing is searched until the user presses Enter
 	}
 	return tea.Batch(m.spinner.Tick, m.start())
 }
@@ -289,13 +294,12 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.editKey(msg)
 	}
 	k := msg.String()
-	if m.panel {
-		return m.panelKey(k)
-	}
 	switch m.stage {
+	case metaPrepare:
+		return m.prepareKey(k)
 	case metaLooking:
 		if k == "esc" || k == "ctrl+c" {
-			if m.prev != nil { // a repeat search: back to the results it replaced
+			if m.prev != nil { // back to the page the search started from
 				return m.abandonSearch(), nil
 			}
 			m.stop()
@@ -310,7 +314,7 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "e":
 			return m.startQueryEdit()
 		case "s":
-			return m.openPanel()
+			return m.openPrepare()
 		case "r":
 			return m.search()
 		}
@@ -322,7 +326,7 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "e":
 			return m.startQueryEdit()
 		case "s":
-			return m.openPanel()
+			return m.openPrepare()
 		case "enter":
 			return m.openFields(), nil
 		default:
@@ -482,20 +486,20 @@ func (m metaPageModel) listRows() int {
 func (m metaPageModel) View() tea.View {
 	subtitle := safeText(filepath.Base(m.path)) + " · " + strings.ToUpper(string(m.format))
 	if m.editing && m.editKind == editQuery {
+		// From the prepare page Enter keeps the terms; from the results it searches.
+		accept := "search"
+		if m.stage == metaPrepare {
+			accept = "use"
+		}
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.editor.view(max(20, m.width)), "",
 			m.keysFor(
-				[][2]string{{"enter", "search"}, {"tab", "next field"}, {"esc", "cancel"}},
-				[][2]string{{"enter", "search"}, {"tab", ""}, {"esc", "cancel"}},
+				[][2]string{{"enter", accept}, {"tab", "next field"}, {"esc", "cancel"}},
+				[][2]string{{"enter", accept}, {"tab", ""}, {"esc", "cancel"}},
 				[][2]string{{"enter", ""}, {"tab", ""}, {"esc", ""}})...)
 	}
-	if m.panel {
-		return screenView(m.width, m.height, "Fix metadata", subtitle, m.panelBody(), m.message,
-			m.keysFor(
-				[][2]string{{"↑/↓", "move"}, {"space", "toggle"}, {"enter", "search"}, {"esc", "cancel"}},
-				[][2]string{{"↑/↓", ""}, {"space", ""}, {"enter", "search"}, {"esc", "cancel"}},
-				[][2]string{{"↑/↓", ""}, {"space", ""}, {"enter", ""}, {"esc", ""}})...)
-	}
 	switch m.stage {
+	case metaPrepare:
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.prepareBody(), m.message, m.prepareKeys()...)
 	case metaLooking:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.lookingBody(), "", uiKey("esc", "cancel"))
 	case metaFailed:

@@ -169,7 +169,8 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 }
 
 // scoreCandidate relates c to q. Sharing an ISBN and agreeing on the title is
-// the only way to score 1. An ISBN match whose title disagrees with the
+// the only way to score 1 (a hint ISBN needs a title that did not come from the
+// same record as the hint). An ISBN match whose title disagrees with the
 // wanted one scores 0.5: files often carry the ISBN of another book, so the
 // result is kept but flagged. Otherwise the title (65%) and authors (35%)
 // decide, with a small bonus for each further source that agrees.
@@ -185,7 +186,8 @@ func scoreCandidate(q Query, c Candidate) (Match, float64) {
 		}
 		// A title from a file name or a download's record comes from the same
 		// record as a recorded ISBN, so it cannot vouch for that ISBN.
-		if unconfirmed && q.TitleGuessed {
+		// With no title to compare there is nothing to vouch for a hint at all.
+		if unconfirmed && (q.TitleGuessed || q.Title == "") {
 			return MatchISBN, 0.5
 		}
 		return MatchISBN, 1

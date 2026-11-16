@@ -33,7 +33,10 @@ The format is detected from the file contents:
 Fields a format cannot store are reported on stderr and skipped.
 
 On a terminal, zlib meta with no file (or only --fetch) opens a file picker,
-then looks the book up online so you can review, edit and write its metadata.`
+then a page that reads the file name and the file, lets you choose the sources
+(Open Library, Google Books, Douban, WeRead) and searches when you press Enter,
+so you can review, edit and write its metadata. --fetch --source picks the
+sources for one run.`
 
 var metaCmd = &cobra.Command{
 	Use:   "meta <file>",
@@ -58,14 +61,17 @@ var metaIsInteractive = isInteractive
 
 // metaOpensPicker reports whether `zlib meta` with no file should open the file
 // picker: only on a terminal, and only with no option but --fetch, which also
-// means "look the book up". Any other option works on a file, so without one
+// means "look the book up", and --source, which only says where. Any other option works on a file, so without one
 // it stays a usage error, and so does a pipe, where no picker could run.
 func metaOpensPicker(cmd *cobra.Command, args []string) bool {
 	if len(args) != 0 || !metaIsInteractive() {
 		return false
 	}
 	flags := cmd.Flags()
-	return flags.NFlag() == 0 || (flags.NFlag() == 1 && flags.Changed("fetch"))
+	if !flags.Changed("fetch") {
+		return flags.NFlag() == 0
+	}
+	return flags.NFlag() == 1 || (flags.NFlag() == 2 && flags.Changed("source"))
 }
 
 func init() {
@@ -94,6 +100,7 @@ func addMetaFlags(cmd *cobra.Command) {
 	f.String("to-opf", "", "Save the metadata to this OPF file")
 	f.String("from-opf", "", "Apply the metadata in this OPF file")
 	f.Bool("fetch", false, "Look the book up in online catalogues; on a terminal pick a match and apply it, otherwise list matches (-t, -a and --isbn set what to search for and list matches)")
+	f.StringSlice("source", nil, "With --fetch, the catalogues to ask: openlibrary, google, douban, weread (comma-separated or repeated); overrides "+metaSourcesEnv)
 	f.Bool("json", false, "Print the metadata as JSON")
 }
 
@@ -105,6 +112,10 @@ type metaJSON struct {
 }
 
 func runMeta(cmd *cobra.Command, args []string) error {
+	if err := applyMetaSourceFlag(cmd); err != nil {
+		return err
+	}
+	defer func() { metaSourcesFlag = "" }()
 	if len(args) == 0 { // Args allowed it: a terminal and no other option
 		return runStandaloneShellCommand("/meta")
 	}

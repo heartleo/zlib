@@ -86,8 +86,8 @@ func init() {
 	kindle.AddCommand(settingsCommand("to", "kindle", kindleToKey, "Set Kindle address"), settingsCommand("from", "kindle", kindleFromKey, "Set sender address"), settingsCommand("host", "kindle", kindleHostKey, "Set SMTP host"), settingsCommand("port", "kindle", kindlePortKey, "Set SMTP port"), settingsCommand("security", "kindle", kindleSecurityKey, "Set SMTP security: tls or starttls"))
 	wereadSettings := settingsCommand("weread", "weread", "", "Show the WeRead login and set its proxy")
 	wereadSettings.AddCommand(settingsCommand("account", "weread", wereadAccountKey, "Log in to or out of WeRead"), settingsCommand("proxy", "weread", wereadProxyEnv, "Set the WeRead proxy: a URL, direct, or empty for the system proxy"))
-	metadata := settingsCommand("metadata", "metadata", "", "Set the Google Books API key for metadata lookups")
-	metadata.AddCommand(settingsCommand("google-key", "metadata", googleBooksKeyEnv, "Set or remove the Google Books API key"))
+	metadata := settingsCommand("metadata", "metadata", "", "Set the metadata lookup sources and the Google Books API key")
+	metadata.AddCommand(settingsCommand("sources", "metadata", metaSourcesEnv, "Set the metadata lookup sources; empty restores Open Library and Google Books"), settingsCommand("google-key", "metadata", googleBooksKeyEnv, "Set or remove the Google Books API key"))
 	root.AddCommand(network, download, search, kindle, wereadSettings, metadata)
 	rootCmd.AddCommand(root)
 }

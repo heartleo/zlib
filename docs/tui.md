@@ -255,14 +255,35 @@ WeRead file pickers open in the default download directory.
 
 `/meta` looks a local book up online and fixes its metadata; it needs no
 Z-Library login. It opens a file picker listing folders and the formats
-`zlib meta` reads, or takes a path (`/meta "<file>"`). The page then runs one
-lookup and moves through candidates, fields and writing:
+`zlib meta` reads, or takes a path (`/meta "<file>"`). The page does not search
+at once: it moves through a prepare step, a lookup, candidates, fields and
+writing:
 
+- **Prepare** reads the file name first and then the file, shows what will be
+  searched and where each part came from, and lists the sources to ask. A
+  Z-Library name such as `Title (Author).epub` is usually cleaner than the
+  title inside the file, which often carries a marketing line, so the name's
+  title is used, with the file's own title offered as the other choice: press
+  `t` to switch. For a Chinese title the authors come from the side that writes
+  them in Chinese when only one does; otherwise from the file when it names
+  the same person, as a file name often adds the translator, and from the
+  file name when it does not. A title that is only a placeholder (`Unknown`,
+  a UUID, a long number) is not used, and an ISBN alone is not a title. The file's own ISBN is confirmed; an ISBN read from the copyright
+  page, recorded by a download or found in the file name is a hint. The file's
+  publisher and year rank editions of one title a little. A title read from
+  the name or the download is marked `a guess` and cannot by itself confirm a
+  hint ISBN; the file's own title, or one you edit, can. The terms and sources
+  come first on the page, so a short terminal still shows them. Space toggles a
+  source, `e` edits the terms, Enter searches and Esc leaves. `r` saves the
+  sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
+  `.env`); nothing is saved unless you press it, and the page says so when the
+  environment or a `.env` in the working directory overrides it. A file with nothing to search
+  with opens on the editor.
 - **Looking up** shows the title, authors and ISBN being searched. Esc cancels
-  the request.
+  the request and returns to the page it started from.
 - **Candidates** list the merged matches, best first. Each row starts with a
   five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
-  the title is different, or a percentage for a title match. The pane under the
+  the title is different or nothing independent vouches for it, or a percentage for a title match. The pane under the
   list shows the selected match's details. Each row ends with the sources that
   agreed on it in brackets, such as `[WeRead]` or `[Google Books+Open Library]`,
   and the details name the ISBN, or say `no ISBN listed` for an edition without
@@ -276,19 +297,18 @@ lookup and moves through candidates, fields and writing:
   different ISBN you type counts as confirmed. A hint confirms a match only
   when the title searched agrees closely with the result's, so typing the
   title of the book the hint names is how you say the file is that book, while
-  a different title leaves the match flagged. `s` opens the sources for this search:
-  Open Library, Google Books, Douban and WeRead, each with `[x]` or `[ ]` and why
-  it cannot be turned on (WeRead without `ZLIB_WEREAD_API_KEY` says so, and the
-  key is only reported as set or not set, never shown). Space toggles a source,
-  Enter searches again with the chosen ones and Esc leaves the choice as it was.
-  A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first search
-  used it, even when its key is missing and it can only report that; it can be
-  turned off but not back on without the key. While a repeat search runs, Esc
-  returns to the results it replaced; Esc during the first search closes the
-  page. The choice lasts for this search and is never written to `.env`; the panel says
-  that WeRead sends each title to Tencent under your account. WeRead cannot
-  search by ISBN, so when it is on and the search has no title the status line
-  says so.
+  a different title leaves the match flagged. `s` goes back to the prepare page to
+  change the sources: Open Library, Google Books, Douban and WeRead, each with
+  `[x]` or `[ ]` and why it cannot be turned on (WeRead without
+  `ZLIB_WEREAD_API_KEY` says so, and the key is only reported as set or not
+  set, never shown). Esc there returns to these results with the choice as it
+  was. A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first
+  search used it, even when its key is missing and it can only report that; it
+  can be turned off but not back on without the key. While a search runs, Esc
+  returns to the page it started from. The choice applies to this session and
+  is saved only by `r`; the page says that WeRead sends each title to Tencent
+  under your account. WeRead cannot search by ISBN, so when it is on and the
+  search has no title the page says so.
 - **Fields** show one row per change as `[x] Field  old → new`. What starts
   selected depends on the match. With `ISBN`, the fields the file leaves empty.
   With a percentage (a title match), the empty fields that describe the book;

@@ -16,8 +16,9 @@ import (
 // one passed with --isbn. An ISBN the old query held as unconfirmed, such as a
 // download's hint or one read from the book, stays unconfirmed for as long as
 // it is left in the field, so it is still judged against the title searched
-// (at the stricter hint bar). Typing the title of the book the hint names is
-// the user saying the file is that book, and then confirms it.
+// (at the stricter hint bar). A title the user changes is theirs and no guess;
+// one left as it was keeps its mark, so pressing Enter in the editor confirms
+// nothing.
 func ParseQueryEdit(old Query, title, authors, isbns string) (Query, error) {
 	q := Query{Title: clean(title), Authors: cleanList(strings.Split(authors, "&")),
 		// What the file says about its edition stays, and a title the user did

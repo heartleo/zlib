@@ -3,6 +3,7 @@ package metasource
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -124,6 +125,31 @@ const (
 // needs a Referer, and WeRead sends it to Tencent under the user's own API
 // key, so each is enabled on purpose.
 var DefaultSourceNames = []string{NameOpenLibrary, NameGoogle}
+
+// KnownSourceNames lists the built-in sources in the order they are offered.
+var KnownSourceNames = []string{NameOpenLibrary, NameGoogle, NameDouban, NameWeRead}
+
+// NormalizeSourceList checks a comma-separated source list and returns it in
+// the canonical order, without duplicates. An unknown name is an error, so a
+// list that is saved cannot hold a typo. An empty list stays empty.
+func NormalizeSourceList(list string) (string, error) {
+	var asked []string
+	for part := range strings.SplitSeq(list, ",") {
+		if n := strings.ToLower(strings.TrimSpace(part)); n != "" {
+			if !slices.Contains(KnownSourceNames, n) {
+				return "", fmt.Errorf("unknown source %q (use %s)", n, strings.Join(KnownSourceNames, ", "))
+			}
+			asked = append(asked, n)
+		}
+	}
+	var out []string
+	for _, n := range KnownSourceNames {
+		if slices.Contains(asked, n) {
+			out = append(out, n)
+		}
+	}
+	return strings.Join(out, ","), nil
+}
 
 // SourceConfig carries what the built-in sources need. The zero value builds
 // the sources on the default transport with no keys.
