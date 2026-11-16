@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/heartleo/zlib/internal/ebookmeta"
 )
 
 func TestParseQueryEdit(t *testing.T) {
@@ -79,5 +81,50 @@ func TestParseQueryEditRefusesWhatCannotBeSearched(t *testing.T) {
 		if !strings.Contains(err.Error(), tc.contains) || strings.Contains(err.Error(), "\x07") {
 			t.Errorf("%s: err = %q, want it to mention %q", tc.name, err, tc.contains)
 		}
+	}
+}
+
+// Typing a title is the user's statement about the book, so a hit that carries
+// the hint ISBN and agrees with the title typed is confirmed, as it would be
+// for the file's own title. A hit that does not agree stays flagged, and so
+// does the hint when only the file's title is searched.
+func TestEditedTitleJudgesAHintISBNLikeAnyOtherTitle(t *testing.T) {
+	const hint = "9780140328721"
+	cur := &ebookmeta.Metadata{Title: "Before"}
+	cur.SetIdentifier(SchemeZlibISBN, hint)
+	asFile := QueryFromMetadata(cur)
+	hit := func(title string) Candidate {
+		return Candidate{Title: title, EditionLevel: true, Sources: []string{"Fake"},
+			Identifiers: []ebookmeta.Identifier{{Scheme: "isbn", Value: hint}}}
+	}
+	selects := func(q Query, c Candidate) (float64, bool) {
+		got := rankAndMerge(q, []Candidate{c}, defaultMinScore, 10)
+		if len(got) != 1 {
+			t.Fatalf("%d candidates", len(got))
+		}
+		for _, ch := range Plan(cur, got[0]) {
+			if ch.Field == "identifier:isbn" {
+				return got[0].Score, ch.DefaultSelected()
+			}
+		}
+		return got[0].Score, false
+	}
+
+	// The file's own title does not agree with the hit: nothing is confirmed.
+	if score, sel := selects(asFile, hit("Matilda")); score >= 1 || sel {
+		t.Errorf("a hint confirmed by a title that disagrees: score=%v selected=%v", score, sel)
+	}
+	typed, err := ParseQueryEdit(asFile, "Matilda", "", hint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(typed.Unconfirmed, []string{hint}) {
+		t.Fatalf("typing a title changed the hint's standing: %+v", typed)
+	}
+	if score, sel := selects(typed, hit("Matilda")); score != 1 || !sel {
+		t.Errorf("a typed title that agrees did not confirm the hit: score=%v selected=%v", score, sel)
+	}
+	if score, sel := selects(typed, hit("Matilda Returns")); score >= 1 || sel {
+		t.Errorf("a typed title confirmed a different book: score=%v selected=%v", score, sel)
 	}
 }

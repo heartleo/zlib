@@ -144,3 +144,39 @@ func TestChangeEditLeavesTheOriginalAlone(t *testing.T) {
 		t.Errorf("an edit back to the same text = %+v, %v", again, err)
 	}
 }
+
+// A date is read strictly when typed: what the user wrote is what is written,
+// or the text is refused with the format, never quietly cut to a year.
+func TestChangeEditDateIsStrict(t *testing.T) {
+	plan := planFor(t)
+	for text, want := range map[string]string{
+		"2008": "2008", "2008-01": "2008-01", "2008-1": "2008-01", "2008-01-05": "2008-01-05", "2008-1-5": "2008-01-05",
+		" 2008-01-05 ": "2008-01-05", "2008年1月": "2008-01", "2008年1月5日": "2008-01-05", "2008-02-29": "2008-02-29",
+	} {
+		got, err := plan[FieldPublished].Edit(text)
+		if err != nil || got.New != want {
+			t.Errorf("%q: New = %q, err = %v, want %q", text, got.New, err, want)
+		}
+	}
+	for _, text := range []string{
+		"2008-00-05", "2008-1-00", "2008-02-31", "2009-02-29", "2008-13-05", "2008-04-31", "12/25/2008",
+		"Jan 2008", "2008-01-05 and more", "0999", "20080105",
+	} {
+		if got, err := plan[FieldPublished].Edit(text); err == nil {
+			t.Errorf("%q was accepted as %q", text, got.New)
+		}
+	}
+}
+
+// Dates a catalogue sends are never invented either: an impossible month or
+// day is dropped to the precision that is real.
+func TestNormalizeDateDropsImpossibleParts(t *testing.T) {
+	for in, want := range map[string]string{
+		"2008-00-05": "2008", "2008-1-00": "2008-01", "2008-02-31": "2008-02", "2009-02-29": "2009-02",
+		"2008-13-05": "2008", "2008-04-31": "2008-04", "2008-02-29": "2008-02-29", "2008-12-31": "2008-12-31",
+	} {
+		if got := normalizeDate(in); got != want {
+			t.Errorf("normalizeDate(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

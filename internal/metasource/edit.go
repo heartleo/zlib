@@ -3,6 +3,7 @@ package metasource
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -29,6 +30,38 @@ func (c Change) Editable() bool {
 
 // Edited reports whether the new value was typed by the user.
 func (c Change) Edited() bool { return c.edited }
+
+var (
+	typedDateRe   = regexp.MustCompile(`^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$`)
+	typedDateCnRe = regexp.MustCompile(`^(\d{4})年(?:(\d{1,2})月(?:(\d{1,2})[日号])?)?$`)
+)
+
+// parseTypedDate reads a date the user typed: a year, a year and month, or a
+// full date, with "-" or the Chinese year, month and day characters. Unlike
+// normalizeDate, which makes the best of what a catalogue sends, it accepts
+// only text that is entirely a real date, so nothing the user typed is
+// quietly dropped or invented.
+func parseTypedDate(s string) (string, bool) {
+	m := typedDateRe.FindStringSubmatch(s)
+	if m == nil {
+		m = typedDateCnRe.FindStringSubmatch(s)
+	}
+	if m == nil {
+		return "", false
+	}
+	date := joinDate(m[1], m[2], m[3])
+	// joinDate drops an impossible part; here that means the text was not a date.
+	parts := 1
+	for _, p := range m[2:] {
+		if p != "" {
+			parts++
+		}
+	}
+	if date == "" || strings.Count(date, "-")+1 != parts {
+		return "", false
+	}
+	return date, true
+}
 
 // Edit returns c with its new value replaced by text, read the way the field
 // is written: authors separated by "&", languages and tags by commas, a date
@@ -89,9 +122,9 @@ func (c Change) Edit(text string) (Change, error) {
 		}
 		shown, apply = strings.Join(v, ", "), func(ch *ebookmeta.Changes) { ch.Tags = &v }
 	case FieldPublished:
-		v := normalizeDate(clean(text))
-		if v == "" {
-			return c, errors.New("The date must look like 2008, 2008-01 or 2008-01-05")
+		v, ok := parseTypedDate(clean(text))
+		if !ok {
+			return c, errors.New("The date must look like 2008, 2008-01 or 2008-01-05, and be a real date")
 		}
 		shown, apply = v, func(ch *ebookmeta.Changes) { ch.Published = &v }
 	case "identifier:isbn":

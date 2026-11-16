@@ -41,12 +41,18 @@ const metaSourcesEnv = "ZLIB_METADATA_SOURCES"
 // offline. WeRead uses its own proxy setting (ZLIB_WEREAD_PROXY), like the
 // importer, while the others use rt.
 var newMetaSources = func(rt http.RoundTripper) []metasource.Source {
-	return metasource.NewSources(metasource.ParseSourceNames(os.Getenv(metaSourcesEnv)), metasource.SourceConfig{
+	return metasource.NewSources(metasource.ParseSourceNames(os.Getenv(metaSourcesEnv)), metaSourceConfig(rt))
+}
+
+// metaSourceConfig is what the sources need: the transports and the keys, read
+// from the environment now.
+func metaSourceConfig(rt http.RoundTripper) metasource.SourceConfig {
+	return metasource.SourceConfig{
 		Transport:       rt,
 		WeReadTransport: wereadTransport(os.Getenv(wereadProxyEnv)),
 		GoogleKey:       strings.TrimSpace(os.Getenv(googleBooksKeyEnv)),
 		WeReadKey:       strings.TrimSpace(os.Getenv(wereadAPIKeyEnv)),
-	})
+	}
 }
 
 // metaSourceError words a source failure for the screen, adding the next step
@@ -95,14 +101,24 @@ var metaFetchWriteFlags = []string{
 	"rating", "date", "comments", "cover", "get-cover", "to-opf", "from-opf",
 }
 
+// metaFetchCheckFlags refuses an option that would change or export the file:
+// --fetch only reads. It runs before anything opens, so the interactive page,
+// which could not write that field, never silently ignores the option.
+func metaFetchCheckFlags(cmd *cobra.Command) error {
+	for _, name := range metaFetchWriteFlags {
+		if cmd.Flags().Changed(name) {
+			return &usageError{fmt.Errorf("--fetch only looks metadata up and writes nothing; it cannot be combined with --%s", name)}
+		}
+	}
+	return nil
+}
+
 // metaFetchQuery builds the lookup query: what the file says, overridden by
 // -t, -a and --isbn.
 func metaFetchQuery(cmd *cobra.Command, m *ebookmeta.Metadata) (metasource.Query, error) {
 	flags := cmd.Flags()
-	for _, name := range metaFetchWriteFlags {
-		if flags.Changed(name) {
-			return metasource.Query{}, &usageError{fmt.Errorf("--fetch only looks metadata up and writes nothing; it cannot be combined with --%s", name)}
-		}
+	if err := metaFetchCheckFlags(cmd); err != nil {
+		return metasource.Query{}, err
 	}
 	q := metasource.QueryFromMetadata(m)
 	if flags.Changed("title") {
@@ -167,9 +183,12 @@ type metaFetchErrorJSON struct {
 }
 
 func runMetaFetch(cmd *cobra.Command, path string) error {
+	if err := metaFetchCheckFlags(cmd); err != nil {
+		return err
+	}
 	// On a terminal, without --json or query overrides, the interactive page
 	// does the same lookup and can apply a match.
-	if asJSON, _ := cmd.Flags().GetBool("json"); !asJSON && isInteractive() && !metaFetchHasOverrides(cmd) {
+	if asJSON, _ := cmd.Flags().GetBool("json"); !asJSON && metaIsInteractive() && !metaFetchHasOverrides(cmd) {
 		return runStandaloneShellCommand(metaShellCommand(path))
 	}
 	m, _, err := ebookmeta.ReadFile(path)

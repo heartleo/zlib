@@ -210,7 +210,7 @@ func TestMetaPageEditorTakesAPaste(t *testing.T) {
 	}
 }
 
-func TestMetaPageEditedRowSurvivesGoingBackAndReopening(t *testing.T) {
+func TestMetaPageEditedRowDoesNotSurviveGoingBackAndReopening(t *testing.T) {
 	// Going back to the candidates and reopening plans the fields again from
 	// what the catalogue said, so an edit never leaks into another match.
 	m := editPage(t, nil)
@@ -339,7 +339,7 @@ func TestMetaPageSearchEditWorksAfterNothingMatched(t *testing.T) {
 	if m.stage != metaFailed {
 		t.Fatalf("stage = %v", m.stage)
 	}
-	if !strings.Contains(metaScreen(m), "e ") && !strings.Contains(metaScreen(m), "edit search") {
+	if !strings.Contains(metaScreen(m), "e edit search") || !strings.Contains(metaScreen(m), "Press e to change the title") {
 		t.Errorf("the failed page does not offer to edit the search:\n%s", metaScreen(m))
 	}
 	m, _ = metaStep(t, m, key("e"))
@@ -383,7 +383,8 @@ func TestMetaPageSearchEditRefusesABadISBN(t *testing.T) {
 }
 
 // An ISBN the download or the book supplied is a hint. Editing only the title
-// must leave it one, so a sequel cannot confirm it.
+// must leave it one: it is judged against the title searched, at the hint bar,
+// and typing a new title does not by itself make it the book's own ISBN.
 func TestMetaPageSearchEditKeepsHintISBNsUnconfirmed(t *testing.T) {
 	var queries []metasource.Query
 	hint := metaHint{ISBNs: []string{"9780441013593"}}

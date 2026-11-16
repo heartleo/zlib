@@ -173,9 +173,16 @@ read, with no filter on a group's `scope`.
 
 `SKILL.md` tells an agent to stop and follow `upgrade_info.message` when that
 field appears. That is instruction text from the server, so zlib only notices
-that the field is present and reports a fixed message. Not measured: how the
-gateway reports an invalid key (zlib treats HTTP 401 and 403 as one), its rate
-limits, and whether another account's results differ.
+that the field is present and reports a fixed message.
+
+A lookup through zlib itself (not a script) with only `weread` enabled, a title
+and one author, returned three candidates and no errors: the gateway accepts
+zlib's own `User-Agent` and request body. Two candidates carried an ISBN and
+one only its WeRead book ID, each was edition level, and the category path
+arrived as two tags, one of which (a WeRead shelf name) is not a subject.
+
+Not measured: how the gateway reports an invalid key (zlib treats HTTP 401 and
+403 as one), its rate limits, and whether another account's results differ.
 
 ## ISBNs recorded by a download
 

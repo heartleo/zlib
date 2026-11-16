@@ -184,6 +184,18 @@ select it:
 A guessed ISBN would later be read as an exact ISBN match, so keep one only
 after checking the edition.
 
+The page lets you steer the lookup and fix what it proposes, before anything
+is written:
+
+| Key | Where | What it does |
+| --- | --- | --- |
+| `e` | Candidates, or no match | Edit the title, authors and ISBNs searched for, then search again. Only the search changes, never the file. A file with no title, author or ISBN opens on this editor |
+| `s` | Candidates, or no match | Choose which sources this search asks: Open Library, Google Books, Douban, WeRead. Lasts for this search only and is never saved to `.env`. A source whose key is missing says so |
+| `e` | Fields | Edit the proposed value of the focused row (title, authors, publisher, languages, tags, date, ISBN) before it is written. An invalid value is refused with the reason, and an edited row is marked `edited` |
+
+Each candidate row ends with the sources behind it in brackets, and the
+details say which ISBN the match has, or `no ISBN listed`.
+
 Formats that cannot store a field do not offer it. Redirected output, `--json`
 and `-t`, `-a` or `--isbn` print the list instead.
 
@@ -207,7 +219,8 @@ Exit codes, for redirected output and `--json`: `1` when nothing matched, `2`
 when the file has nothing to search with or `--isbn` is not a valid ISBN, `4`
 when every source was unreachable. On a terminal the interactive page reports
 these cases itself: leaving it with Esc exits `0`, and a file with nothing to
-search with exits `1`.
+search with opens the search editor, so you can type a title, author or ISBN
+(leaving without searching exits `0`).
 
 Google Books answers from a quota shared with other users unless you set an
 API key (`zlib config metadata google-key`, or `ZLIB_GOOGLE_BOOKS_KEY`; see

@@ -20,22 +20,67 @@ const (
 // search starts a fresh lookup for m.query on a fresh channel, dropping the
 // answer of any lookup the page already left.
 func (m metaPageModel) search() (tea.Model, tea.Cmd) {
+	if m.query.Empty() {
+		// Nothing to send: ask what to search for instead.
+		return m.startQueryEdit()
+	}
 	m.stop()
+	m.remember()
 	m.gen++
 	m.stage, m.err, m.res = metaLooking, nil, metasource.Result{}
 	m.run = newMetaRun()
 	return m, tea.Batch(m.spinner.Tick, m.start())
 }
 
+// metaSnapshot is the page as it was before a repeat search began: the stage
+// and results, and the query, lookup and sources that produced them.
+type metaSnapshot struct {
+	stage       metaStage
+	res         metasource.Result
+	err         error
+	query       metasource.Query
+	cursor, top int
+	lookup      metaLookupFunc
+	sources     []metaSourceChoice
+}
+
+// remember keeps the page as it is so Esc can come back to it. Callers do it
+// before they change the query or the sources; a snapshot already taken is
+// kept, and the first search has nothing to keep.
+func (m *metaPageModel) remember() {
+	if m.prev != nil || (m.stage != metaCandidates && m.stage != metaFailed) {
+		return
+	}
+	m.prev = &metaSnapshot{stage: m.stage, res: m.res, err: m.err, query: m.query, cursor: m.cursor, top: m.top,
+		lookup: m.lookup, sources: m.sources}
+}
+
+// abandonSearch stops a repeat search the user gave up on and puts back the
+// results it replaced. A late answer to it is dropped: the generation moves on.
+func (m metaPageModel) abandonSearch() metaPageModel {
+	p := m.prev
+	m.stop()
+	m.gen++
+	m.stage, m.res, m.err, m.query, m.cursor, m.top, m.lookup, m.sources = p.stage, p.res, p.err, p.query, p.cursor, p.top, p.lookup, p.sources
+	m.prev, m.run = nil, newMetaRun()
+	return m
+}
+
 // startQueryEdit opens the editor on the search: title, authors and ISBNs, as
 // they are searched now. Nothing is written to the file by changing them.
 func (m metaPageModel) startQueryEdit() (tea.Model, tea.Cmd) {
+	cmd := m.beginQueryEdit()
+	return m, cmd
+}
+
+// beginQueryEdit opens the search editor on m and returns its first command.
+func (m *metaPageModel) beginQueryEdit() tea.Cmd {
 	var cmd tea.Cmd
 	m.editor, cmd = newMetaEditor("Edit the search", []string{"Title", "Authors", "ISBN"},
 		[]string{m.query.Title, strings.Join(m.query.Authors, " & "), strings.Join(m.query.ISBNs, ", ")}, m.width)
 	m.editor.help = "Authors: separate with &. ISBNs: separate with commas. The file is not changed."
 	m.editing, m.editKind, m.message = true, editQuery, ""
-	return m, cmd
+	return cmd
 }
 
 // acceptQueryEdit searches again with the edited terms, or keeps the editor
@@ -47,6 +92,7 @@ func (m metaPageModel) acceptQueryEdit() (tea.Model, tea.Cmd) {
 		m.editor.err = err.Error()
 		return m, nil
 	}
+	m.remember() // before the query changes
 	m.query, m.editing = q, false
 	return m.search()
 }

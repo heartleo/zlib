@@ -27,7 +27,11 @@ func newStandaloneShellCommand(command string) (shellModel, error) {
 
 func runStandaloneShellCommand(command string) error {
 	if !isInteractive() {
-		return fmt.Errorf("this command requires a terminal; use zlib kindle send <file> for non-interactive delivery")
+		// Only the Kindle commands have a plain form to suggest.
+		if strings.HasPrefix(command, "/kindle") {
+			return fmt.Errorf("this command requires a terminal; use zlib kindle send <file> for non-interactive delivery")
+		}
+		return fmt.Errorf("this command requires a terminal")
 	}
 	m, err := newStandaloneShellCommand(command)
 	if err != nil {

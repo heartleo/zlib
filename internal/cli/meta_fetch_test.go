@@ -32,9 +32,12 @@ func (f *fakeMetaSource) Identify(_ context.Context, q metasource.Query) ([]meta
 
 func useMetaSources(t *testing.T, sources ...metasource.Source) {
 	t.Helper()
-	old := newMetaSources
+	old, oldFor := newMetaSources, newMetaSourcesFor
 	newMetaSources = func(http.RoundTripper) []metasource.Source { return sources }
-	t.Cleanup(func() { newMetaSources = old })
+	// The source panel builds its lookups through newMetaSourcesFor: keep it
+	// offline too, whatever sources are asked for.
+	newMetaSourcesFor = func([]string) []metasource.Source { return sources }
+	t.Cleanup(func() { newMetaSources, newMetaSourcesFor = old, oldFor })
 }
 
 func dune() metasource.Candidate {

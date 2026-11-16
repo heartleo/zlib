@@ -263,14 +263,32 @@ lookup and moves through candidates, fields and writing:
 - **Candidates** list the merged matches, best first. Each row starts with a
   five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
   the title is different, or a percentage for a title match. The pane under the
-  list shows the selected match's details. A source that failed while others
+  list shows the selected match's details. Each row ends with the sources that
+  agreed on it in brackets, such as `[WeRead]` or `[Google Books+Open Library]`,
+  and the details name the ISBN, or say `no ISBN listed` for an edition without
+  one, which is then a guess by title. A source that failed while others
   answered is named on the status line. `e` edits what is searched for: the
   title, authors (separated by `&`) and ISBNs (separated by commas), then
   Enter searches again, Tab moves between the fields and Esc cancels. This
   changes only the search, never the file. An ISBN you type counts as
   confirmed, like `--isbn`; an ISBN the download or the book itself supplied
-  stays a hint while you leave it in the field, so editing only the title does
-  not turn it into a certain match.
+  stays a hint while it is in the field, even if you retype it, and only a
+  different ISBN you type counts as confirmed. A hint confirms a match only
+  when the title searched agrees closely with the result's, so typing the
+  title of the book the hint names is how you say the file is that book, while
+  a different title leaves the match flagged. `s` opens the sources for this search:
+  Open Library, Google Books, Douban and WeRead, each with `[x]` or `[ ]` and why
+  it cannot be turned on (WeRead without `ZLIB_WEREAD_API_KEY` says so, and the
+  key is only reported as set or not set, never shown). Space toggles a source,
+  Enter searches again with the chosen ones and Esc leaves the choice as it was.
+  A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first search
+  used it, even when its key is missing and it can only report that; it can be
+  turned off but not back on without the key. While a repeat search runs, Esc
+  returns to the results it replaced; Esc during the first search closes the
+  page. The choice lasts for this search and is never written to `.env`; the panel says
+  that WeRead sends each title to Tencent under your account. WeRead cannot
+  search by ISBN, so when it is on and the search has no title the status line
+  says so.
 - **Fields** show one row per change as `[x] Field  old → new`. What starts
   selected depends on the match. With `ISBN`, the fields the file leaves empty.
   With a percentage (a title match), the empty fields that describe the book;
@@ -283,14 +301,20 @@ lookup and moves through candidates, fields and writing:
   `e` edits the focused row's new value in place before it is written: the
   title, authors (separated by `&`), publisher, languages and tags (separated
   by commas), date, and ISBN. Enter accepts, and an invalid value stays open
-  with the reason (an ISBN needs a correct check digit, a date must be a year,
-  month or day, a language must be a code such as `en`). An edited row is
+  with the reason (an ISBN needs a correct check digit, a date must be a real
+  date written as `2008`, `2008-01` or `2008-01-05`, a language must be a code
+  such as `en`). While you edit, the editor is the first thing on the page, so
+  it is never pushed off the screen by a long list of fields. An edited row is
   marked `(edited)` and selected. Esc closes only the editor; going back to the
   candidates and reopening restores what the catalogue said. The description,
   cover and catalogue IDs cannot be edited.
 - **Failures** stay on the page. When nothing matched, or no source could be
-  reached, the page names why; `r` retries and `e` changes the search first. A write error keeps the field
-  choices so Apply can be pressed again.
+  reached, the page names why; `r` retries and `e` changes the search first. A
+  file with no title, author or ISBN opens on the search editor instead of being
+  refused, and `r` there asks what to search for rather than sending nothing.
+  The key hints on every page of the lookup shrink with the width, from full
+  labels to shorter ones to the keys alone, so Esc stays visible. A write error
+  keeps the field choices so Apply can be pressed again.
 
 A match with a cover adds a `Cover` row, preselected only when the file has none.
 Applying downloads the image first; a failed download writes nothing and is

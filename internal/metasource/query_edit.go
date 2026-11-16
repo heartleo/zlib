@@ -15,7 +15,9 @@ import (
 // ISBN-10 is read as its ISBN-13). An ISBN the user typed is confirmed, like
 // one passed with --isbn. An ISBN the old query held as unconfirmed, such as a
 // download's hint or one read from the book, stays unconfirmed for as long as
-// it is left in the field: editing only the title must not promote it.
+// it is left in the field, so it is still judged against the title searched
+// (at the stricter hint bar). Typing the title of the book the hint names is
+// the user saying the file is that book, and then confirms it.
 func ParseQueryEdit(old Query, title, authors, isbns string) (Query, error) {
 	q := Query{Title: clean(title), Authors: cleanList(strings.Split(authors, "&"))}
 	split := func(r rune) bool { return r == ',' || r == ';' || r == '\n' }

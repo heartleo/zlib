@@ -1,10 +1,12 @@
 package metasource
 
 import (
+	"fmt"
 	"html"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -230,21 +232,26 @@ func normalizeDate(s string) string {
 	return ""
 }
 
+// joinDate builds YYYY, YYYY-MM or YYYY-MM-DD from the parts of a date, at the
+// precision that is real: an impossible month drops to the year, and an
+// impossible day (0, or past the end of that month) drops to the month.
 func joinDate(y, m, d string) string {
-	pad := func(v string) string {
-		if len(v) == 1 {
-			return "0" + v
-		}
-		return v
-	}
-	if y < "1000" {
+	year, _ := strconv.Atoi(y)
+	if year < 1000 {
 		return ""
 	}
-	if m == "" || m == "0" || pad(m) > "12" {
+	month, _ := strconv.Atoi(m) // "" reads as 0
+	if month < 1 || month > 12 {
 		return y
 	}
-	if d == "" || d == "0" || pad(d) > "31" {
-		return y + "-" + pad(m)
+	day, _ := strconv.Atoi(d)
+	if day < 1 || day > daysIn(year, month) {
+		return fmt.Sprintf("%s-%02d", y, month)
 	}
-	return y + "-" + pad(m) + "-" + pad(d)
+	return fmt.Sprintf("%s-%02d-%02d", y, month, day)
+}
+
+// daysIn is the number of days in a month of a year.
+func daysIn(year, month int) int {
+	return time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
 }

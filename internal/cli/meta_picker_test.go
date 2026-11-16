@@ -52,10 +52,15 @@ func TestMetaCommandWithoutAFileOpensThePickerOnATerminal(t *testing.T) {
 	for _, args := range [][]string{{}, {"--fetch"}} {
 		// The test process has no terminal, so the program itself cannot run:
 		// what matters is that the arguments are accepted and the command
-		// goes on to open the shell, which then reports it needs a terminal.
+		// goes on to start the shell, which then says it needs a terminal. That
+		// message names no Kindle command, which is what a `zlib meta` user
+		// must not be told to use.
 		_, _, err := runMetaWithStderr(t, args...)
-		if err == nil || isUsage(err) {
-			t.Errorf("%v: err = %v, want the command to reach the interactive page", args, err)
+		if err == nil || isUsage(err) || isInteractive() {
+			t.Fatalf("%v: err = %v, want the command to reach the interactive program", args, err)
+		}
+		if !strings.Contains(err.Error(), "requires a terminal") || strings.Contains(strings.ToLower(err.Error()), "kindle") {
+			t.Errorf("%v: err = %v", args, err)
 		}
 	}
 }

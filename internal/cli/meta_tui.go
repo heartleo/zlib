@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	keys "charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -107,6 +108,23 @@ type metaPageModel struct {
 	editKind metaEditKind
 	editRow  int // plan index being edited, when editKind is editValue
 
+	// sources and lookupFor give the page its source panel: what is searched
+	// now, and how to build a lookup for another choice. Both are empty when
+	// the page was built with a fixed lookup. draft is the panel's copy of the
+	// choices, committed only by Enter.
+	sources      []metaSourceChoice
+	lookupFor    metaSourceLookup
+	draft        []metaSourceChoice
+	panel        bool
+	sourceCursor int
+
+	// blink is the editor's first cursor command, for a page that opens on it.
+	blink tea.Cmd
+
+	// prev is the page before a repeat search, which Esc during that search
+	// returns to. It is nil on the first search and once an answer arrives.
+	prev *metaSnapshot
+
 	gen int
 	run *metaRun
 
@@ -165,7 +183,10 @@ func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, o
 	}
 	addScannedISBNs(&m.query, path)
 	if m.query.Empty() {
-		return metaPageModel{}, fmt.Errorf("%s has no title, author or ISBN to search with; set one with zlib meta first", filepath.Base(path))
+		// Nothing to search with yet, but the user can say what to search for:
+		// the page opens on the search editor instead of refusing the file.
+		m.stage, m.err = metaFailed, metasource.ErrNoQuery
+		m.blink = m.beginQueryEdit()
 	}
 	return m, nil
 }
@@ -189,6 +210,9 @@ func newDefaultMetaLookup() metaLookupFunc {
 }
 
 func (m metaPageModel) Init() tea.Cmd {
+	if m.stage == metaFailed && errors.Is(m.err, metasource.ErrNoQuery) {
+		return m.blink // nothing to look up until the user types a search
+	}
 	return tea.Batch(m.spinner.Tick, m.start())
 }
 
@@ -248,6 +272,7 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m metaPageModel) lookedUp(msg metaLookupDone) metaPageModel {
+	m.prev = nil // the answer is the new state; there is nothing to go back to
 	m.res, m.err = msg.res, msg.err
 	if len(m.res.Candidates) == 0 {
 		m.stage = metaFailed
@@ -264,9 +289,15 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.editKey(msg)
 	}
 	k := msg.String()
+	if m.panel {
+		return m.panelKey(k)
+	}
 	switch m.stage {
 	case metaLooking:
 		if k == "esc" || k == "ctrl+c" {
+			if m.prev != nil { // a repeat search: back to the results it replaced
+				return m.abandonSearch(), nil
+			}
 			m.stop()
 			m.cancelled = true
 			return m, tea.Quit
@@ -278,6 +309,8 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "e":
 			return m.startQueryEdit()
+		case "s":
+			return m.openPanel()
 		case "r":
 			return m.search()
 		}
@@ -288,6 +321,8 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "e":
 			return m.startQueryEdit()
+		case "s":
+			return m.openPanel()
 		case "enter":
 			return m.openFields(), nil
 		default:
@@ -448,28 +483,50 @@ func (m metaPageModel) View() tea.View {
 	subtitle := safeText(filepath.Base(m.path)) + " · " + strings.ToUpper(string(m.format))
 	if m.editing && m.editKind == editQuery {
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.editor.view(max(20, m.width)), "",
-			uiKey("enter", "search"), uiKey("tab", "next field"), uiKey("esc", "cancel"))
+			m.keysFor(
+				[][2]string{{"enter", "search"}, {"tab", "next field"}, {"esc", "cancel"}},
+				[][2]string{{"enter", "search"}, {"tab", ""}, {"esc", "cancel"}},
+				[][2]string{{"enter", ""}, {"tab", ""}, {"esc", ""}})...)
+	}
+	if m.panel {
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.panelBody(), m.message,
+			m.keysFor(
+				[][2]string{{"↑/↓", "move"}, {"space", "toggle"}, {"enter", "search"}, {"esc", "cancel"}},
+				[][2]string{{"↑/↓", ""}, {"space", ""}, {"enter", "search"}, {"esc", "cancel"}},
+				[][2]string{{"↑/↓", ""}, {"space", ""}, {"enter", ""}, {"esc", ""}})...)
 	}
 	switch m.stage {
 	case metaLooking:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.lookingBody(), "", uiKey("esc", "cancel"))
 	case metaFailed:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.failedBody(), "",
-			uiKey("e", "edit search"), uiKey("r", "retry"), uiKey("esc", "back"))
+			m.keysFor(
+				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"r", "retry"}, {"esc", "back"}},
+				[][2]string{{"e", ""}, {"s", ""}, {"r", ""}, {"esc", ""}})...)
 	case metaCandidates:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.candidatesBody(), m.sourceNote(),
-			uiKey("↑/↓", "choose"), uiKey("enter", "review fields"), uiKey("e", "edit search"), uiKey("esc", "back"))
+			m.keysFor(
+				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"s", ""}, {"esc", ""}})...)
 	case metaFields:
 		if m.editing {
-			return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsRows()+"\n\n"+m.editor.view(max(20, m.width)), "",
-				uiKey("enter", "accept"), uiKey("esc", "cancel"))
+			// The editor leads the page, so a long list of fields can never push
+			// it off the screen; the row's current value follows it.
+			return screenView(m.width, m.height, "Fix metadata", subtitle, m.editor.view(max(20, m.width))+"\n\n"+m.editingContext(), "",
+				m.keysFor(
+					[][2]string{{"enter", "accept"}, {"esc", "cancel"}},
+					[][2]string{{"enter", ""}, {"esc", ""}})...)
 		}
 		status := m.message
 		if status == "" && len(m.hidden) > 0 {
 			status = strings.ToUpper(string(m.format)) + " files cannot store: " + strings.Join(m.hidden, ", ")
 		}
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), status,
-			uiKey("↑/↓", "move"), uiKey("space", "select"), uiKey("e", "edit"), uiKey("ctrl+s", "apply"), uiKey("esc", "back"))
+			m.keysFor(
+				[][2]string{{"↑/↓", "move"}, {"space", "select"}, {"e", "edit"}, {"ctrl+s", "apply"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "move"}, {"space", ""}, {"e", "edit"}, {"ctrl+s", "apply"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", ""}, {"space", ""}, {"e", ""}, {"ctrl+s", ""}, {"esc", ""}})...)
 	}
 	note := "Writing the file…"
 	for i, ch := range m.plan {
@@ -478,6 +535,55 @@ func (m metaPageModel) View() tea.View {
 		}
 	}
 	return screenView(m.width, m.height, "Fix metadata", subtitle, "  "+m.spinner.View()+note, "")
+}
+
+// editingContext says what the row being edited holds in the file now, so the
+// user sees what the edit replaces without the list of fields.
+func (m metaPageModel) editingContext() string {
+	if m.editRow >= len(m.plan) {
+		return ""
+	}
+	old := safeText(oneLine(m.plan[m.editRow].Old))
+	if old == "" {
+		old = "(empty)"
+	}
+	return "  " + colorFaint("In the file now: "+old)
+}
+
+// keysFor picks the key hints for the page's width: the first wording in tiers
+// whose hints all fit on one line, the last if none does. The sources key is
+// left out when the page has no source panel. A hint with an empty label is
+// the key alone.
+func (m metaPageModel) keysFor(tiers ...[][2]string) []keys.Binding {
+	width := m.width
+	if width == 0 {
+		width = 80
+	}
+	build := func(tier [][2]string) ([]keys.Binding, int) {
+		var out []keys.Binding
+		cells := 0
+		for _, kd := range tier {
+			if kd[0] == "s" && len(m.sources) == 0 {
+				continue
+			}
+			if len(out) > 0 {
+				cells += 3 // the separator between hints
+			}
+			// help draws a key, a space and its label, even when the label is empty.
+			cells += ansi.StringWidth(kd[0]) + 1 + ansi.StringWidth(kd[1])
+			out = append(out, uiKey(kd[0], kd[1]))
+		}
+		return out, cells
+	}
+	var last []keys.Binding
+	for _, tier := range tiers {
+		bindings, cells := build(tier)
+		if cells <= width {
+			return bindings
+		}
+		last = bindings
+	}
+	return last
 }
 
 func (m metaPageModel) lookingBody() string {
@@ -496,6 +602,10 @@ func (m metaPageModel) lookingBody() string {
 func (m metaPageModel) failedBody() string {
 	var lines []string
 	switch {
+	case errors.Is(m.err, metasource.ErrNoQuery):
+		lines = append(lines, "  Nothing to search with yet", "",
+			"    This file has no title, author or ISBN.",
+			"    Press e to enter one and search.")
 	case errors.Is(m.err, metasource.ErrAllSourcesFailed):
 		lines = append(lines, "  "+colorRed(symbolError)+" No catalogue could be reached", "")
 	default:
@@ -506,6 +616,9 @@ func (m metaPageModel) failedBody() string {
 	for _, e := range m.res.Errors {
 		lines = append(lines, "    "+colorFaint(metaSourceError(e)))
 	}
+	if note := m.titleNote(); note != "" {
+		lines = append(lines, "    "+colorFaint(note))
+	}
 	if errors.Is(m.err, metasource.ErrAllSourcesFailed) {
 		lines = append(lines, "", "    Check the connection or ZLIB_PROXY, then press r to retry.")
 	}
@@ -514,12 +627,12 @@ func (m metaPageModel) failedBody() string {
 
 // sourceNote tells which sources failed while others answered.
 func (m metaPageModel) sourceNote() string {
-	if len(m.res.Errors) == 0 {
-		return ""
+	var parts []string
+	for _, e := range m.res.Errors {
+		parts = append(parts, metaSourceError(e))
 	}
-	parts := make([]string, len(m.res.Errors))
-	for i, e := range m.res.Errors {
-		parts[i] = metaSourceError(e)
+	if note := m.titleNote(); note != "" {
+		parts = append(parts, note)
 	}
 	return strings.Join(parts, "; ")
 }
@@ -537,6 +650,11 @@ func (m metaPageModel) candidatesBody() string {
 		}
 		if y := c.Published; y != "" {
 			label += " (" + safeText(y[:min(4, len(y))]) + ")"
+		}
+		// Where the match came from, so an entry from one catalogue is not
+		// taken for a merge of several.
+		if len(c.Sources) > 0 {
+			label += " [" + safeText(strings.Join(c.Sources, "+")) + "]"
 		}
 		lines = append(lines, styledListRow(label, i == m.cursor, width, currentTheme))
 	}
@@ -568,6 +686,15 @@ func metaDetailRows(c metasource.Candidate) [][2]string {
 	}
 	add("Match", metaMatchLabel(c))
 	add("Sources", strings.Join(c.Sources, ", "))
+	// An edition says which ISBN it has, or that it has none: a match without
+	// one is a guess about the edition. A work-level result names no edition.
+	if c.EditionLevel {
+		if isbn := c.ISBN(); isbn != "" {
+			add("ISBN", isbn)
+		} else {
+			add("ISBN", "no ISBN listed")
+		}
+	}
 	add("Publisher", c.Publisher)
 	add("Published", c.Published)
 	add("Languages", strings.Join(c.Languages, ", "))

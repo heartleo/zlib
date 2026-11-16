@@ -375,16 +375,6 @@ func TestMetaPageLooksUpOnceHoweverOftenInitRuns(t *testing.T) {
 	}
 }
 
-func TestMetaPageRefusesAFileWithNothingToSearchWith(t *testing.T) {
-	p := writeTestEPUB(t)
-	if err := ebookmeta.WriteFile(p, &ebookmeta.Changes{Title: new("")}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := newMetaPageModel(p, nil, nil); err == nil || !strings.Contains(err.Error(), "no title, author or ISBN") {
-		t.Fatalf("err = %v", err)
-	}
-}
-
 func TestShellMetaCommandOpensThePage(t *testing.T) {
 	useMetaSources(t, &fakeMetaSource{name: "Fake"})
 	if !slices.ContainsFunc(shellCommands, func(c shellCommand) bool { return c.name == "meta" }) {
