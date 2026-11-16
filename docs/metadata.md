@@ -67,8 +67,9 @@ zlib meta book.epub --fetch -t "Dune" -a "Frank Herbert"
 zlib meta book.epub --fetch --isbn 9780441013593
 ```
 
-`--fetch` asks Open Library and Google Books about the book (and Douban, once
-you [enable it](#douban)) and lists the best matches. It only reads: it never changes the file, and it cannot be
+`--fetch` asks Open Library and Google Books about the book (and Douban or
+WeRead, once you enable them: [Douban](#douban), [WeRead](#weread)) and lists
+the best matches. It only reads: it never changes the file, and it cannot be
 combined with the field options. `-t`, `-a` and `--isbn` set what to search
 for instead of what the file says. To use a match, copy the values into the
 field options above; the terminal interface applies a match for you.
@@ -120,14 +121,49 @@ the title to a third party. Turn it on with a source list:
 ZLIB_METADATA_SOURCES=douban,openlibrary,google zlib meta book.epub --fetch
 ```
 
-Add the line to `.env` to keep it. The names are `openlibrary`, `google` and
-`douban`; an unknown name is reported as a failing source. An ISBN is resolved
+Add the line to `.env` to keep it. The names are `openlibrary`, `google`,
+`douban` and `weread`; an unknown name is reported as a failing source. An ISBN is resolved
 through Douban's ISBN address and a title through its mobile search, then up to
 three entries are read. Editions of one title stay separate results, so you
 choose the edition. Requests carry no cookie or login, but the mobile
 endpoints need a `Referer` of `m.douban.com`, which is sent. Douban throttles:
-a refusal is reported like any other source failing. Covers are not taken from
-Douban.
+a refusal is reported like any other source failing. Covers and tags are not
+taken from Douban.
+
+A result found by title carries the Douban entry's ID but no ISBN, because
+Douban's detail response has none, so it is a `title match` whose edition
+fields start unselected. A result found by an ISBN carries that ISBN.
+
+### WeRead
+
+WeRead has Chinese e-book entries with the publisher, publication date,
+author and category as WeRead lists them. It is off by default, and it needs
+an API key: the one Tencent issues for its agent gateway (see
+[Tencent/WeChatReading](https://github.com/Tencent/WeChatReading)). Set it and
+list the source:
+
+```sh
+ZLIB_WEREAD_API_KEY=<your key>
+ZLIB_METADATA_SOURCES=openlibrary,google,weread
+```
+
+Keep both lines in `.env`; the key is never printed, logged or put in a URL.
+The key belongs to your WeRead account, so each title a lookup sends reaches
+Tencent under your identity. If `weread` is listed without a key, the lookup
+reports that source as failing and sends nothing.
+
+This key is separate from the [WeRead login](weread.md) that imports books,
+and the source does not use that login. Lookups use `ZLIB_WEREAD_PROXY` when it
+is set, like the importer, and otherwise the system proxy; `ZLIB_PROXY` does
+not apply.
+
+The gateway cannot search by ISBN, so a lookup needs a title: it searches the
+title, reads up to three close matches, and compares the ISBN each entry
+carries, which is often empty, with the wanted one. A result without an ISBN
+is a `title match` whose edition fields start unselected, and two WeRead
+entries of one title stay separate results. Covers are not taken from WeRead.
+A gateway notice asking clients to upgrade is reported as a failing source
+with fixed wording; its text is never shown or followed.
 
 On a terminal, plain `--fetch` opens an interactive page (also available as
 `/meta` in the [terminal interface](tui.md)): pick a match, review each field
@@ -175,8 +211,9 @@ API key (`zlib config metadata google-key`, or `ZLIB_GOOGLE_BOOKS_KEY`; see
 and the results come from Open Library. A rejected key is reported as such.
 
 Lookups and cover downloads use `ZLIB_PROXY` when it is set, otherwise the
-system proxy; the Z-Library session is never sent. Unlike WeRead, which has its
-own proxy setting, they share the Z-Library one. See
+system proxy; the Z-Library session is never sent. The one exception is the
+`weread` source, which follows `ZLIB_WEREAD_PROXY` like the WeRead importer.
+See
 [Metadata lookup research](metadata-research.md).
 
 ## Formats

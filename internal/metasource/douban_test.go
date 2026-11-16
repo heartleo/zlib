@@ -52,9 +52,10 @@ func doubanServer(t *testing.T, known map[string]string, search string, details 
 	return newDouban(srv.URL, srv.URL, nil), &paths
 }
 
-const doubanThreeBody = `{"title":"三体","author":["刘慈欣"],"press":["重庆出版社"],"pubdate":["2008-1"],
-"intro":"文化大革命如火如荼进行的同时。\n军方探寻外星文明的绝秘计划取得了突破性进展。",
-"tags":[{"name":"三体"},{"name":"科幻"},{"name":"刘慈欣"},{"name":"小说"}]}`
+// The detail response as the live service returns it: lists of strings, an
+// empty tags list, and no isbn, language or publisher key.
+const doubanThreeBody = `{"id":"2567698","title":"三体","author":["刘慈欣"],"press":["重庆出版社"],"pubdate":["2008-1"],
+"pages":["302"],"tags":[],"intro":"文化大革命如火如荼进行的同时。\n军方探寻外星文明的绝秘计划取得了突破性进展。"}`
 
 func TestDoubanByISBNResolvesRedirectWithoutFollowingIt(t *testing.T) {
 	src, paths := doubanServer(t, map[string]string{"9787536692930": "2567698"}, "",
@@ -69,8 +70,7 @@ func TestDoubanByISBNResolvesRedirectWithoutFollowingIt(t *testing.T) {
 		!reflect.DeepEqual(c.Languages, []string{"zh"}) {
 		t.Fatalf("candidate = %+v", c)
 	}
-	// Tags that only repeat the title or the author are dropped.
-	if !reflect.DeepEqual(c.Tags, []string{"科幻", "小说"}) {
+	if len(c.Tags) != 0 {
 		t.Errorf("tags = %v", c.Tags)
 	}
 	if !strings.Contains(c.Description, "\n军方") {
@@ -95,7 +95,7 @@ func TestDoubanByISBNResolvesRedirectWithoutFollowingIt(t *testing.T) {
 func TestDoubanTitleSearchFetchesDetailsForTheBestTitles(t *testing.T) {
 	search := `{"total":4,"items":[
 {"target_type":"book","target":{"id":"1","title":"三体Ⅱ"}},
-{"target_type":"book","target":{"id":2567698,"title":"三体"}},
+{"target_type":"book","target":{"id":"2567698","title":"三体"}},
 {"target_type":"book","target":{"id":"6414884","title":"三体"}},
 {"target_type":"movie","target":{"id":"9","title":"三体"}}]}`
 	src, paths := doubanServer(t, nil, search, map[string]string{
@@ -210,7 +210,7 @@ func TestSourceNames(t *testing.T) {
 	if !reflect.DeepEqual(names, []string{"Open Library", "Google Books"}) {
 		t.Errorf("default sources = %v", names)
 	}
-	srcs := NewSources(nil, []string{"douban", "doubann"}, "")
+	srcs := NewSources([]string{"douban", "doubann"}, SourceConfig{})
 	if srcs[0].Name() != "Douban" {
 		t.Errorf("first = %s", srcs[0].Name())
 	}

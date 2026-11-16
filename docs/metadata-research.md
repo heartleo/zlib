@@ -119,15 +119,63 @@ shares none of it.
 | An exact title wins over a subtitle match, and several editions of one title are never collapsed to the first hit | Results are ranked by title similarity and each Douban entry stays its own candidate; two different Douban entries are never pooled, like two ISBNs |
 | A sequel whose title ends in a Roman numeral glyph such as `Ⅱ` must not collapse into the first volume | `foldText` turns Roman numeral glyphs into digits, so the volume is part of the key (before, the glyph was dropped and the sequel scored as a perfect match) |
 
-Not taken from Douban: covers (another host, with hotlink rules), ratings and
-series. Tags are the first five readers' labels that do not repeat the title or
-an author.
+Not taken from Douban: covers (another host, with hotlink rules), ratings,
+series and tags. The detail response's `tags` list was empty in the
+measurement below, and `douban-cli` reads tags from a separate endpoint.
 
 The endpoints are the ones `douban-cli` uses and are not an API Douban
-documents. The field names come from that project's source and have not been
-measured against the live service. The detail response's `isbn` field in
-particular is unverified: it is parsed when present and validated, and nothing
-depends on it, because an ISBN lookup already knows the ISBN it asked for.
+documents. Live measurements, status codes and key names only, made with
+`curl` and a `Referer` on the matching Douban host:
+
+| Request | Result |
+| --- | --- |
+| `GET book.douban.com/isbn/<isbn>/` | 301 with an absolute `Location` of `https://book.douban.com/subject/<id>/`. The response sets a `bid` cookie, which is ignored |
+| `GET m.douban.com/rexxar/api/v2/search/book?q=…&start=0&count=3` | 200, JSON. Top level: `banned` (an empty string), `count`, `items`. Item: `layout`, `target`, `target_id`, `target_type` (`book`), `type_name`. Target: `id` (a string), `title`, `card_subtitle`, `abstract`, `cover_url`, `rating`, `uri`. A query with raw non-ASCII bytes in the URL was refused with 400 `Bad Request`; the percent-encoded query is accepted |
+| `GET m.douban.com/rexxar/api/v2/book/<id>` | 200, JSON. Used: `title` (string), `author`, `press`, `pubdate` (lists of strings, a date such as `2008-1`) and `intro` (string). Present and unused: `pages`, `translator`, `subtitle`, `book_subtitle`, `catalog`, `book_series`, `cover_url` and others. Absent: `isbn`, `isbn10`, `isbn13`, `language`, `publisher`, `original_title`, `summary` |
+
+Consequences: a title search yields candidates that name their edition by the
+Douban subject ID only, with no ISBN, which is why two of them are never
+pooled and why one never inherits another source's ISBN match. Only an ISBN
+lookup returns an ISBN, the one it asked for. Reading an ISBN from a
+subject's HTML page would need page scraping, which zlib does not do.
+
+Not measured: whether Douban accepts zlib's own `User-Agent` (the
+measurements used the `curl` default), and its throttling limits.
+
+## WeRead
+
+Studied revision: `Tencent/WeChatReading` at
+`d98e66ee60a8c7bcd35da549d0643c4470439643` (Apache-2.0), the `SKILL.md`,
+`search.md` and `book.md` files. It documents the agent gateway Tencent
+publishes for API-key clients. The source is written in Go from that
+documentation and the measurements below, with no code taken from it.
+
+| Item | Detail |
+| --- | --- |
+| Endpoint | `POST https://i.weread.qq.com/api/agent/gateway`, JSON body with `api_name`, the parameters flat beside it and `skill_version` (`1.0.5`, from `SKILL.md`; the README says `1.0.4`) |
+| Auth | `Authorization: Bearer <key>`; the key is bound to the user's account |
+| Used | `/store/search` (`keyword`, `scope` = 10 for e-books, `count`) and `/book/info` (`bookId`) |
+
+Live measurements, status codes and key names only, made with a key of the
+user's own:
+
+| Request | Result |
+| --- | --- |
+| `/_list` | 200. Keys: `errcode`, `usage`, `request_format`, `apis` (18 entries with `api_name`, `description`, `need_login`, `params`, `response_fields`) |
+| `/store/search` by a title, `scope` 10 | 200. Keys: `sid`, `hasMore` (an int), `results`. Each result is a group (`title`, `scope`, `scopeCount`, `currentCount`, `type`, `books`) holding one book here, so five books came back as five groups, all with `scope` 17 for a request of 10. Each book has `bookInfo` with `bookId` (a string), `title` and `author`, and no `isbn` or `publisher` |
+| `/store/search` with an ISBN as `keyword` | 200, but the books returned were unrelated to that ISBN, so an ISBN is not a usable search term |
+| `/book/info` | 200. Keys: `bookId` (a string), `deepLink`, `readerLink`, `title`, `author`, `cover`, `newRatingCount`, `intro`, `newRating`, `category`, `publisher`, `newRatingDetail`, `isbn`, `publishTime`. `isbn` was an empty string for the entry measured; `publishTime` is a string like `2022-04-01 00:00:00`; `category` is a path joined with `-`; there is no `translator` key. No `upgrade_info` key and `errcode` 0 appeared in any response |
+
+Consequences: a lookup has to search by title, then read each plausible hit
+with `/book/info`; an entry often has no ISBN, so it is named by its WeRead
+book ID and treated like a Douban title hit; and the search groups must all be
+read, with no filter on a group's `scope`.
+
+`SKILL.md` tells an agent to stop and follow `upgrade_info.message` when that
+field appears. That is instruction text from the server, so zlib only notices
+that the field is present and reports a fixed message. Not measured: how the
+gateway reports an invalid key (zlib treats HTTP 401 and 403 as one), its rate
+limits, and whether another account's results differ.
 
 ## ISBNs recorded by a download
 

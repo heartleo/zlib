@@ -24,7 +24,6 @@ const (
 	// doubanDetailLimit caps the detail requests one title search makes, so a
 	// lookup stays a handful of requests against a throttled service.
 	doubanDetailLimit = 3
-	doubanMaxTags     = 5
 )
 
 // Douban looks books up on Douban Books, the catalogue that covers Chinese
@@ -144,7 +143,7 @@ type doubanSearch struct {
 	Items  []struct {
 		TargetType string `json:"target_type"`
 		Target     struct {
-			ID    any    `json:"id"`
+			ID    string `json:"id"`
 			Title string `json:"title"`
 		} `json:"target"`
 	} `json:"items"`
@@ -171,7 +170,7 @@ func (s *Douban) searchByTitle(ctx context.Context, q Query) ([]Candidate, error
 	var hits []hit
 	seen := map[string]bool{}
 	for _, it := range res.Items {
-		id := idString(it.Target.ID)
+		id := it.Target.ID
 		t := clean(it.Target.Title)
 		if it.TargetType != "book" || !doubanIDRe.MatchString(id) || t == "" || seen[id] {
 			continue
@@ -202,19 +201,15 @@ func (s *Douban) searchByTitle(ctx context.Context, q Query) ([]Candidate, error
 	return out, nil
 }
 
-// doubanBook is the mobile detail response. List fields come as strings, lists
-// of strings or lists of objects, so they are decoded by flexList.
+// doubanBook is the part of the mobile detail response a candidate uses. The
+// list fields are lists of strings. The response has no ISBN, language or
+// publisher key, and its tags list can be empty, so none of those are read.
 type doubanBook struct {
-	Title    string          `json:"title"`
-	Author   json.RawMessage `json:"author"`
-	Press    json.RawMessage `json:"press"`
-	Pub      json.RawMessage `json:"publisher"`
-	PubDate  json.RawMessage `json:"pubdate"`
-	Intro    string          `json:"intro"`
-	Summary  string          `json:"summary"`
-	Tags     json.RawMessage `json:"tags"`
-	ISBN     string          `json:"isbn"`
-	Language string          `json:"language"`
+	Title   string   `json:"title"`
+	Author  []string `json:"author"`
+	Press   []string `json:"press"`
+	PubDate []string `json:"pubdate"`
+	Intro   string   `json:"intro"`
 }
 
 // detail reads one subject, or returns nil when it has no usable title.
@@ -230,47 +225,24 @@ func (s *Douban) detail(ctx context.Context, id string) (*Candidate, error) {
 	c := &Candidate{
 		EditionLevel: true,
 		Title:        title,
-		Publisher:    firstNonEmpty(append(flexList(b.Press), flexList(b.Pub)...)...),
-		Description:  ebookmeta.CleanText(stripHTML(firstNonEmpty(b.Intro, b.Summary))),
+		Publisher:    firstNonEmpty(cleanList(b.Press)...),
+		Description:  ebookmeta.CleanText(stripHTML(b.Intro)),
 	}
-	for _, a := range flexList(b.Author) {
-		if name := cleanAuthorForQuery(a); name != "" {
+	for _, a := range b.Author {
+		if name := cleanAuthorForQuery(clean(a)); name != "" {
 			c.Authors = append(c.Authors, name)
 		}
 	}
 	c.Authors = cleanList(c.Authors)
-	if d := flexList(b.PubDate); len(d) > 0 {
+	if d := cleanList(b.PubDate); len(d) > 0 {
 		c.Published = normalizeDate(d[0])
 	}
-	// Douban's tags are readers' labels; keep the first few and drop the ones
-	// that only repeat the title or an author.
-	titleKey := string(foldText(title))
-	for _, t := range flexList(b.Tags) {
-		k := string(foldText(t))
-		if k == "" || k == titleKey {
-			continue
-		}
-		dup := false
-		for _, a := range c.Authors {
-			if personKey(a) == k {
-				dup = true
-			}
-		}
-		if !dup {
-			c.Tags = append(c.Tags, t)
-		}
-		if len(c.Tags) == doubanMaxTags {
-			break
-		}
-	}
-	c.Tags = cleanList(c.Tags)
-	if l := normalizeLanguage(b.Language); l != "" {
-		c.Languages = []string{l}
-	} else if hasHan(title) {
+	// The response names no language; a Han-only title is Chinese.
+	if hasHan(title) {
 		c.Languages = []string{"zh"}
 	}
-	// Not every response carries an ISBN; a malformed one is dropped.
-	c.Identifiers = appendIdentifier(c.Identifiers, "isbn", NormalizeISBN(b.ISBN))
+	// The response has no ISBN, so a title hit names its edition by the
+	// Douban subject ID alone. An ISBN lookup adds the ISBN it asked for.
 	c.Identifiers = appendIdentifier(c.Identifiers, "douban", id)
 	return c, nil
 }
@@ -292,46 +264,6 @@ func (s *Douban) getJSON(ctx context.Context, rawURL, referer string, v any) err
 		return fmt.Errorf("unreadable response: %w", err)
 	}
 	return nil
-}
-
-// flexList reads a JSON string, list of strings, or list of objects with a
-// name, title or tag, into cleaned strings.
-func flexList(raw json.RawMessage) []string {
-	if len(raw) == 0 {
-		return nil
-	}
-	var one string
-	if json.Unmarshal(raw, &one) == nil {
-		return cleanList([]string{one})
-	}
-	var items []json.RawMessage
-	if json.Unmarshal(raw, &items) != nil {
-		return nil
-	}
-	var out []string
-	for _, it := range items {
-		var s string
-		if json.Unmarshal(it, &s) == nil {
-			out = append(out, s)
-			continue
-		}
-		var o struct{ Name, Title, Tag string }
-		if json.Unmarshal(it, &o) == nil {
-			out = append(out, firstNonEmpty(o.Name, o.Title, o.Tag))
-		}
-	}
-	return cleanList(out)
-}
-
-// idString renders a JSON id that may be a number or a string.
-func idString(v any) string {
-	switch x := v.(type) {
-	case string:
-		return x
-	case float64:
-		return fmt.Sprintf("%.0f", x)
-	}
-	return ""
 }
 
 // hasHan reports whether s contains a Han ideograph and no kana or hangul, so

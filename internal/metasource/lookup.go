@@ -116,17 +116,33 @@ const (
 	NameOpenLibrary = "openlibrary"
 	NameGoogle      = "google"
 	NameDouban      = "douban"
+	NameWeRead      = "weread"
 )
 
-// DefaultSourceNames are the sources used when none are chosen. Douban is not
-// among them: it sends the title to a third party that needs a Referer, so it
-// is enabled on purpose.
+// DefaultSourceNames are the sources used when none are chosen. Douban and
+// WeRead are not among them: Douban sends the title to a third party that
+// needs a Referer, and WeRead sends it to Tencent under the user's own API
+// key, so each is enabled on purpose.
 var DefaultSourceNames = []string{NameOpenLibrary, NameGoogle}
+
+// SourceConfig carries what the built-in sources need. The zero value builds
+// the sources on the default transport with no keys.
+type SourceConfig struct {
+	// Transport is used by Open Library, Google Books and Douban.
+	Transport http.RoundTripper
+	// WeReadTransport is used by WeRead, which has its own proxy setting.
+	WeReadTransport http.RoundTripper
+	// GoogleKey is an optional Google Books API key; without one Google's
+	// shared quota applies.
+	GoogleKey string
+	// WeReadKey is the WeRead API key the weread source needs.
+	WeReadKey string
+}
 
 // DefaultSources returns the default sources. googleKey is an optional Google
 // Books API key; without one Google's shared quota applies.
 func DefaultSources(rt http.RoundTripper, googleKey string) []Source {
-	return NewSources(rt, DefaultSourceNames, googleKey)
+	return NewSources(DefaultSourceNames, SourceConfig{Transport: rt, GoogleKey: googleKey})
 }
 
 // ParseSourceNames splits a comma-separated source list such as
@@ -147,16 +163,18 @@ func ParseSourceNames(list string) []string {
 // NewSources builds the named sources in order. An unknown name becomes a
 // source that fails with a clear error, so a typo shows up in the lookup's
 // error list instead of silently dropping a catalogue.
-func NewSources(rt http.RoundTripper, names []string, googleKey string) []Source {
+func NewSources(names []string, cfg SourceConfig) []Source {
 	var out []Source
 	for _, n := range names {
 		switch n {
 		case NameOpenLibrary:
-			out = append(out, NewOpenLibrary(rt))
+			out = append(out, NewOpenLibrary(cfg.Transport))
 		case NameGoogle:
-			out = append(out, NewGoogleBooks(rt, googleKey))
+			out = append(out, NewGoogleBooks(cfg.Transport, cfg.GoogleKey))
 		case NameDouban:
-			out = append(out, NewDouban(rt))
+			out = append(out, NewDouban(cfg.Transport))
+		case NameWeRead:
+			out = append(out, NewWeRead(cfg.WeReadTransport, cfg.WeReadKey))
 		default:
 			out = append(out, unknownSource{name: n})
 		}
@@ -169,7 +187,7 @@ type unknownSource struct{ name string }
 
 func (u unknownSource) Name() string { return u.name }
 func (u unknownSource) Identify(context.Context, Query) ([]Candidate, error) {
-	return nil, errors.New("unknown source (use openlibrary, google or douban)")
+	return nil, errors.New("unknown source (use openlibrary, google, douban or weread)")
 }
 
 // ErrorSummary joins the per-source errors into one line.

@@ -26,24 +26,38 @@ var errNoMetadataMatch = errors.New("no matching metadata found")
 // the sources are built, never logged, and shown masked everywhere.
 const googleBooksKeyEnv = "ZLIB_GOOGLE_BOOKS_KEY"
 
+// wereadAPIKeyEnv names the WeRead API key the weread metadata source sends.
+// It is the key Tencent issues for its agent gateway, not the WeRead login
+// that imports books, and it is bound to the user's account. It is read when
+// the sources are built and never logged or shown.
+const wereadAPIKeyEnv = "ZLIB_WEREAD_API_KEY"
+
 // metaSourcesEnv selects the lookup sources, a comma-separated list of
-// openlibrary, google and douban. Unset means openlibrary and google; douban
-// is opt-in.
+// openlibrary, google, douban and weread. Unset means openlibrary and google;
+// douban and weread are opt-in.
 const metaSourcesEnv = "ZLIB_METADATA_SOURCES"
 
 // newMetaSources builds the lookup sources; tests replace it to stay
-// offline.
+// offline. WeRead uses its own proxy setting (ZLIB_WEREAD_PROXY), like the
+// importer, while the others use rt.
 var newMetaSources = func(rt http.RoundTripper) []metasource.Source {
-	return metasource.NewSources(rt, metasource.ParseSourceNames(os.Getenv(metaSourcesEnv)),
-		strings.TrimSpace(os.Getenv(googleBooksKeyEnv)))
+	return metasource.NewSources(metasource.ParseSourceNames(os.Getenv(metaSourcesEnv)), metasource.SourceConfig{
+		Transport:       rt,
+		WeReadTransport: wereadTransport(os.Getenv(wereadProxyEnv)),
+		GoogleKey:       strings.TrimSpace(os.Getenv(googleBooksKeyEnv)),
+		WeReadKey:       strings.TrimSpace(os.Getenv(wereadAPIKeyEnv)),
+	})
 }
 
 // metaSourceError words a source failure for the screen, adding the next step
-// when the Google Books key is the problem.
+// when an API key is the problem.
 func metaSourceError(e metasource.SourceError) string {
 	text := safeText(e.Error())
-	if errors.Is(e, metasource.ErrKeyRejected) || errors.Is(e, metasource.ErrKeyMalformed) {
+	switch {
+	case errors.Is(e, metasource.ErrKeyRejected) || errors.Is(e, metasource.ErrKeyMalformed):
 		text += ". Check the key with `zlib config metadata`"
+	case errors.Is(e, metasource.ErrWeReadKeyRejected) || errors.Is(e, metasource.ErrWeReadKeyMalformed):
+		text += ". Check " + wereadAPIKeyEnv
 	}
 	return text
 }

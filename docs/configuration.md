@@ -125,7 +125,8 @@ zlib config network proxy --json
 | `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery | Unset |
 | `ZLIB_WEREAD_PROXY` | WeRead proxy URL, or `direct` for no proxy | Standard `HTTPS_PROXY` environment settings |
 | `ZLIB_GOOGLE_BOOKS_KEY` | Google Books API key for metadata lookups (20 to 128 letters, digits, `-` and `_`). Keep it private | Unset (shared quota) |
-| `ZLIB_METADATA_SOURCES` | Metadata lookup sources, separated by commas: `openlibrary`, `google`, `douban`. See [Douban](metadata.md#douban) | `openlibrary,google` |
+| `ZLIB_METADATA_SOURCES` | Metadata lookup sources, separated by commas: `openlibrary`, `google`, `douban`, `weread`. See [Douban](metadata.md#douban) and [WeRead](metadata.md#weread) | `openlibrary,google` |
+| `ZLIB_WEREAD_API_KEY` | WeRead agent gateway API key for the `weread` metadata source. Not the WeRead login. Keep it private | Unset |
 
 See [env.example](env.example) for sample values.
 
