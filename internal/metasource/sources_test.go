@@ -110,7 +110,7 @@ func TestGoogleBooks(t *testing.T) {
 "language":"en","industryIdentifiers":[{"type":"ISBN_10","identifier":"0140328726"},{"type":"ISBN_13","identifier":"9780140328721"}],
 "imageLinks":{"thumbnail":"http://books.google.com/books/content?id=abc"}}}]}`))
 	})
-	got, err := newGoogleBooks(srv.URL, nil).Identify(context.Background(), Query{ISBNs: []string{"9780140328721"}})
+	got, err := newGoogleBooks(srv.URL, nil, "").Identify(context.Background(), Query{ISBNs: []string{"9780140328721"}})
 	if err != nil || len(got) != 1 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -127,7 +127,7 @@ func TestGoogleBooksRateLimitIsASourceError(t *testing.T) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte(`{"error":{"code":429}}`))
 	})
-	_, err := newGoogleBooks(srv.URL, nil).Identify(context.Background(), Query{Title: "Dune"})
+	_, err := newGoogleBooks(srv.URL, nil, "").Identify(context.Background(), Query{Title: "Dune"})
 	if !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("err = %v", err)
 	}
@@ -142,7 +142,7 @@ func TestGoogleBooksQuotesTitleAndAuthor(t *testing.T) {
 		}
 		w.Write([]byte(`{}`))
 	})
-	if _, err := newGoogleBooks(srv.URL, nil).Identify(context.Background(),
+	if _, err := newGoogleBooks(srv.URL, nil, "").Identify(context.Background(),
 		Query{Title: "The War of Art: Winning the Inner Creative Battle", Authors: []string{"Pressfield, Steven"}}); err != nil {
 		t.Fatal(err)
 	}

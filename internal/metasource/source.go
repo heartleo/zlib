@@ -25,6 +25,11 @@ var (
 	ErrNoQuery = errors.New("nothing to look up: no title, author or ISBN")
 	// ErrAllSourcesFailed means every source failed and none found anything.
 	ErrAllSourcesFailed = errors.New("every metadata source failed")
+	// ErrKeyRejected means a source refused the configured API key.
+	ErrKeyRejected = errors.New("the API key was rejected (invalid, restricted, or the Books API is not enabled for it)")
+	// ErrKeyMalformed means the configured API key cannot be a key at all, so
+	// it was not sent.
+	ErrKeyMalformed = errors.New("the configured API key is malformed")
 )
 
 // Query describes the book to look up.
@@ -157,7 +162,7 @@ func newHTTPClient(rt http.RoundTripper, timeout time.Duration, policy hostPolic
 
 // get fetches rawURL and decodes a JSON body into v.
 func get(ctx context.Context, c *http.Client, rawURL string, v any) error {
-	body, status, err := fetch(ctx, c, rawURL, "application/json")
+	body, status, err := fetch(ctx, c, rawURL, "application/json", nil)
 	if err != nil {
 		return err
 	}
@@ -179,13 +184,16 @@ func get(ctx context.Context, c *http.Client, rawURL string, v any) error {
 var errNotFound = errors.New("not found")
 
 // fetch reads at most maxBodyBytes of the response.
-func fetch(ctx context.Context, c *http.Client, rawURL, accept string) ([]byte, int, error) {
+func fetch(ctx context.Context, c *http.Client, rawURL, accept string, extra http.Header) ([]byte, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, 0, err
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", accept)
+	for k, v := range extra {
+		req.Header[k] = v
+	}
 	resp, err := c.Do(req)
 	if err != nil {
 		return nil, 0, stripURL(err)

@@ -105,7 +105,7 @@ var shellCommands = []shellCommand{
 	{"most-popular", "Show most popular books"},
 	{"history", "Show download history"},
 	{"profile", "Show account profile and download quota"},
-	{"config", "View or edit network, download, Kindle and WeRead settings"},
+	{"config", "View or edit network, download, search, Kindle, WeRead and metadata settings"},
 	{"theme", "Choose a color theme"},
 	{"doctor", "Find working Z-Library domains"},
 	{"login", "Log in with email and password"},
@@ -646,7 +646,7 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 			page = "home"
 		}
 		if !isSettingsListPage(page) && page != "domain" {
-			m.setError("Use /config network, /config domain, /config download, /config search, /config kindle or /config weread")
+			m.setError("Use /config network, /config domain, /config download, /config search, /config kindle, /config weread or /config metadata")
 			return nil
 		}
 		model, err := newSettingsModel(context.Background(), store, page)

@@ -91,6 +91,52 @@ func TestMetaPageFlagsAnISBNWithADifferentTitle(t *testing.T) {
 	if !strings.Contains(metaScreen(m), "ISBN matches but the title is different") {
 		t.Errorf("fields page lacks the warning:\n%s", metaScreen(m))
 	}
+	// Probably another book: the rows are offered, none starts selected.
+	if len(m.plan) == 0 {
+		t.Fatal("no rows offered")
+	}
+	for i, ch := range m.plan {
+		if m.selected[i] {
+			t.Errorf("%s starts selected for a probable other book", ch.Field)
+		}
+	}
+	if screen := metaScreen(m); strings.Contains(screen, "[x]") || !strings.Contains(screen, "(may be another book)") {
+		t.Errorf("rows are not all unchecked and tagged:\n%s", screen)
+	}
+	// Ctrl+S with nothing selected writes nothing.
+	if m, cmd := metaStep(t, m, metaKey("ctrl+s")); cmd != nil || m.stage != metaFields {
+		t.Error("applied an empty selection")
+	}
+}
+
+func TestMetaPageMarksGuessedEditionRowsForATitleOnlyMatch(t *testing.T) {
+	c := dune()
+	c.Languages, c.Tags = []string{"en"}, []string{"Classics"}
+	c.Sources, c.Match, c.Score = []string{"Google Books"}, metasource.MatchTitle, 0.83
+	m := metaPageAfterLookup(t, answerWith(metasource.Result{Candidates: []metasource.Candidate{c}}, nil, nil), nil)
+	m.current.Languages = nil
+	m, _ = metaStep(t, m, metaKey("enter"))
+	screen := metaScreen(m)
+	for _, want := range []string{
+		"Found by title only: check the edition",
+		"[x] Authors", "[x] Description", "[x] Tags",
+		"[ ] Publisher", "[ ] Languages", "[ ] Published", "[ ] ID isbn",
+		"(check edition)",
+	} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("screen lacks %q:\n%s", want, screen)
+		}
+	}
+	// Selecting a guessed row is a deliberate act.
+	for i, ch := range m.plan {
+		if ch.Field == metasource.FieldPublisher {
+			m.focus = i
+		}
+	}
+	m, _ = metaStep(t, m, metaKey("space"))
+	if !strings.Contains(metaScreen(m), "[x] Publisher") {
+		t.Errorf("a guessed row could not be selected:\n%s", metaScreen(m))
+	}
 }
 
 func TestMetaPagePreselectsOnlyEmptyFields(t *testing.T) {

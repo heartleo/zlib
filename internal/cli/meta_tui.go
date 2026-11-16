@@ -469,7 +469,7 @@ func (m metaPageModel) failedBody() string {
 			"    Editions without an ISBN, and books in other languages, are often missing.")
 	}
 	for _, e := range m.res.Errors {
-		lines = append(lines, "    "+colorFaint(safeText(e.Error())))
+		lines = append(lines, "    "+colorFaint(metaSourceError(e)))
 	}
 	if errors.Is(m.err, metasource.ErrAllSourcesFailed) {
 		lines = append(lines, "", "    Check the connection or ZLIB_PROXY, then press r to retry.")
@@ -482,7 +482,11 @@ func (m metaPageModel) sourceNote() string {
 	if len(m.res.Errors) == 0 {
 		return ""
 	}
-	return safeText(m.res.ErrorSummary())
+	parts := make([]string, len(m.res.Errors))
+	for i, e := range m.res.Errors {
+		parts[i] = metaSourceError(e)
+	}
+	return strings.Join(parts, "; ")
 }
 
 func (m metaPageModel) candidatesBody() string {
@@ -547,9 +551,12 @@ func metaDetailRows(c metasource.Candidate) [][2]string {
 func (m metaPageModel) fieldsBody() string {
 	width := max(20, m.width)
 	lines := []string{"  " + colorFaint("From ") + safeText(m.cand.Title) + colorFaint(" · "+strings.Join(m.cand.Sources, ", ")), ""}
-	if m.cand.Match == metasource.MatchISBN && m.cand.Score < 1 {
-		warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
+	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
+	switch {
+	case m.cand.Match == metasource.MatchISBN && m.cand.Score < 1:
 		lines = append(lines, "  "+warn.Render("The ISBN matches but the title is different: check this is the right book."), "")
+	case m.cand.Match != metasource.MatchISBN:
+		lines = append(lines, "  "+warn.Render("Found by title only: check the edition before keeping its ISBN, publisher, date or language."), "")
 	}
 	for i, ch := range m.plan {
 		box := "[ ]"
@@ -561,8 +568,15 @@ func (m metaPageModel) fieldsBody() string {
 			old = "(empty)"
 		}
 		label := fmt.Sprintf("%s %-12s %s → %s", box, metaFieldLabel(ch.Field), old, safeText(oneLine(ch.New)))
+		var notes []string
 		if !ch.Fill {
-			label += "  (replaces)"
+			notes = append(notes, "replaces")
+		}
+		if ch.Note != "" {
+			notes = append(notes, ch.Note)
+		}
+		if len(notes) > 0 {
+			label += "  (" + strings.Join(notes, ", ") + ")"
 		}
 		lines = append(lines, styledListRow(label, m.focus == i, width, currentTheme))
 	}

@@ -51,7 +51,11 @@ Changed:
 - **Tags are a capped union**, most-mentioned first, with catalogue
   housekeeping and subject headings dropped, instead of the smallest set.
 - **Replacing a value is always an explicit choice.** The default plan only
-  fills empty fields. A `uuid` is never taken from a catalogue.
+  fills empty fields, and only as far as the match is certain: after a
+  title-only match, edition-specific fields (publisher, date, language,
+  identifiers) are offered but not selected, and after an ISBN match whose
+  title disagrees nothing is selected. Writing a guessed ISBN would make the
+  next lookup treat it as exact. A `uuid` is never taken from a catalogue.
 
 Covers are fetched only when the user selects them. Calibre downloads covers
 from every source and keeps the best by a per-source priority and then by
@@ -107,4 +111,11 @@ only:
 - Coverage of Chinese-language books is thin in both catalogues.
 - A title search is only as good as the title in the file. ISBNs give exact
   editions.
-- There is no API key setting, so Google results depend on the shared quota.
+- Without a Google Books API key, Google answers from a shared quota and
+  often refuses. An optional key (`ZLIB_GOOGLE_BOOKS_KEY`, set with
+  `zlib config metadata`) gives a lookup its own quota. It is sent in the
+  `x-goog-api-key` header, which Google accepts in place of the `key` query
+  parameter (a deliberately invalid key is refused with 400 `API_KEY_INVALID`
+  either way), so it never appears in a URL, a log or an error. A rejected key
+  and a key over its quota are reported as such, and a malformed value is not
+  sent at all.

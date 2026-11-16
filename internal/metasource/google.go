@@ -1,10 +1,13 @@
 package metasource
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -16,22 +19,36 @@ const (
 	sourceGoogle = "Google Books"
 )
 
-// GoogleBooks queries the Google Books v1 API without a key. Without one the
-// quota is shared and a request may be refused with ErrRateLimited, which a
-// lookup reports for this source only.
+// GoogleBooks queries the Google Books v1 API. Without an API key the quota
+// is shared and a request may be refused with ErrRateLimited, which a lookup
+// reports for this source only. A key gives the caller its own quota.
+//
+// The key is sent in the x-goog-api-key header, never in the URL, so it does
+// not reach logs, error text or a Referer, and the client refuses redirects
+// off the Google host, so it cannot be sent anywhere else.
 type GoogleBooks struct {
 	base   string
 	client *http.Client
+	key    string
 }
+
+// apiKeyRe is the shape of a Google API key: letters, digits, "-" and "_".
+// It also keeps a configured value from smuggling anything into a header.
+var apiKeyRe = regexp.MustCompile(`^[A-Za-z0-9_-]{20,128}$`)
+
+// ValidAPIKey reports whether s can be a Google API key.
+func ValidAPIKey(s string) bool { return apiKeyRe.MatchString(s) }
 
 // NewGoogleBooks returns the source for rt (nil for the default transport).
-func NewGoogleBooks(rt http.RoundTripper) *GoogleBooks {
-	return newGoogleBooks(googleBase, rt)
+// key may be empty. A malformed key is not sent: every lookup then fails with
+// ErrKeyMalformed, rather than quietly falling back to the shared quota.
+func NewGoogleBooks(rt http.RoundTripper, key string) *GoogleBooks {
+	return newGoogleBooks(googleBase, rt, key)
 }
 
-func newGoogleBooks(base string, rt http.RoundTripper) *GoogleBooks {
+func newGoogleBooks(base string, rt http.RoundTripper, key string) *GoogleBooks {
 	u, _ := url.Parse(base)
-	return &GoogleBooks{base: base, client: newHTTPClient(rt, 20*time.Second, hostPolicy{strings.ToLower(u.Host)}, u.Scheme)}
+	return &GoogleBooks{base: base, key: strings.TrimSpace(key), client: newHTTPClient(rt, 20*time.Second, hostPolicy{strings.ToLower(u.Host)}, u.Scheme)}
 }
 
 func (*GoogleBooks) Name() string { return sourceGoogle }
@@ -60,6 +77,9 @@ type gbVolumes struct {
 }
 
 func (s *GoogleBooks) Identify(ctx context.Context, q Query) ([]Candidate, error) {
+	if s.key != "" && !ValidAPIKey(s.key) {
+		return nil, ErrKeyMalformed
+	}
 	var terms string
 	switch {
 	case len(q.ISBNs) > 0:
@@ -80,12 +100,29 @@ func (s *GoogleBooks) Identify(ctx context.Context, q Query) ([]Candidate, error
 		"printType":  {"books"},
 		"fields":     {"items(id,volumeInfo(title,subtitle,authors,publisher,publishedDate,description,categories,language,industryIdentifiers,imageLinks/thumbnail))"},
 	}.Encode()
-	var res gbVolumes
-	if err := get(ctx, s.client, u, &res); err != nil {
-		if errors.Is(err, errNotFound) {
-			return nil, nil
-		}
+	var hdr http.Header
+	if s.key != "" {
+		hdr = http.Header{"X-Goog-Api-Key": {s.key}}
+	}
+	body, status, err := fetch(ctx, s.client, u, "application/json", hdr)
+	if err != nil {
 		return nil, err
+	}
+	switch {
+	case status == http.StatusTooManyRequests && s.key != "":
+		return nil, fmt.Errorf("%w for this API key", ErrRateLimited)
+	case status == http.StatusTooManyRequests:
+		return nil, ErrRateLimited
+	case s.key != "" && (status == http.StatusForbidden || status == http.StatusBadRequest && bytes.Contains(body, []byte("API_KEY_INVALID"))):
+		return nil, ErrKeyRejected
+	case status == http.StatusNotFound:
+		return nil, nil
+	case status != http.StatusOK:
+		return nil, fmt.Errorf("unexpected HTTP status %d", status)
+	}
+	var res gbVolumes
+	if err := json.Unmarshal(body, &res); err != nil {
+		return nil, fmt.Errorf("unreadable response: %w", err)
 	}
 	var out []Candidate
 	for _, it := range res.Items {

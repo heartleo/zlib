@@ -3,24 +3,45 @@ package metasource
 import (
 	"html"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
 
 // foldText reduces s to the characters that identify it: lower case, no
-// punctuation or spaces, full-width ASCII narrowed. CJK text has no spaces
-// to split on, so every comparison here works on runes, not words.
+// punctuation or spaces, full-width ASCII narrowed, Roman numeral glyphs
+// turned into digits. CJK text has no spaces to split on, so every
+// comparison here works on runes, not words.
 func foldText(s string) []rune {
 	out := make([]rune, 0, len(s))
 	for _, r := range s {
 		if r >= 0xFF01 && r <= 0xFF5E { // full-width ASCII
 			r -= 0xFEE0
 		}
+		// Ⅰ to Ⅻ and ⅰ to ⅻ: a volume number, as in "三体Ⅱ". They are not
+		// letters or digits to Unicode, so without this "三体Ⅱ" would fold to
+		// the same key as "三体".
+		if n := romanGlyphValue(r); n > 0 {
+			out = append(out, []rune(strconv.Itoa(n))...)
+			continue
+		}
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			out = append(out, unicode.ToLower(r))
 		}
 	}
 	return out
+}
+
+// romanGlyphValue returns the value of a single-glyph Roman numeral from 1 to
+// 12 (U+2160 to U+216B, U+2170 to U+217B), or 0.
+func romanGlyphValue(r rune) int {
+	switch {
+	case r >= 0x2160 && r <= 0x216B:
+		return int(r-0x2160) + 1
+	case r >= 0x2170 && r <= 0x217B:
+		return int(r-0x2170) + 1
+	}
+	return 0
 }
 
 var (
@@ -176,7 +197,9 @@ var (
 		"jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
 		"jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12",
 	}
-	isoDateRe  = regexp.MustCompile(`^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?:[T ].*)?$`)
+	isoDateRe = regexp.MustCompile(`^(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?(?:[T ].*)?$`)
+	// "2008年1月5日", "2008年1月" and "2008年", as Chinese catalogues write them.
+	cnDateRe   = regexp.MustCompile(`(\d{4})\s*年(?:\s*(\d{1,2})\s*月(?:\s*(\d{1,2})\s*[日号])?)?`)
 	textDateRe = regexp.MustCompile(`(?i)\b(?:(\d{1,2})\s+)?([a-z]{3})[a-z]*\.?\s*(?:(\d{1,2}),?\s+)?(\d{4})\b`)
 	// A four-digit year not part of a longer number; "c1999" counts.
 	yearOnlyRe = regexp.MustCompile(`(?:^|\D)(1[0-9]{3}|20[0-9]{2})(?:\D|$)`)
@@ -187,6 +210,9 @@ var (
 func normalizeDate(s string) string {
 	s = strings.TrimSpace(s)
 	if m := isoDateRe.FindStringSubmatch(s); m != nil {
+		return joinDate(m[1], m[2], m[3])
+	}
+	if m := cnDateRe.FindStringSubmatch(s); m != nil {
 		return joinDate(m[1], m[2], m[3])
 	}
 	if m := textDateRe.FindStringSubmatch(s); m != nil {

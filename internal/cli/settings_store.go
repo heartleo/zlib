@@ -11,11 +11,20 @@ import (
 	"strings"
 
 	"github.com/heartleo/zlib/internal/config"
+	"github.com/heartleo/zlib/internal/metasource"
 	zlib "github.com/heartleo/zlib/internal/zlib"
 	"github.com/joho/godotenv"
 )
 
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv}
+// settingKeys lists the settings backed by .env files and the environment, in
+// the order store.values returns them. New keys go at the end: a few pages
+// still index values by position.
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv}
+
+// googleKeyNotSet is what the key row shows when there is no key. It is not a
+// value: displaySetting leaves it alone and masks everything else.
+const googleKeyNotSet = "Not set (shared quota)"
+
 var settingsEnvironment map[string]string
 
 func captureSettingsEnvironment() {
@@ -117,6 +126,8 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Value, v.Source = "3", "Default"
 			case searchExtensionsEnv:
 				v.Value, v.Source = "Any format", "Default"
+			case googleBooksKeyEnv:
+				v.Value, v.Source = googleKeyNotSet, "Default"
 			}
 		}
 		values = append(values, v)
@@ -125,6 +136,13 @@ func (s settingsStore) values() ([]settingValue, error) {
 }
 
 func displaySetting(key, value string) string {
+	// An API key is a credential: every screen and --json shows it masked.
+	if key == googleBooksKeyEnv {
+		if strings.TrimSpace(value) == "" || value == googleKeyNotSet {
+			return value
+		}
+		return "Configured (hidden)"
+	}
 	if key == wereadProxyEnv && strings.EqualFold(strings.TrimSpace(value), wereadProxyDirect) {
 		return "Direct (no proxy)"
 	}
@@ -166,6 +184,11 @@ func validateSetting(key, value string) (string, error) {
 		}
 	case wereadProxyEnv:
 		return validateWeReadProxy(value)
+	case googleBooksKeyEnv:
+		// The message never repeats the value: it is a credential.
+		if !metasource.ValidAPIKey(value) {
+			return "", fmt.Errorf("a Google API key is 20 to 128 letters, digits, - and _")
+		}
 	case downloadDirEnvVar:
 		path, err := expandTilde(value)
 		if err != nil {

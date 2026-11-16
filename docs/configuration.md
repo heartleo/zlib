@@ -45,9 +45,11 @@ zlib config kindle security
 zlib config weread
 zlib config weread account
 zlib config weread proxy
+zlib config metadata
+zlib config metadata google-key
 ```
 
-`zlib config` shows network, download, search, Kindle and WeRead settings together. The
+`zlib config` shows network, download, search, Kindle, WeRead and metadata settings together. The
 subcommands open the same TUI at a specific section or field. Use arrow keys
 or Tab to select, Enter to edit, and Esc to return to the selected setting.
 The settings list keeps its controls and save feedback next to the fields;
@@ -87,8 +89,16 @@ For Kindle, Reset clears an address or restores the default SMTP host or port.
   connects without any proxy, or enter an `http`, `https`, `socks5` or
   `socks5h` URL. Ctrl+T checks that WeRead answers through the value, without
   logging in. `ZLIB_PROXY` never applies to WeRead.
+- **Google Books key:** an optional API key for [metadata lookups](metadata.md).
+  Without one, Google Books answers from a quota shared with other users, so a
+  lookup often reports it as rate limited and relies on Open Library. A key
+  gives you your own quota. Create one for the Books API in the Google Cloud
+  console. The editor opens empty and masks what you type: the saved key is
+  never shown, in the TUI or in `--json`, which prints `Configured (hidden)`.
+  Enter on an empty box keeps the saved key; press Ctrl+R, then Enter, to remove
+  it. The key is sent only to Google, in a request header, never in a URL.
 
-Network, download and search changes are saved to `~/.config/zlib/.env`, preserving unrelated settings.
+Network, download, search and metadata changes are saved to `~/.config/zlib/.env`, preserving unrelated settings.
 Kindle address and SMTP server settings are saved to `~/.config/zlib/kindle.json`.
 The UI reports when process or working-directory settings override a saved
 network or download value. It does not change login cookies. If the SMTP password
@@ -107,13 +117,14 @@ zlib config network proxy --json
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `ZLIB_DOMAIN` | EAPI domain | Saved session domain for authenticated commands |
-| `ZLIB_PROXY` | HTTP, HTTPS or SOCKS proxy URL | Standard `HTTP_PROXY` / `HTTPS_PROXY` environment settings |
+| `ZLIB_PROXY` | HTTP, HTTPS or SOCKS proxy URL for Z-Library, and for online metadata lookups and cover downloads (`zlib meta --fetch`, `/meta`) | Standard `HTTP_PROXY` / `HTTPS_PROXY` environment settings |
 | `ZLIB_DOWNLOAD_DIR` | Download destination when `--dir` is omitted | Current directory |
 | `ZLIB_SEARCH_EXTENSIONS` | Default TUI and CLI search extensions, separated by commas | Unset (any format) |
 | `ZLIB_DOWNLOAD_RETRIES` | Retries for interrupted downloads and HTTP 502/503/504 | `3` |
 | `ZLIB_THEME` | Override the saved terminal theme | Saved preference |
 | `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery | Unset |
 | `ZLIB_WEREAD_PROXY` | WeRead proxy URL, or `direct` for no proxy | Standard `HTTPS_PROXY` environment settings |
+| `ZLIB_GOOGLE_BOOKS_KEY` | Google Books API key for metadata lookups (20 to 128 letters, digits, `-` and `_`). Keep it private | Unset (shared quota) |
 
 See [env.example](env.example) for sample values.
 

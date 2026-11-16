@@ -22,10 +22,24 @@ import (
 // errNoMetadataMatch means every source answered and none knew the book.
 var errNoMetadataMatch = errors.New("no matching metadata found")
 
+// googleBooksKeyEnv names the optional Google Books API key. It is read when
+// the sources are built, never logged, and shown masked everywhere.
+const googleBooksKeyEnv = "ZLIB_GOOGLE_BOOKS_KEY"
+
 // newMetaSources builds the lookup sources; tests replace it to stay
 // offline.
 var newMetaSources = func(rt http.RoundTripper) []metasource.Source {
-	return metasource.DefaultSources(rt)
+	return metasource.DefaultSources(rt, strings.TrimSpace(os.Getenv(googleBooksKeyEnv)))
+}
+
+// metaSourceError words a source failure for the screen, adding the next step
+// when the Google Books key is the problem.
+func metaSourceError(e metasource.SourceError) string {
+	text := safeText(e.Error())
+	if errors.Is(e, metasource.ErrKeyRejected) || errors.Is(e, metasource.ErrKeyMalformed) {
+		text += ". Check the key with `zlib config metadata`"
+	}
+	return text
 }
 
 // metaTransport returns the transport for metadata lookups: ZLIB_PROXY when
@@ -138,7 +152,7 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 	stderr := cmd.ErrOrStderr()
 	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning).Render("!")
 	for _, e := range res.Errors {
-		lipgloss.Fprintf(stderr, "%s %s\n", warn, safeText(e.Error()))
+		lipgloss.Fprintf(stderr, "%s %s\n", warn, metaSourceError(e))
 	}
 	if errors.Is(err, metasource.ErrAllSourcesFailed) {
 		return fmt.Errorf("%w", err)

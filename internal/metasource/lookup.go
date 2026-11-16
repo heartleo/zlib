@@ -111,9 +111,10 @@ func cmpDefault(v, def time.Duration) time.Duration {
 	return v
 }
 
-// DefaultSources returns the built-in sources.
-func DefaultSources(rt http.RoundTripper) []Source {
-	return []Source{NewOpenLibrary(rt), NewGoogleBooks(rt)}
+// DefaultSources returns the built-in sources. googleKey is an optional
+// Google Books API key; without one Google's shared quota applies.
+func DefaultSources(rt http.RoundTripper, googleKey string) []Source {
+	return []Source{NewOpenLibrary(rt), NewGoogleBooks(rt, googleKey)}
 }
 
 // ErrorSummary joins the per-source errors into one line.

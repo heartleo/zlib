@@ -88,8 +88,19 @@ What it does:
 
 On a terminal, plain `--fetch` opens an interactive page (also available as
 `/meta` in the [terminal interface](tui.md)): pick a match, review each field
-as `old → new`, and write the ones you choose. Only fields the file leaves empty
-start selected, so nothing already in the file is replaced unless you select it.
+as `old → new`, and write the ones you choose. What starts selected depends on
+how sure the match is, and nothing already in the file is replaced unless you
+select it:
+
+| Match | Starts selected |
+| --- | --- |
+| `ISBN match` | Every field the file leaves empty |
+| `title match` | Empty fields that describe the book (authors, description, tags, cover). The publisher, date, language and every identifier, which differ between editions, are shown tagged `check edition` and start unselected |
+| `ISBN match, title differs` | Nothing: the rows are tagged `may be another book` |
+
+A guessed ISBN would later be read as an exact ISBN match, so keep one only
+after checking the edition.
+
 Formats that cannot store a field do not offer it. Redirected output, `--json`
 and `-t`, `-a` or `--isbn` print the list instead.
 
@@ -109,10 +120,21 @@ With `--json`, the document has the `query`, the ranked `candidates` (with
 `match`, `score`, `sources`, `edition_level` and the fields) and any
 per-source `errors`.
 
-Exit codes: `1` when nothing matched, `2` when the file has nothing to search
-with or `--isbn` is not a valid ISBN, `4` when every source was unreachable.
-Lookups use `ZLIB_PROXY` when it is set, otherwise the system proxy; the
-Z-Library session is never sent. See [Metadata lookup research](metadata-research.md).
+Exit codes, for redirected output and `--json`: `1` when nothing matched, `2`
+when the file has nothing to search with or `--isbn` is not a valid ISBN, `4`
+when every source was unreachable. On a terminal the interactive page reports
+these cases itself: leaving it with Esc exits `0`, and a file with nothing to
+search with exits `1`.
+
+Google Books answers from a quota shared with other users unless you set an
+API key (`zlib config metadata google-key`, or `ZLIB_GOOGLE_BOOKS_KEY`; see
+[Configuration](configuration.md)). Without one it often reports `rate limited`
+and the results come from Open Library. A rejected key is reported as such.
+
+Lookups and cover downloads use `ZLIB_PROXY` when it is set, otherwise the
+system proxy; the Z-Library session is never sent. Unlike WeRead, which has its
+own proxy setting, they share the Z-Library one. See
+[Metadata lookup research](metadata-research.md).
 
 ## Formats
 

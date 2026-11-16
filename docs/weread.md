@@ -151,7 +151,8 @@ detail.
 
 ## Proxy
 
-`ZLIB_PROXY` applies only to Z-Library. WeRead requests use the system proxy
+`ZLIB_PROXY` does not apply to WeRead (it covers Z-Library and metadata
+lookups). WeRead requests use the system proxy
 (`HTTPS_PROXY`) unless you set **WeRead proxy**:
 
 ```sh

@@ -2,6 +2,8 @@ package metasource
 
 import (
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/heartleo/zlib/internal/ebookmeta"
@@ -9,6 +11,7 @@ import (
 
 func fullCandidate() Candidate {
 	c := cand("A", "Dune", []string{"Frank Herbert"}, "9780441013593")
+	c.Match, c.Score = MatchISBN, 1 // a confirmed match: ISBN and title agree
 	c.Publisher, c.Published, c.Description = "Ace", "2005-08-02", "A desert planet."
 	c.Languages, c.Tags = []string{"en"}, []string{"Fiction", "Classics"}
 	c.Identifiers = append(c.Identifiers,
@@ -119,5 +122,82 @@ func TestPlanIgnoresAWorkLevelYearAsPublicationDate(t *testing.T) {
 	c.EditionLevel = true
 	if got := fields(Plan(&ebookmeta.Metadata{}, c)); !reflect.DeepEqual(got, []string{"title", "published"}) {
 		t.Fatalf("plan = %v", got)
+	}
+}
+
+// selection lists which fields of plan start selected.
+func selection(plan []Change) (on, off []string) {
+	for _, c := range plan {
+		if c.DefaultSelected() {
+			on = append(on, string(c.Field))
+		} else {
+			off = append(off, string(c.Field))
+		}
+	}
+	return on, off
+}
+
+func TestPlanForATitleOnlyMatchLeavesEditionFieldsUnselected(t *testing.T) {
+	c := fullCandidate()
+	c.Match, c.Score = MatchTitle, 0.82
+	c.CoverURL = "https://covers.openlibrary.org/b/id/1-L.jpg"
+	plan := Plan(&ebookmeta.Metadata{Title: "Dune"}, c)
+	on, off := selection(plan)
+
+	// What describes the book as a whole is still offered by default.
+	for _, want := range []string{"authors", "description", "tags", "cover"} {
+		if !slices.Contains(on, want) {
+			t.Errorf("%s should start selected: on = %v", want, on)
+		}
+	}
+	// What differs between editions is a guess: shown, tagged, not selected.
+	for _, want := range []string{"publisher", "languages", "published", "identifier:isbn", "identifier:google", "identifier:openlibrary"} {
+		if !slices.Contains(off, want) {
+			t.Errorf("%s must not start selected for a title match: off = %v", want, off)
+		}
+	}
+	for _, ch := range plan {
+		wantNote := ""
+		if editionField(ch.Field) {
+			wantNote = NoteCheckEdition
+		}
+		if ch.Note != wantNote {
+			t.Errorf("%s note = %q, want %q", ch.Field, ch.Note, wantNote)
+		}
+	}
+	if changes := BuildChanges(plan, Change.DefaultSelected); changes.Publisher != nil || changes.Published != nil || len(changes.Identifiers) != 0 || changes.Languages != nil {
+		t.Errorf("the default selection would write a guessed edition: %+v", changes)
+	}
+}
+
+func TestPlanForAnISBNMatchWithADifferentTitleSelectsNothing(t *testing.T) {
+	c := fullCandidate()
+	c.Match, c.Score = MatchISBN, 0.5
+	c.CoverURL = "https://covers.openlibrary.org/b/id/1-L.jpg"
+	plan := Plan(&ebookmeta.Metadata{Title: "Dune"}, c)
+	if len(plan) < 5 {
+		t.Fatalf("the rows should still be offered: %v", fields(plan))
+	}
+	if on, _ := selection(plan); len(on) != 0 {
+		t.Errorf("a probable other book preselected %v", on)
+	}
+	for _, ch := range plan {
+		if ch.Note != NoteOtherBook {
+			t.Errorf("%s note = %q", ch.Field, ch.Note)
+		}
+	}
+	if BuildChanges(plan, Change.DefaultSelected) != nil {
+		t.Error("the default selection would write something")
+	}
+}
+
+func TestPlanTreatsAnUnscoredCandidateAsAGuess(t *testing.T) {
+	c := fullCandidate()
+	c.Match, c.Score = "", 0
+	on, _ := selection(Plan(&ebookmeta.Metadata{Title: "Dune"}, c))
+	for _, f := range on {
+		if f == "publisher" || f == "published" || f == "languages" || strings.HasPrefix(f, "identifier:") {
+			t.Errorf("%s preselected for a candidate with no recorded match", f)
+		}
 	}
 }

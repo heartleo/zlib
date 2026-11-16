@@ -33,20 +33,42 @@ type Change struct {
 	Field Field
 	// Old and New are display text; Old is "" when the field is empty.
 	Old, New string
-	// Fill is true when the file has no value yet. Only fills are applied
-	// by default: replacing what a file already says needs a decision.
+	// Fill is true when the file has no value yet. Replacing what a file
+	// already says always needs an explicit decision.
 	Fill bool
+	// Note warns about the row when the match is not certain: NoteCheckEdition
+	// or NoteOtherBook. It is "" for a confirmed match.
+	Note string
 
-	apply    func(*ebookmeta.Changes)
-	coverURL string
+	preselect bool
+	apply     func(*ebookmeta.Changes)
+	coverURL  string
 }
+
+// Notes on rows taken from a match that is not certain.
+const (
+	// NoteCheckEdition marks a field that differs between editions, taken
+	// from a match found by title alone: it may describe another edition.
+	NoteCheckEdition = "check edition"
+	// NoteOtherBook marks every row of a match whose ISBN agrees but whose
+	// title does not: it is probably another book.
+	NoteOtherBook = "may be another book"
+)
 
 // CoverURL is where a FieldCover change gets its image, or "".
 func (c Change) CoverURL() string { return c.coverURL }
 
 // DefaultSelected reports whether the change is applied unless the user
-// opts out: fills yes, replacements no.
-func (c Change) DefaultSelected() bool { return c.Fill }
+// opts out. Only fills are, and only when the match is sure of the book (and,
+// for edition-specific fields, of the edition): a title-only match leaves
+// publisher, date, language and identifiers unselected, and a match whose
+// ISBN agrees but whose title differs selects nothing.
+func (c Change) DefaultSelected() bool { return c.preselect }
+
+// editionField reports whether a field differs between editions of a book.
+func editionField(f Field) bool {
+	return f == FieldPublisher || f == FieldPublished || f == FieldLanguages || strings.HasPrefix(string(f), "identifier:")
+}
 
 // Plan lists what cand would change in cur. Fields the candidate lacks, and
 // fields that already agree, are left out. The file's own unique identifier
@@ -133,6 +155,23 @@ func Plan(cur *ebookmeta.Metadata, cand Candidate) []Change {
 			}
 			c.Identifiers[s] = v
 		})
+	}
+
+	// How sure the match is decides what starts selected. Only an ISBN match
+	// whose title agrees is certain; anything else (including a candidate with
+	// no match recorded) is treated as a guess. A written guess would also feed
+	// later lookups as if it were an authoritative ISBN.
+	confirmed := cand.Match == MatchISBN && cand.Score >= 1
+	suspect := cand.Match == MatchISBN && cand.Score < 1
+	for i := range out {
+		ch := &out[i]
+		ch.preselect = ch.Fill
+		switch {
+		case suspect:
+			ch.preselect, ch.Note = false, NoteOtherBook
+		case !confirmed && editionField(ch.Field):
+			ch.preselect, ch.Note = false, NoteCheckEdition
+		}
 	}
 	return out
 }

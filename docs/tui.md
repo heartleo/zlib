@@ -79,7 +79,7 @@ the version line. Use `zlib version` to see the full version.
 
 The shell accepts `/search`, `/favorites`, `/recommended`, `/most-popular`,
 `/history`, `/login`, `/logout`, `/profile`, `/doctor`,
-`/config`, `/config network`, `/config download`, `/config kindle`, `/config weread`, `/theme`, `/kindle`,
+`/config`, `/config network`, `/config download`, `/config kindle`, `/config weread`, `/config metadata`, `/theme`, `/kindle`,
 `/kindle config`, `/kindle send <file>`, `/weread`, `/weread import <file>`,
 `/weread login`, `/weread logout`, `/meta`, `/meta <file>` and `/quit`. Use `zlib version`
 outside the TUI to check the installed version.
@@ -262,11 +262,15 @@ lookup and moves through candidates, fields and writing:
   the title is different, or a percentage for a title match. The pane under the
   list shows the selected match's details. A source that failed while others
   answered is named on the status line.
-- **Fields** show one row per change as `[x] Field  old → new`. Only fields the
-  file leaves empty start selected; a replacement is marked `(replaces)` and
-  starts unselected. Space toggles a row, Ctrl+S or the Apply button writes,
-  Esc goes back. Fields the format cannot store are not offered and are named
-  on the status line.
+- **Fields** show one row per change as `[x] Field  old → new`. What starts
+  selected depends on the match. With `ISBN`, the fields the file leaves empty.
+  With a percentage (a title match), the empty fields that describe the book;
+  publisher, date, language and identifiers differ between editions, so they
+  are tagged `(check edition)` and start unselected, under a warning line. With
+  `ISBN?`, nothing is selected and every row is tagged `(may be another book)`.
+  A replacement is marked `(replaces)` and always starts unselected. Space
+  toggles a row, Ctrl+S or the Apply button writes, Esc goes back. Fields the
+  format cannot store are not offered and are named on the status line.
 - **Failures** stay on the page. When nothing matched, or no source could be
   reached, the page names why and `r` retries. A write error keeps the field
   choices so Apply can be pressed again.
