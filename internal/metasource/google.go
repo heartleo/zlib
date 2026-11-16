@@ -80,20 +80,29 @@ func (s *GoogleBooks) Identify(ctx context.Context, q Query) ([]Candidate, error
 	if s.key != "" && !ValidAPIKey(s.key) {
 		return nil, ErrKeyMalformed
 	}
-	var terms string
-	switch {
-	case len(q.ISBNs) > 0:
-		terms = "isbn:" + q.ISBNs[0]
-	case len(foldText(q.Title)) > 0:
-		terms = `intitle:"` + strings.ReplaceAll(mainTitle(q.Title), `"`, " ") + `"`
-		if len(q.Authors) > 0 {
-			if a := cleanAuthorForQuery(q.Authors[0]); a != "" {
-				terms += ` inauthor:"` + strings.ReplaceAll(a, `"`, " ") + `"`
-			}
+	if len(q.ISBNs) > 0 {
+		out, err := s.search(ctx, "isbn:"+q.ISBNs[0])
+		if err != nil || len(out) > 0 {
+			return out, err
 		}
-	default:
+		// An ISBN Google does not know, such as one from a copyright page or
+		// a download's record, must not stop a title search that would find
+		// the book.
+	}
+	if len(foldText(q.Title)) == 0 {
 		return nil, nil
 	}
+	terms := `intitle:"` + strings.ReplaceAll(mainTitle(q.Title), `"`, " ") + `"`
+	if len(q.Authors) > 0 {
+		if a := cleanAuthorForQuery(q.Authors[0]); a != "" {
+			terms += ` inauthor:"` + strings.ReplaceAll(a, `"`, " ") + `"`
+		}
+	}
+	return s.search(ctx, terms)
+}
+
+// search runs one volumes query and maps what it returns.
+func (s *GoogleBooks) search(ctx context.Context, terms string) ([]Candidate, error) {
 	u := s.base + "/books/v1/volumes?" + url.Values{
 		"q":          {terms},
 		"maxResults": {"10"},

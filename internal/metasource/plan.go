@@ -26,7 +26,7 @@ const (
 
 // writableIdentifiers are the schemes a lookup may add. A uuid names one
 // particular file and is never taken from a catalogue.
-var writableIdentifiers = []string{"isbn", "google", "openlibrary"}
+var writableIdentifiers = []string{"isbn", "google", "openlibrary", "douban"}
 
 // Change is one proposed edit to a file's metadata.
 type Change struct {

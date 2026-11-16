@@ -16,6 +16,10 @@ const (
 	// A found title must be at least this similar to the wanted one to
 	// count at all, however well the authors agree.
 	minTitleSimilarity = 0.5
+	// An unconfirmed ISBN (see Query.Unconfirmed) needs the stricter bar the
+	// download uses before it writes an ISBN, so a hint cannot be promoted to
+	// the book's own ISBN by a sequel or a neighbouring title.
+	hintTitleSimilarity = embedMinTitleSimilarity
 )
 
 // noiseTags are catalogue housekeeping entries, not subjects.
@@ -43,15 +47,50 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 		}
 		return i
 	}
-	isbnOf := func(root int) string { // the pool's ISBN, if any
+	// editionsOf returns the identifiers in the pool that name one edition, by
+	// scheme: an ISBN and a Douban subject ID. Two pools that hold different
+	// values of the same scheme are two editions and are never joined; pools
+	// that share no scheme say nothing against each other.
+	editionsOf := func(root int) map[string]string {
+		out := map[string]string{}
 		for i := range in {
-			if find(i) == root {
-				if v := in[i].ISBN(); v != "" {
-					return v
+			if find(i) != root {
+				continue
+			}
+			for _, id := range in[i].Identifiers {
+				if (id.Scheme == "isbn" || id.Scheme == "douban") && id.Value != "" && out[id.Scheme] == "" {
+					out[id.Scheme] = id.Value
 				}
 			}
 		}
-		return ""
+		return out
+	}
+	editionLevel := func(root int) bool {
+		for i := range in {
+			if find(i) == root && in[i].EditionLevel {
+				return true
+			}
+		}
+		return false
+	}
+	// cannotJoin reports whether pools a and b must stay apart: they hold
+	// different values of one edition scheme, or both describe an edition
+	// and share no scheme, so nothing shows they are the same one. Joining
+	// them would hand one edition's ISBN to the other and mix their
+	// publisher and date. A work-level pool describes no edition and may
+	// join either.
+	cannotJoin := func(ra, rb int) bool {
+		a, b := editionsOf(ra), editionsOf(rb)
+		shared := false
+		for scheme, v := range a {
+			if w, ok := b[scheme]; ok {
+				if w != v {
+					return true
+				}
+				shared = true
+			}
+		}
+		return !shared && editionLevel(ra) && editionLevel(rb) && (len(a) > 0 || len(b) > 0)
 	}
 
 	byISBN := map[string]int{}
@@ -82,7 +121,7 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 		if ri == rj {
 			continue
 		}
-		if a, b := isbnOf(ri), isbnOf(rj); a != "" && b != "" && a != b {
+		if cannotJoin(ri, rj) {
 			continue
 		}
 		parent[ri] = rj
@@ -133,7 +172,11 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 // decide, with a small bonus for each further source that agrees.
 func scoreCandidate(q Query, c Candidate) (Match, float64) {
 	if isbn := c.ISBN(); isbn != "" && slices.Contains(q.ISBNs, isbn) {
-		if q.Title != "" && titleSimilarity(q.Title, c.Title) < minTitleSimilarity {
+		need := minTitleSimilarity
+		if slices.Contains(q.Unconfirmed, isbn) {
+			need = hintTitleSimilarity // nothing but the title vouches for it
+		}
+		if q.Title != "" && titleSimilarity(q.Title, c.Title) < need {
 			return MatchISBN, 0.5
 		}
 		return MatchISBN, 1

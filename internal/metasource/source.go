@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,6 +39,21 @@ type Query struct {
 	Authors []string `json:"authors,omitempty"`
 	// ISBNs holds valid ISBN-13 values, see NormalizeISBN.
 	ISBNs []string `json:"isbns,omitempty"`
+	// Unconfirmed lists the ISBNs in ISBNs that nothing has vouched for: one
+	// a download recorded from Z-Library's record, or one read from the
+	// book's text. They are searched like any other, but only confirm a match
+	// when the title agrees closely (hintTitleSimilarity).
+	Unconfirmed []string `json:"unconfirmed_isbns,omitempty"`
+}
+
+// AddUnconfirmedISBN adds isbn, a valid ISBN-13, to the query as an
+// unconfirmed ISBN, unless the query already has it.
+func (q *Query) AddUnconfirmedISBN(isbn string) {
+	if isbn == "" || slices.Contains(q.ISBNs, isbn) {
+		return
+	}
+	q.ISBNs = append(q.ISBNs, isbn)
+	q.Unconfirmed = append(q.Unconfirmed, isbn)
 }
 
 // QueryFromMetadata builds a query from what a file already knows.
@@ -46,6 +62,10 @@ func QueryFromMetadata(m *ebookmeta.Metadata) Query {
 	if isbn := NormalizeISBN(m.Identifier("isbn")); isbn != "" {
 		q.ISBNs = append(q.ISBNs, isbn)
 	}
+	// An ISBN a download recorded without confirming it is searched too. The
+	// matcher flags a hit whose title disagrees, so a wrong one cannot pass
+	// as exact.
+	q.AddUnconfirmedISBN(NormalizeISBN(m.Identifier(SchemeZlibISBN)))
 	return q
 }
 

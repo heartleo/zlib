@@ -111,10 +111,65 @@ func cmpDefault(v, def time.Duration) time.Duration {
 	return v
 }
 
-// DefaultSources returns the built-in sources. googleKey is an optional
-// Google Books API key; without one Google's shared quota applies.
+// Names of the built-in sources, as written in a source list.
+const (
+	NameOpenLibrary = "openlibrary"
+	NameGoogle      = "google"
+	NameDouban      = "douban"
+)
+
+// DefaultSourceNames are the sources used when none are chosen. Douban is not
+// among them: it sends the title to a third party that needs a Referer, so it
+// is enabled on purpose.
+var DefaultSourceNames = []string{NameOpenLibrary, NameGoogle}
+
+// DefaultSources returns the default sources. googleKey is an optional Google
+// Books API key; without one Google's shared quota applies.
 func DefaultSources(rt http.RoundTripper, googleKey string) []Source {
-	return []Source{NewOpenLibrary(rt), NewGoogleBooks(rt, googleKey)}
+	return NewSources(rt, DefaultSourceNames, googleKey)
+}
+
+// ParseSourceNames splits a comma-separated source list such as
+// "douban,openlibrary". An empty list selects DefaultSourceNames.
+func ParseSourceNames(list string) []string {
+	var names []string
+	for part := range strings.SplitSeq(list, ",") {
+		if n := strings.ToLower(strings.TrimSpace(part)); n != "" && !slices.Contains(names, n) {
+			names = append(names, n)
+		}
+	}
+	if len(names) == 0 {
+		return slices.Clone(DefaultSourceNames)
+	}
+	return names
+}
+
+// NewSources builds the named sources in order. An unknown name becomes a
+// source that fails with a clear error, so a typo shows up in the lookup's
+// error list instead of silently dropping a catalogue.
+func NewSources(rt http.RoundTripper, names []string, googleKey string) []Source {
+	var out []Source
+	for _, n := range names {
+		switch n {
+		case NameOpenLibrary:
+			out = append(out, NewOpenLibrary(rt))
+		case NameGoogle:
+			out = append(out, NewGoogleBooks(rt, googleKey))
+		case NameDouban:
+			out = append(out, NewDouban(rt))
+		default:
+			out = append(out, unknownSource{name: n})
+		}
+	}
+	return out
+}
+
+// unknownSource reports a source name that is not built in.
+type unknownSource struct{ name string }
+
+func (u unknownSource) Name() string { return u.name }
+func (u unknownSource) Identify(context.Context, Query) ([]Candidate, error) {
+	return nil, errors.New("unknown source (use openlibrary, google or douban)")
 }
 
 // ErrorSummary joins the per-source errors into one line.
