@@ -19,7 +19,10 @@ import (
 // (at the stricter hint bar). Typing the title of the book the hint names is
 // the user saying the file is that book, and then confirms it.
 func ParseQueryEdit(old Query, title, authors, isbns string) (Query, error) {
-	q := Query{Title: clean(title), Authors: cleanList(strings.Split(authors, "&"))}
+	q := Query{Title: clean(title), Authors: cleanList(strings.Split(authors, "&")),
+		// What the file says about its edition stays, and a title the user did
+		// not change stays as guessed as it was; a title they typed is theirs.
+		Publisher: old.Publisher, Year: old.Year, TitleGuessed: old.TitleGuessed && clean(title) == old.Title}
 	split := func(r rune) bool { return r == ',' || r == ';' || r == '\n' }
 	for _, token := range strings.FieldsFunc(isbns, split) {
 		token = clean(token)

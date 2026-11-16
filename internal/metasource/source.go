@@ -44,6 +44,15 @@ type Query struct {
 	// book's text. They are searched like any other, but only confirm a match
 	// when the title agrees closely (hintTitleSimilarity).
 	Unconfirmed []string `json:"unconfirmed_isbns,omitempty"`
+	// TitleGuessed means the title was read from a file name or a download's
+	// record, not from the file itself or from the user. A download's record
+	// supplies both that name and a recorded ISBN, so such a title is no
+	// independent evidence and cannot confirm an unconfirmed ISBN.
+	TitleGuessed bool `json:"title_guessed,omitempty"`
+	// Publisher and Year are what the file says about its edition. They do not
+	// find a book; they only rank editions of one title a little.
+	Publisher string `json:"publisher,omitempty"`
+	Year      string `json:"year,omitempty"`
 }
 
 // AddUnconfirmedISBN adds isbn, a valid ISBN-13, to the query as an

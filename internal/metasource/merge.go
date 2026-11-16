@@ -154,6 +154,9 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 		}
 		return cmp.Or(
 			cmp.Compare(b.Score, a.Score),
+			// A perfect title and author match is at the score cap whichever
+			// edition it is, so the edition the file agrees with goes first.
+			cmp.Compare(editionBonus(q, b), editionBonus(q, a)),
 			cmp.Compare(len(b.Sources), len(a.Sources)),
 			cmp.Compare(completeness(b), completeness(a)),
 			strings.Compare(a.Title, b.Title),
@@ -173,10 +176,16 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 func scoreCandidate(q Query, c Candidate) (Match, float64) {
 	if isbn := c.ISBN(); isbn != "" && slices.Contains(q.ISBNs, isbn) {
 		need := minTitleSimilarity
-		if slices.Contains(q.Unconfirmed, isbn) {
+		unconfirmed := slices.Contains(q.Unconfirmed, isbn)
+		if unconfirmed {
 			need = hintTitleSimilarity // nothing but the title vouches for it
 		}
 		if q.Title != "" && titleSimilarity(q.Title, c.Title) < need {
+			return MatchISBN, 0.5
+		}
+		// A title from a file name or a download's record comes from the same
+		// record as a recorded ISBN, so it cannot vouch for that ISBN.
+		if unconfirmed && q.TitleGuessed {
 			return MatchISBN, 0.5
 		}
 		return MatchISBN, 1
@@ -190,7 +199,24 @@ func scoreCandidate(q Query, c Candidate) (Match, float64) {
 		s = 0.65*ts + 0.35*authorSimilarity(q.Authors, c.Authors)
 	}
 	s += min(0.06, 0.03*float64(len(c.Sources)-1))
+	s += editionBonus(q, c)
 	return MatchTitle, min(s, 0.99)
+}
+
+// editionBonus is the little a matching publisher or year adds to a title
+// match, so that of several editions of one title the one that agrees with the
+// file ranks first. It is far below what an ISBN decides, and it is not applied
+// to an ISBN match.
+func editionBonus(q Query, c Candidate) float64 {
+	bonus := 0.0
+	if p, cp := string(foldText(q.Publisher)), string(foldText(c.Publisher)); len([]rune(p)) >= 2 && len([]rune(cp)) >= 2 &&
+		(p == cp || strings.Contains(p, cp) || strings.Contains(cp, p)) {
+		bonus += 0.04
+	}
+	if len(q.Year) == 4 && strings.HasPrefix(c.Published, q.Year) {
+		bonus += 0.03
+	}
+	return bonus
 }
 
 func completeness(c Candidate) int {
