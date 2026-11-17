@@ -570,3 +570,24 @@ func TestWriteEPUBWithDeflatedDirectoryEntry(t *testing.T) {
 		t.Fatalf("m = %+v, %v", m, err)
 	}
 }
+
+// Identifiers zlib writes itself survive a round trip in both EPUB versions: in
+// EPUB 3 they are written "scheme:value", as Calibre does, and must be read back.
+func TestEPUBKeepsTheIdentifiersZlibWrites(t *testing.T) {
+	for name, opf := range map[string]string{"epub3": opf3, "epub2": opf2} {
+		p := writeTemp(t, "b.epub", buildEPUB(t, opf, nil))
+		ids := map[string]string{"zlib-id": "123:abc", "zlib-isbn": "9780441013593", "douban": "1003078", "openlibrary": "OL1M"}
+		if err := WriteFile(p, &Changes{Identifiers: ids}); err != nil {
+			t.Fatal(err)
+		}
+		m, _, err := ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for s, v := range ids {
+			if got := m.Identifier(s); got != v {
+				t.Errorf("%s: %s = %q, want %q", name, s, got, v)
+			}
+		}
+	}
+}

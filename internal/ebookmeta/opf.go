@@ -254,7 +254,13 @@ func isPublicationDate(e *opfElem) bool {
 	return ev == "" || ev == "publication" || ev == "original-publication"
 }
 
-var schemePrefixRe = regexp.MustCompile(`^(?i)(isbn|doi|asin|mobi-asin|amazon|google|goodreads|uuid|calibre|issn|oclc|lccn):\s*(\S.*)$`)
+// schemePrefixRe reads an EPUB 3 identifier written "scheme:value", the form
+// Calibre uses and this package writes for any scheme without a URN namespace
+// (see opfWriter.identifier). The list is closed, so a URL or a value that only
+// contains a colon is not split: the common catalogue schemes, and the ones zlib
+// records itself (a download's Z-Library record and ISBN hint, and the lookup
+// sources' own IDs).
+var schemePrefixRe = regexp.MustCompile(`^(?i)(isbn|doi|asin|mobi-asin|amazon|google|goodreads|uuid|calibre|issn|oclc|lccn|openlibrary|douban|weread|zlib-id|zlib-isbn):\s*(\S.*)$`)
 
 // identifierOf derives (scheme, value) from a dc:identifier element.
 func identifierOf(e *opfElem, refs map[string][]refinement) (string, string) {
