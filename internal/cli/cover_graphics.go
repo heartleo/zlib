@@ -106,7 +106,20 @@ type coverFrame struct {
 	data, protocol          string
 	x, y, cols, rows        int
 	pixelWidth, pixelHeight int
+	id                      int // the Kitty image id
+	// more are further images drawn with this one, such as the second cover
+	// of a comparison. They are erased and redrawn together.
+	more []*coverFrame
 }
+
+// all is the frame and the ones drawn with it.
+func (f *coverFrame) all() []*coverFrame {
+	if f == nil {
+		return nil
+	}
+	return append([]*coverFrame{f}, f.more...)
+}
+
 type coverEncodedMsg struct {
 	generation uint64
 	frame      *coverFrame
@@ -141,14 +154,42 @@ func runCoverProgram(model tea.Model) (tea.Model, error) {
 
 func (m *coverGraphicsModel) Init() tea.Cmd { return tea.Batch(m.inner.Init(), tea.Raw(coverProbe)) }
 
-func (m *coverGraphicsModel) source() coverSource {
+// coverSlotter is a page that shows covers of its own, such as the metadata
+// page: it says which images go where, or none while something covers them.
+type coverSlotter interface {
+	coverSlots() []coverSource
+}
+
+// sources are the covers to draw now: the book card's one, or those a page
+// such as the metadata page lays out itself.
+func (m *coverGraphicsModel) sources() []coverSource {
 	model := m.inner
 	if shell, ok := model.(shellModel); ok {
-		if shell.typing || shell.kind != "list" {
-			return coverSource{}
+		if shell.typing {
+			return nil
+		}
+		if page, ok := shell.page.(coverSlotter); ok && shell.kind == "meta" {
+			return page.coverSlots()
+		}
+		if shell.kind != "list" {
+			return nil
 		}
 		model = shell.page
 	}
+	if s := m.cardSource(model); s.img != nil {
+		return []coverSource{s}
+	}
+	return nil
+}
+
+func (m *coverGraphicsModel) source() coverSource {
+	if s := m.sources(); len(s) > 0 {
+		return s[0]
+	}
+	return coverSource{}
+}
+
+func (m *coverGraphicsModel) cardSource(model tea.Model) coverSource {
 	switch page := model.(type) {
 	case searchSelectModel:
 		if !page.quitting && page.state == searchStateResults && len(page.books) > 0 && !page.confirmDownload && (page.detailOpen || page.hasBookCard()) {
@@ -173,12 +214,19 @@ func cardCoverSource(d bookDetailState, url string, width, height int) coverSour
 }
 
 func (m *coverGraphicsModel) sourceKey() string {
-	s := m.source()
-	if s.img == nil || !coverSizeFits(s.width, s.height) || m.caps.protocol() == "" {
+	srcs := m.sources()
+	if len(srcs) == 0 || m.caps.protocol() == "" {
 		return ""
 	}
 	w, h := m.caps.cellSize()
-	return fmt.Sprintf("%s/%d/%d/%d/%d/%s/%v", s.url, s.width, s.height, w, h, m.caps.protocol(), s.bounds())
+	var key strings.Builder
+	for _, s := range srcs {
+		if s.img == nil || !coverSizeFits(s.width, s.height) {
+			return ""
+		}
+		fmt.Fprintf(&key, "%s/%d/%d/%d/%d/%s/%v|", s.url, s.width, s.height, w, h, m.caps.protocol(), s.bounds())
+	}
+	return key.String()
 }
 
 func (m *coverGraphicsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -237,8 +285,8 @@ func (m *coverGraphicsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if key != "" && m.frame == nil && !m.encoding && m.failedGeneration != m.generation {
 		m.encoding = true
-		s, c, generation := m.source(), m.caps, m.generation
-		encode := func() tea.Msg { return coverEncodedMsg{generation, encodeCoverFrame(s, c)} }
+		srcs, c, generation := m.sources(), m.caps, m.generation
+		encode := func() tea.Msg { return coverEncodedMsg{generation, encodeCoverFrames(srcs, c)} }
 		return m, tea.Batch(cmd, query, wake, encode)
 	}
 	return m, tea.Batch(cmd, query, wake)
@@ -250,17 +298,19 @@ func (m *coverGraphicsModel) View() tea.View {
 	if m.key == "" || m.key != m.sourceKey() {
 		frame = nil
 	}
-	source := m.source()
+	srcs := m.sources()
 	// A capable terminal should show the final pixel cover once, rather than
 	// briefly drawing a block thumbnail while its native encoding is pending.
-	waitingCard := !source.area.Empty() && m.sourceKey() != "" && m.failedGeneration != m.generation
+	waitingCard := len(srcs) > 0 && !srcs[0].area.Empty() && m.sourceKey() != "" && m.failedGeneration != m.generation
 	if frame != nil || waitingCard {
 		// Blank only the reserved cover cells; keep adjacent metadata and borders.
-		area := m.source().bounds()
 		lines := strings.Split(v.Content, "\n")
-		for i, line := range lines {
-			if i >= area.Min.Y && i < area.Max.Y {
-				lines[i] = ansi.Cut(line, 0, area.Min.X) + strings.Repeat(" ", area.Dx()) + ansi.Cut(line, area.Max.X, ansi.StringWidth(line))
+		for _, s := range srcs {
+			area := s.bounds()
+			for i, line := range lines {
+				if i >= area.Min.Y && i < area.Max.Y {
+					lines[i] = ansi.Cut(line, 0, area.Min.X) + strings.Repeat(" ", area.Dx()) + ansi.Cut(line, area.Max.X, ansi.StringWidth(line))
+				}
 			}
 		}
 		v.Content = strings.Join(lines, "\n")
@@ -269,7 +319,29 @@ func (m *coverGraphicsModel) View() tea.View {
 	return v
 }
 
+// encodeCoverFrames encodes every source, each with its own Kitty image id. It
+// returns nil when any of them cannot be drawn, so a pair is never half shown.
+func encodeCoverFrames(srcs []coverSource, c coverCapabilities) *coverFrame {
+	var first *coverFrame
+	for i, s := range srcs {
+		f := encodeCoverFrameID(s, c, coverGraphicsID+i)
+		if f == nil {
+			return nil
+		}
+		if first == nil {
+			first = f
+		} else {
+			first.more = append(first.more, f)
+		}
+	}
+	return first
+}
+
 func encodeCoverFrame(s coverSource, c coverCapabilities) *coverFrame {
+	return encodeCoverFrameID(s, c, coverGraphicsID)
+}
+
+func encodeCoverFrameID(s coverSource, c coverCapabilities, id int) *coverFrame {
 	cw, ch := c.cellSize()
 	if cw <= 0 || ch <= 0 || s.img == nil {
 		return nil
@@ -299,7 +371,7 @@ func encodeCoverFrame(s coverSource, c coverCapabilities) *coverFrame {
 		img = resizeCover(s.img, w, h)
 	}
 	cols, rows := (w+cw-1)/cw, (h+ch-1)/ch
-	f := &coverFrame{protocol: c.protocol(), x: area.Min.X + (area.Dx()-cols)/2, y: area.Min.Y + (area.Dy()-rows)/2, cols: cols, rows: rows}
+	f := &coverFrame{protocol: c.protocol(), x: area.Min.X + (area.Dx()-cols)/2, y: area.Min.Y + (area.Dy()-rows)/2, cols: cols, rows: rows, id: id}
 	f.pixelWidth, f.pixelHeight = w, h
 	var data bytes.Buffer
 	if f.protocol == "Kitty" {
@@ -316,7 +388,7 @@ func encodeCoverFrame(s coverSource, c coverCapabilities) *coverFrame {
 			}
 			opts := fmt.Sprintf("m=%d", more)
 			if offset == 0 {
-				opts = fmt.Sprintf("a=T,f=100,t=d,i=%d,q=2,C=1,m=%d", coverGraphicsID, more)
+				opts = fmt.Sprintf("a=T,f=100,t=d,i=%d,q=2,C=1,m=%d", id, more)
 			}
 			out.WriteString(ansi.KittyGraphics([]byte(payload[offset:end]), opts))
 		}
@@ -345,18 +417,22 @@ type coverOutput struct {
 func (w *coverOutput) set(f *coverFrame) { w.mu.Lock(); w.want = f; w.mu.Unlock() }
 
 func eraseCover(f *coverFrame) string {
-	if f == nil {
-		return ""
-	}
-	if f.protocol == "Kitty" {
-		return coverDelete
-	}
 	var out strings.Builder
-	out.WriteString("\x1b7")
-	for y := range f.rows {
-		fmt.Fprintf(&out, "\x1b[%d;%dH%s", f.y+y+1, f.x+1, strings.Repeat(" ", f.cols))
+	for _, p := range f.all() {
+		if p.protocol == "Kitty" {
+			if p.id == 0 || p.id == coverGraphicsID {
+				out.WriteString(coverDelete)
+			} else {
+				fmt.Fprintf(&out, "\x1b_Ga=d,d=I,i=%d,q=2\x1b\\", p.id)
+			}
+			continue
+		}
+		out.WriteString("\x1b7")
+		for y := range p.rows {
+			fmt.Fprintf(&out, "\x1b[%d;%dH%s", p.y+y+1, p.x+1, strings.Repeat(" ", p.cols))
+		}
+		out.WriteString("\x1b8")
 	}
-	out.WriteString("\x1b8")
 	return out.String()
 }
 
@@ -388,7 +464,9 @@ func (w *coverOutput) Write(p []byte) (int, error) {
 	retained := want != nil && want == w.shown && want.protocol == "Kitty" &&
 		!bytes.Contains(p, []byte("\x1b[2J")) && !bytes.Contains(p, []byte("\x1b[3J"))
 	if want != nil && !retained {
-		fmt.Fprintf(&out, "\x1b7\x1b[%d;%dH%s\x1b8", want.y+1, want.x+1, want.data)
+		for _, p := range want.all() {
+			fmt.Fprintf(&out, "\x1b7\x1b[%d;%dH%s\x1b8", p.y+1, p.x+1, p.data)
+		}
 	}
 	out.WriteString(syncEnd)
 	n, err := w.target.Write(out.Bytes())

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/heartleo/zlib/internal/ebookmeta"
@@ -17,12 +18,13 @@ const NoteEdited = "edited"
 // ErrNotEditable means a change has no value that can be edited by hand.
 var ErrNotEditable = errors.New("this field cannot be edited here")
 
-// Editable reports whether the new value of c can be edited by hand: the text
-// fields, the ISBN and the date. A description is several paragraphs, a cover
-// is an image and the other identifiers are catalogue IDs, so they are not.
+// Editable reports whether the change's value can be typed: every field the
+// metadata editor shows except the cover (an image, chosen by path) and the
+// catalogue identifiers other than the ISBN.
 func (c Change) Editable() bool {
 	switch c.Field {
-	case FieldTitle, FieldAuthors, FieldPublisher, FieldLanguages, FieldTags, FieldPublished, "identifier:isbn":
+	case FieldTitle, FieldAuthors, FieldPublisher, FieldLanguages, FieldTags, FieldPublished, "identifier:isbn",
+		FieldSeries, FieldDescription, FieldTitleSort, FieldAuthorSort, FieldRating:
 		return true
 	}
 	return false
@@ -121,8 +123,48 @@ func (c Change) Edit(text string) (Change, error) {
 			return c, errors.New("Enter at least one tag, separated by commas")
 		}
 		shown, apply = strings.Join(v, ", "), func(ch *ebookmeta.Changes) { ch.Tags = &v }
+	case FieldTitleSort, FieldAuthorSort:
+		v := clean(text)
+		if v == "" {
+			return c, errors.New("Enter a value, or press x to clear the field")
+		}
+		f := c.Field
+		shown, apply = v, func(ch *ebookmeta.Changes) {
+			if f == FieldTitleSort {
+				ch.TitleSort = &v
+			} else {
+				ch.AuthorSort = &v
+			}
+		}
+	case FieldRating:
+		v, err := strconv.ParseFloat(strings.TrimSpace(clean(text)), 64)
+		if err != nil || v < 0 || v > 5 || v*2 != float64(int(v*2)) {
+			return c, errors.New("The rating is 0 to 5 stars, in halves, such as 4 or 4.5")
+		}
+		shown, apply = strconv.FormatFloat(v, 'f', -1, 64), func(ch *ebookmeta.Changes) { ch.Rating = &v }
+	case FieldSeries:
+		name, index, err := parseSeries(text)
+		if err != nil {
+			return c, err
+		}
+		shown = seriesText(name, index)
+		apply = func(ch *ebookmeta.Changes) { ch.Series, ch.SeriesIndex = &name, &index }
+	case FieldDescription:
+		// A description keeps its paragraphs: each line is cleaned, blank runs
+		// collapse to one empty line.
+		v := ebookmeta.CleanText(text)
+		if strings.TrimSpace(v) == "" {
+			return c, errors.New("The description cannot be empty: press x to clear it instead")
+		}
+		shown, apply = v, func(ch *ebookmeta.Changes) { ch.Description = &v }
 	case FieldPublished:
 		v, ok := parseTypedDate(clean(text))
+		if !ok {
+			// An ISO 8601 date and time, as Calibre writes it, reads as its date.
+			if d := normalizeDate(clean(text)); d != "" && strings.HasPrefix(clean(text), d+"T") {
+				v, ok = d, true
+			}
+		}
 		if !ok {
 			return c, errors.New("The date must look like 2008, 2008-01 or 2008-01-05, and be a real date")
 		}

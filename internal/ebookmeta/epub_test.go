@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const opf2 = `<?xml version="1.0" encoding="UTF-8"?>
@@ -178,18 +179,19 @@ func TestReadEPUB2(t *testing.T) {
 		t.Fatalf("format = %q", format)
 	}
 	want := &Metadata{
-		Title:       "Old Title",
-		Authors:     []string{"Jane Doe"},
-		AuthorSort:  "Doe, Jane",
-		Publisher:   "Example Press",
-		Languages:   []string{"en"},
-		Tags:        []string{"Fiction"},
-		Series:      "Saga",
-		SeriesIndex: 2,
-		Identifiers: []Identifier{{"isbn", "9780000000002"}, {"uuid", "0f1e2d3c-0000-4000-8000-000000000001"}},
-		Published:   "1999-05-01",
-		Description: "A story.",
-		Rating:      4,
+		Title:        "Old Title",
+		Authors:      []string{"Jane Doe"},
+		AuthorSort:   "Doe, Jane",
+		Publisher:    "Example Press",
+		Languages:    []string{"en"},
+		Tags:         []string{"Fiction"},
+		Series:       "Saga",
+		SeriesIndex:  2,
+		Identifiers:  []Identifier{{"isbn", "9780000000002"}, {"uuid", "0f1e2d3c-0000-4000-8000-000000000001"}},
+		Published:    "1999-05-01",
+		Description:  "A story.",
+		Rating:       4,
+		UniqueScheme: "uuid",
 	}
 	if !reflect.DeepEqual(m, want) {
 		t.Fatalf("got  %+v\nwant %+v", m, want)
@@ -203,16 +205,17 @@ func TestReadEPUB3(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := &Metadata{
-		Title:       "Main Title",
-		TitleSort:   "Main Title, The",
-		Authors:     []string{"Ann Author"},
-		AuthorSort:  "Author, Ann",
-		Languages:   []string{"fr"},
-		Series:      "Cycle",
-		SeriesIndex: 3.5,
-		Identifiers: []Identifier{{"isbn", "9780000000019"}, {"uuid", "0f1e2d3c-0000-4000-8000-000000000003"}},
-		Published:   "2011-02-03",
-		Cover:       "image/png",
+		Title:        "Main Title",
+		TitleSort:    "Main Title, The",
+		Authors:      []string{"Ann Author"},
+		AuthorSort:   "Author, Ann",
+		Languages:    []string{"fr"},
+		Series:       "Cycle",
+		SeriesIndex:  3.5,
+		Identifiers:  []Identifier{{"isbn", "9780000000019"}, {"uuid", "0f1e2d3c-0000-4000-8000-000000000003"}},
+		Published:    "2011-02-03",
+		Cover:        "image/png",
+		UniqueScheme: "uuid",
 	}
 	if !reflect.DeepEqual(m, want) {
 		t.Fatalf("got  %+v\nwant %+v", m, want)
@@ -263,20 +266,21 @@ func TestWriteEPUBRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			want := &Metadata{
-				Title:       "New <Title> & More",
-				TitleSort:   "New Title",
-				Authors:     []string{"Alice Ash", "Bob Birch"},
-				AuthorSort:  "Ash, Alice",
-				Publisher:   "Other House",
-				Languages:   []string{"de", "en"},
-				Tags:        []string{"One", "Two"},
-				Series:      "New Saga",
-				SeriesIndex: 7,
-				Identifiers: []Identifier{{"asin", "B000000000"}, {"isbn", "9781111111113"}, {"uuid", tc.uuid}},
-				Published:   "2024-03-04",
-				Description: "Line one.\nLine two.",
-				Rating:      3.5,
-				Cover:       "image/jpeg",
+				Title:        "New <Title> & More",
+				TitleSort:    "New Title",
+				Authors:      []string{"Alice Ash", "Bob Birch"},
+				AuthorSort:   "Ash, Alice",
+				Publisher:    "Other House",
+				Languages:    []string{"de", "en"},
+				Tags:         []string{"One", "Two"},
+				Series:       "New Saga",
+				SeriesIndex:  7,
+				Identifiers:  []Identifier{{"asin", "B000000000"}, {"isbn", "9781111111113"}, {"uuid", tc.uuid}},
+				Published:    "2024-03-04",
+				Description:  "Line one.\nLine two.",
+				Rating:       3.5,
+				Cover:        "image/jpeg",
+				UniqueScheme: "uuid",
 			}
 			if !reflect.DeepEqual(m, want) {
 				t.Fatalf("got  %+v\nwant %+v", m, want)
@@ -589,5 +593,25 @@ func TestEPUBKeepsTheIdentifiersZlibWrites(t *testing.T) {
 				t.Errorf("%s: %s = %q, want %q", name, s, got, v)
 			}
 		}
+	}
+}
+
+// EPUB 3.3 §5.5.5: a write leaves exactly one dcterms:modified, the time of
+// the write in UTC; EPUB 2 has no such property.
+func TestEPUB3WriteUpdatesTheModifiedDate(t *testing.T) {
+	old := modifiedNow
+	modifiedNow = func() time.Time { return time.Date(2026, 11, 17, 9, 8, 7, 0, time.FixedZone("CST", 8*3600)) }
+	t.Cleanup(func() { modifiedNow = old })
+	p := writeTemp(t, "b.epub", buildEPUB(t, opf3, nil))
+	if err := WriteFile(p, &Changes{Title: new("New")}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opf := entryText(t, zipEntries(t, data)["OEBPS/content.opf"])
+	if n := strings.Count(opf, `property="dcterms:modified"`); n != 1 || !strings.Contains(opf, ">2026-11-17T01:08:07Z<") {
+		t.Errorf("%d dcterms:modified, want one at 2026-11-17T01:08:07Z:\n%s", n, opf)
 	}
 }

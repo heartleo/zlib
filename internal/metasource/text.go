@@ -153,6 +153,11 @@ var (
 	blankRuns  = regexp.MustCompile(`\n{3,}`)
 )
 
+// PlainText is the HTML a description often holds (an EPUB's dc:description
+// may carry escaped XHTML) as plain text, for display only: what is written
+// back is always the value as it was.
+func PlainText(s string) string { return stripHTML(s) }
+
 // stripHTML turns the HTML that sources put in descriptions into plain text:
 // a line break for <br>, a blank line between paragraphs.
 func stripHTML(s string) string {

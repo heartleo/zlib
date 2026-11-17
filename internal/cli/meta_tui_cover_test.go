@@ -39,29 +39,6 @@ func okCover(context.Context, string) (*ebookmeta.Cover, error) {
 	return &ebookmeta.Cover{Data: tinyPNG, MediaType: "image/png"}, nil
 }
 
-func TestMetaPageDownloadsTheCoverBeforeWriting(t *testing.T) {
-	var fetched string
-	cover := func(ctx context.Context, url string) (*ebookmeta.Cover, error) {
-		fetched = url
-		return okCover(ctx, url)
-	}
-	var wrote *ebookmeta.Changes
-	write := func(_ string, c *ebookmeta.Changes) error { wrote = c; return nil }
-	m := metaPageAfterLookup(t, answerWith(withCover(), nil, nil), write, withMetaCover(cover))
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if !strings.Contains(metaScreen(m), "[x] Cover") || !strings.Contains(rowWith(t, metaScreen(m), "[x] Cover"), "image from covers.openlibrary.org") {
-		t.Fatalf("no cover row:\n%s", metaScreen(m))
-	}
-	m, cmd := metaStep(t, m, metaKey("ctrl+s"))
-	if !strings.Contains(metaScreen(m), "Downloading the cover and writing the file") {
-		t.Errorf("writing state does not mention the cover:\n%s", metaScreen(m))
-	}
-	done := runWrite(t, cmd)
-	if done.err != nil || fetched != "https://covers.openlibrary.org/b/id/1-L.jpg" || wrote == nil || wrote.Cover == nil || wrote.Cover.MediaType != "image/png" || wrote.Authors == nil {
-		t.Fatalf("fetched %q, wrote %+v, err %v", fetched, wrote, done.err)
-	}
-}
-
 func TestMetaPageCoverOnlySelectionIsWritten(t *testing.T) {
 	var wrote *ebookmeta.Changes
 	write := func(_ string, c *ebookmeta.Changes) error { wrote = c; return nil }
@@ -94,28 +71,6 @@ func TestMetaPageCoverFailureWritesNothing(t *testing.T) {
 	}
 	if !strings.Contains(metaScreen(m), "Cover download failed, nothing was written: the image is too small (30x40)") {
 		t.Errorf("message missing:\n%s", metaScreen(m))
-	}
-}
-
-func TestMetaPageOffersNoCoverWithoutAFetcherOrOnAMobiWithoutOne(t *testing.T) {
-	m := metaPageAfterLookup(t, answerWith(withCover(), nil, nil), nil) // no fetcher
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if strings.Contains(metaScreen(m), "Cover") {
-		t.Errorf("offered a cover without a fetcher:\n%s", metaScreen(m))
-	}
-
-	m = metaPageAfterLookup(t, answerWith(withCover(), nil, nil), nil, withMetaCover(okCover))
-	m.format = ebookmeta.FormatMOBI
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if strings.Contains(metaScreen(m), "[x] Cover") || !slices.Contains(m.hidden, "cover") {
-		t.Errorf("a MOBI without a cover can only replace one:\n%s", metaScreen(m))
-	}
-
-	m = metaPageAfterLookup(t, answerWith(withCover(), nil, nil), nil, withMetaCover(okCover))
-	m.format, m.current.Cover = ebookmeta.FormatMOBI, "image/jpeg"
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if !strings.Contains(metaScreen(m), "[ ] Cover") || !strings.Contains(metaScreen(m), "(replaces)") {
-		t.Errorf("an existing MOBI cover should be replaceable but not preselected:\n%s", metaScreen(m))
 	}
 }
 

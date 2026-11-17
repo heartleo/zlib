@@ -159,7 +159,7 @@ type mcpDownloadBookInput struct {
 	Dir          string `json:"dir,omitempty" jsonschema:"Destination directory (supports leading ~). Defaults to ZLIB_DOWNLOAD_DIR or current directory."`
 	SendToKindle bool   `json:"send_to_kindle,omitempty" jsonschema:"Email the downloaded file to the configured Kindle address after saving."`
 	SendToWeRead bool   `json:"send_to_weread,omitempty" jsonschema:"Import the downloaded file into the user's WeRead shelf after saving. Counts toward WeRead's import limits."`
-	NoEmbed      bool   `json:"no_embed,omitempty" jsonschema:"Leave the saved file untouched. By default a valid ISBN from the Z-Library record is written into the file's metadata."`
+	NoEmbed      bool   `json:"no_embed,omitempty" jsonschema:"Leave the saved file untouched. By default a valid ISBN from the Z-Library record, and for an EPUB the Z-Library book ID, are written into the file's metadata."`
 }
 
 type mcpDeleteHistoryInput struct {
@@ -658,8 +658,8 @@ func handleMCPDownloadBook(ctx context.Context, req *mcp.CallToolRequest, in mcp
 	// Recorded before any delivery. A failure only means the file keeps the
 	// metadata it came with.
 	if !in.NoEmbed {
-		if embedded, err := embedDownloadISBN(dl.FilePath, book); err == nil {
-			out.ISBN = embedded
+		if embedded, err := embedDownloadISBN(dl.FilePath, book); err == nil && embedded != nil {
+			out.ISBN, out.ZlibID = embedded.isbnPart(), embedded.ZlibID
 		}
 	}
 	var toolRes *mcp.CallToolResult

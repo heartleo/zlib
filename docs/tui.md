@@ -286,16 +286,24 @@ nothing while a search or a write runs:
   the name or the download is marked `a guess` and cannot by itself confirm a
   hint ISBN; the file's own title, or one you edit, can. The terms and sources
   come first on the page, so a short terminal still shows them. Space toggles a
-  source, `e` edits the terms, Enter searches and Esc leaves. Ctrl+D saves the
+  source, `e` edits the terms, Enter searches and Esc leaves. `m` opens the
+  fields workbench on the file's own metadata with no lookup at all, to edit
+  any field by hand. Where the terminal can draw images (Kitty or Sixel), the
+  prepare page and the file details show the file's cover at the top right,
+  and the results show the highlighted match's, downloaded once per match. Ctrl+D saves the
   sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
   `.env`); nothing is saved unless you press it, and the page says so when the
   environment or a `.env` in the working directory overrides it. A file with nothing to search
   with opens on the editor.
 - **Looking up** shows the title, authors and ISBN being searched. Esc cancels
   the request and returns to the page it started from.
-- **Candidates** list the merged matches, best first, in columns (match, title,
-  authors, year, sources) that line up for wide characters too. The details
-  pane starts with what choosing the highlighted match would do to the file:
+- **Candidates** list the merged matches, best first. On a terminal 100
+  columns wide or more the page puts the file beside the highlighted match
+  under the list, in the same two panels as the workbench (read only, with
+  both covers where they can be drawn, and only the fields either side has),
+  so you compare before choosing. The matches are in columns (match, title,
+  authors, year, sources) that line up for wide characters too. On a narrower
+  terminal a details pane starts with what choosing the highlighted match would do to the file:
   `Would add` names the empty fields it fills and selects, `Could add` empty
   fields it offers unselected (the edition fields of a title-only or `ISBN?`
   match), `Differs on` the values it would replace, which stay as they are
@@ -341,40 +349,50 @@ nothing while a search or a write runs:
   under its new name, and the saved-file page of a download follows the rename,
   so Send to Kindle and Send to WeRead use it. See
   [Rename a file](metadata.md#rename-a-file) for how a name is built.
-- **Fields** show the changes as a table: the field, what the file holds now
-  and the new value, then notes such as `(replaces)`. A field the change adds
-  and one it replaces are also coloured apart. Under the table the focused row
-  is shown in full, wrapped, with whether it will be written, so a long
-  description can be read before it is. The status line counts the selection
-  (`3 of 6 selected, 1 replacing a value`); `a` selects every row, or none
-  when all are selected. A list taller than the terminal scrolls with the
-  cursor and says how many rows are above or below, and the Apply and Back
-  buttons stay on screen. What starts
-  selected depends on the match. With `ISBN`, the fields the file leaves empty.
-  With a percentage (a title match), the empty fields that describe the book;
-  publisher, date, language and identifiers differ between editions, so they
-  are tagged `(check edition)` and start unselected, under a warning line. With
-  `ISBN?`, nothing is selected and every row is tagged `(may be another book)`.
-  A replacement is marked `(replaces)` and always starts unselected. Space
-  toggles a row, Ctrl+S or the Apply button writes, Esc goes back. Fields the
-  format cannot store are not offered and are named on the status line.
-  `e` edits the focused row's new value in place before it is written: the
-  title, authors (separated by `&`), publisher, languages and tags (separated
-  by commas), date, and ISBN. Enter accepts, and an invalid value stays open
-  with the reason (an ISBN needs a correct check digit, a date must be a real
-  date written as `2008`, `2008-01` or `2008-01-05`, a language must be a code
-  such as `en`). While you edit, the editor is the first thing on the page, so
-  it is never pushed off the screen by a long list of fields. An edited row is
-  marked `(edited)` and selected. Esc closes only the editor; going back to the
-  candidates and reopening restores what the catalogue said. The description,
-  cover and catalogue IDs cannot be edited.
+- **Fields** is a workbench of every field the file's format can store: title,
+  title sort, authors, author sort, series, publisher, date, languages, tags,
+  ISBN, rating, description and cover, then any other catalogue ID the match
+  offers. On a terminal 100
+  columns wide or more it shows two panels side by side: `This file`, with
+  the value each field will be written with, and `Match`, with what the match
+  says, row for row. Where the terminal can draw images each panel starts
+  with its cover, the file's own beside the match's. On a narrower terminal
+  the same rows are a table with a `This file` and a `Match` column. Under
+  the panels the focused field is shown in full: what the file holds, what
+  will be written and what the match says. A description's markup is shown
+  as plain text, and written back as it was.
+
+  Each field is decided on its own. `→` (or `l`) takes the match's value,
+  Space switches between it and the file's, `←` (or `h`) keeps the file's,
+  `e` or Enter types a value, `x` clears the field, `a` takes the match for
+  every field it proposes (or for none), and `u` undoes every change. The
+  file's side marks each field that will change: `←` from the match, `✎`
+  typed, `✗` cleared; the match's side marks `✓` taken, `≠` different and
+  `=` the same as the file. What starts taken depends on the match: with
+  `ISBN`, the fields the file leaves empty; with a percentage (a title match),
+  the empty fields that describe the book, while publisher, date, language and
+  identifiers, which differ between editions, wait for you under a warning;
+  with `ISBN?`, nothing. A value the file already has is only replaced when
+  you take or type another; a new title or new authors keep the file's sort
+  forms unless you change those too. Tags are separated by commas and authors
+  by `&`, so a tag or a name that contains one is split when it is edited. Typing is checked per field: authors separated by
+  `&`, languages and tags by commas, a date written `2008`, `2008-01` or
+  `2008-01-05`, an ISBN with a correct check digit, a series as `Name #2`.
+  The description opens a text area where Enter starts a new line and Ctrl+S
+  keeps the text; the cover asks for the path of a JPEG, PNG, GIF or WebP
+  image. A title cannot be cleared, nor the identifier an EPUB names as its unique
+  identifier, which the format requires; give it another value instead. A
+  rating is 0 to 5 stars in halves. Ctrl+S writes every changed field (a
+  match's cover is the image the preview downloaded, or is downloaded then);
+  the status line lists them. Esc goes back, and asks first when changes are
+  not written. Fields the format cannot store are named on the status line.
 - **Failures** stay on the page. When nothing matched, or no source could be
   reached, the page names why; `r` retries and `e` changes the search first. A
   file with no title, author or ISBN opens on the search editor instead of being
   refused, and `r` there asks what to search for rather than sending nothing.
   The key hints on every page of the lookup shrink with the width, from full
   labels to shorter ones to the keys alone, so Esc stays visible. A write error
-  keeps the field choices so Apply can be pressed again.
+  keeps the field choices so Ctrl+S can be pressed again.
 
 A match with a cover adds a `Cover` row, preselected only when the file has none.
 Applying downloads the image first; a failed download writes nothing and is

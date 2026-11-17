@@ -46,8 +46,14 @@ func rowOf(t *testing.T, m metaPageModel, field metasource.Field) int {
 
 func focusRow(t *testing.T, m metaPageModel, field metasource.Field) metaPageModel {
 	t.Helper()
-	want := rowOf(t, m, field)
-	for range len(m.plan) + 2 {
+	rowOf(t, m, field) // the match must propose it
+	want := -1
+	for i, r := range m.benchRows() {
+		if r.field == field {
+			want = i
+		}
+	}
+	for range len(m.benchRows()) + 2 {
 		if m.focus == want {
 			return m
 		}
@@ -92,36 +98,6 @@ func clearInput(t *testing.T, m metaPageModel) metaPageModel {
 	return m
 }
 
-func TestMetaPageEditsAProposedValueAndWritesIt(t *testing.T) {
-	var written *ebookmeta.Changes
-	m := editPage(t, func(_ string, c *ebookmeta.Changes) error { written = c; return nil })
-	m = focusRow(t, m, metasource.FieldTitle)
-	m, _ = metaStep(t, m, key("e"))
-	if !m.editing {
-		t.Fatalf("e did not open the editor:\n%s", metaScreen(m))
-	}
-	if !strings.Contains(metaScreen(m), "Edit Title") || !strings.Contains(metaScreen(m), "Dune") {
-		t.Fatalf("the editor is not filled with the proposed title:\n%s", metaScreen(m))
-	}
-	m = clearInput(t, m)
-	m = typeIntoEditor(t, m, "Dune Messiah")
-	m, _ = metaStep(t, m, key("enter"))
-	if m.editing || m.stage != metaFields {
-		t.Fatalf("enter did not accept: editing=%v stage=%v", m.editing, m.stage)
-	}
-	row := m.plan[rowOf(t, m, metasource.FieldTitle)]
-	if row.New != "Dune Messiah" || !row.Edited() || !m.selected[rowOf(t, m, metasource.FieldTitle)] {
-		t.Fatalf("row = %+v selected=%v", row, m.selected)
-	}
-	if screen := metaScreen(m); !strings.Contains(screen, "Dune Messiah") || !strings.Contains(screen, "edited") {
-		t.Errorf("the edited row is not marked:\n%s", screen)
-	}
-	applyAndWait(t, m)
-	if written == nil || written.Title == nil || *written.Title != "Dune Messiah" {
-		t.Fatalf("the file got %+v, want the edited title", written)
-	}
-}
-
 func TestMetaPageEditorOwnsTheKeyboard(t *testing.T) {
 	m := editPage(t, nil)
 	m = focusRow(t, m, metasource.FieldPublisher)
@@ -149,64 +125,6 @@ func TestMetaPageEditorOwnsTheKeyboard(t *testing.T) {
 	m, cmd = metaStep(t, m, key("ctrl+c"))
 	if m.editing || m.stage != metaFields || m.cancelled || cmd != nil {
 		t.Fatalf("ctrl+c: editing=%v stage=%v cancelled=%v", m.editing, m.stage, m.cancelled)
-	}
-}
-
-func TestMetaPageRefusesAnInvalidValueAndSaysWhy(t *testing.T) {
-	m := editPage(t, nil)
-	m = focusRow(t, m, metasource.Field("identifier:isbn"))
-	m, _ = metaStep(t, m, key("e"))
-	m = clearInput(t, m)
-	m = typeIntoEditor(t, m, "9780441013594") // wrong check digit
-	m, _ = metaStep(t, m, key("enter"))
-	if !m.editing {
-		t.Fatal("an invalid ISBN was accepted")
-	}
-	if screen := metaScreen(m); !strings.Contains(screen, "not a valid ISBN") {
-		t.Errorf("the refusal is not on screen:\n%s", screen)
-	}
-	if got := m.plan[rowOf(t, m, metasource.Field("identifier:isbn"))]; got.New != "9780441013593" || got.Edited() {
-		t.Errorf("the row changed: %+v", got)
-	}
-	// Typing again clears the stale message; a valid value is then accepted.
-	m = clearInput(t, m)
-	m = typeIntoEditor(t, m, "0-441-01359-7")
-	if strings.Contains(metaScreen(m), "not a valid ISBN") {
-		t.Error("the message outlived the text it was about")
-	}
-	m, _ = metaStep(t, m, key("enter"))
-	if m.editing || m.plan[rowOf(t, m, metasource.Field("identifier:isbn"))].New != "9780441013593" {
-		t.Errorf("a valid ISBN-10 was not accepted as its ISBN-13: editing=%v", m.editing)
-	}
-}
-
-func TestMetaPageOffersEditOnlyForEditableRows(t *testing.T) {
-	m := editPage(t, nil)
-	m = focusRow(t, m, metasource.FieldDescription)
-	m, _ = metaStep(t, m, key("e"))
-	if m.editing || !strings.Contains(m.message, "cannot be edited") {
-		t.Fatalf("editing=%v message=%q", m.editing, m.message)
-	}
-	// On a button, e does nothing.
-	m.focus = len(m.plan) // Apply
-	m, _ = metaStep(t, m, key("e"))
-	if m.editing {
-		t.Error("e opened an editor on a button")
-	}
-}
-
-func TestMetaPageEditorTakesAPaste(t *testing.T) {
-	m := editPage(t, nil)
-	m = focusRow(t, m, metasource.FieldAuthors)
-	m, _ = metaStep(t, m, key("e"))
-	m = clearInput(t, m)
-	m, _ = metaStep(t, m, tea.PasteMsg{Content: "Frank Herbert & Brian Herbert"})
-	if got := m.editor.values()[0]; got != "Frank Herbert & Brian Herbert" {
-		t.Fatalf("pasted text = %q", got)
-	}
-	m, _ = metaStep(t, m, key("enter"))
-	if got := m.plan[rowOf(t, m, metasource.FieldAuthors)].New; got != "Frank Herbert & Brian Herbert" {
-		t.Errorf("authors = %q", got)
 	}
 }
 

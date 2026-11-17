@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -313,6 +314,11 @@ func looksLikeISBN(s string) bool {
 func (d *opfDoc) metadata() *Metadata {
 	m := &Metadata{}
 	refs := d.refinements()
+	for _, e := range d.meta {
+		if e.dc && e.local == "identifier" && d.uniqueID != "" && e.attr["id"] == d.uniqueID {
+			m.UniqueScheme, _ = identifierOf(e, refs)
+		}
+	}
 	var titles []*opfElem
 	for _, e := range d.meta {
 		if !e.dc {
@@ -586,6 +592,10 @@ func escText(s string) string { return textEscaper.Replace(s) }
 
 func escAttr(s string) string { return attrEscaper.Replace(s) }
 
+// modifiedNow is the time a write records as the package's last modification;
+// tests replace it.
+var modifiedNow = time.Now
+
 // rewrite returns the document with c applied to its metadata. extra edits
 // (manifest changes for a cover) are applied in the same pass.
 func (d *opfDoc) rewrite(c *Changes, extra []edit) ([]byte, error) {
@@ -748,6 +758,19 @@ func (d *opfDoc) rewrite(c *Changes, extra []edit) ([]byte, error) {
 				w.identifier(s, v, "")
 			}
 		}
+	}
+
+	// EPUB 3.3 §5.5.5: a package holds exactly one dcterms:modified (the one
+	// that refines nothing), in UTC as YYYY-MM-DDThh:mm:ssZ, and it should be
+	// updated whenever the publication changes. A cover alone changes only an
+	// image, but it is a change all the same.
+	if v3 && (!c.Empty() || len(extra) > 0) {
+		for _, e := range d.meta {
+			if !e.dc && e.local == "meta" && e.attr["property"] == "dcterms:modified" && e.attr["refines"] == "" {
+				remove[e] = true
+			}
+		}
+		w.property("", "dcterms:modified", modifiedNow().UTC().Format("2006-01-02T15:04:05Z"))
 	}
 
 	// Drop EPUB 3 refinements of removed elements.

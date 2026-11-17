@@ -12,6 +12,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/heartleo/zlib/internal/ebookmeta"
+	"github.com/heartleo/zlib/internal/metasource"
 	"github.com/spf13/cobra"
 )
 
@@ -369,11 +370,15 @@ func metadataRows(format ebookmeta.Format, m *ebookmeta.Metadata) [][2]string {
 		}
 		add("Series", s)
 	}
+	// The Z-Library record a download came from gets a row of its own.
 	var ids []string
 	for _, id := range m.Identifiers {
-		ids = append(ids, id.Scheme+":"+id.Value)
+		if id.Scheme != metasource.SchemeZlibID {
+			ids = append(ids, id.Scheme+":"+id.Value)
+		}
 	}
 	add("Identifiers", strings.Join(ids, ", "))
+	add("Z-Library ID", m.Identifier(metasource.SchemeZlibID))
 	add("Published", m.Published)
 	if m.Rating > 0 {
 		add("Rating", strconv.FormatFloat(m.Rating, 'f', -1, 64)+"/5")

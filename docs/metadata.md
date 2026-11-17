@@ -304,11 +304,14 @@ is written:
 | Key | Where | What it does |
 | --- | --- | --- |
 | `e` | Candidates, or no match | Edit the title, authors and ISBNs searched for, then search again. Only the search changes, never the file. A file with no title, author or ISBN opens on this editor |
-| `a` | Fields | Select every proposed change, or none when all are selected |
+| `m` | Prepare | Edit the file's own metadata, every field, with no lookup |
+| `→` `←` space | Fields | Take the match's value for the focused field, keep the file's, or switch between them |
+| `x` `u` | Fields | Clear the focused field; undo every change |
+| `a` | Fields | Take the match's value for every field it proposes, or for none |
 | `?` | Any page but a search or a write in progress | List every key of the page |
 | `n` | Prepare, candidates, no match, fields | Rename the file: choose a name from the search terms, the file's own title or the selected match, or type one. Takes effect at once and never replaces another file |
 | `s` | Candidates, or no match | Go back to the prepare page to change the sources: Open Library, Google Books, Douban, WeRead. A source whose key is missing says so |
-| `e` | Fields | Edit the proposed value of the focused row (title, authors, publisher, languages, tags, date, ISBN) before it is written. An invalid value is refused with the reason, and an edited row is marked `edited` |
+| `e` | Fields | Type a value for the focused field (title, title sort, authors, author sort, series, publisher, languages, tags, date, ISBN, rating, description, cover image). An invalid value is refused with the reason |
 
 Each candidate row ends with the sources behind it in brackets, and the
 details say which ISBN the match has, or `no ISBN listed`.
@@ -370,6 +373,11 @@ skips it and still writes the rest.
   metadata and a `belongs-to-collection` series; EPUB 2 books get `opf:role`,
   `opf:file-as` and `calibre:series` metadata. The series is written in both
   forms in EPUB 3 so older readers find it.
+- A write updates the package's `dcterms:modified` to the time of the write, in
+  UTC, as EPUB 3.3 asks; EPUB 2 has no such property.
+- Identifiers without a registered URN namespace are written `scheme:value`
+  (for example `zlib-id:123:abc`, `douban:1003078`), the form Calibre also
+  writes, and are read back in either EPUB version.
 - The package's unique identifier is never removed; setting a new value for
   its scheme rewrites it in place.
 - A new cover replaces the bytes of the existing cover image. A book without

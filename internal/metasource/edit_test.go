@@ -106,7 +106,7 @@ func TestChangeEditRejectsInvalidText(t *testing.T) {
 
 func TestChangeEditOnlyOffersWhatThePlanHolds(t *testing.T) {
 	plan := planFor(t)
-	for _, f := range []Field{FieldDescription, FieldCover, "identifier:weread"} {
+	for _, f := range []Field{FieldCover, "identifier:weread"} { // the description is editable since the field editor
 		ch, ok := plan[f]
 		if !ok {
 			t.Fatalf("%s: no such row in the plan", f)
@@ -118,7 +118,7 @@ func TestChangeEditOnlyOffersWhatThePlanHolds(t *testing.T) {
 			t.Errorf("%s: err = %v, want ErrNotEditable", f, err)
 		}
 	}
-	for _, f := range []Field{FieldTitle, FieldAuthors, FieldPublisher, FieldLanguages, FieldTags, FieldPublished, "identifier:isbn"} {
+	for _, f := range []Field{FieldTitle, FieldAuthors, FieldPublisher, FieldLanguages, FieldTags, FieldPublished, "identifier:isbn", FieldDescription} {
 		if !plan[f].Editable() {
 			t.Errorf("%s is not editable", f)
 		}

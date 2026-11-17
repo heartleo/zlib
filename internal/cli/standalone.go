@@ -37,7 +37,13 @@ func runStandaloneShellCommand(command string) error {
 	if err != nil {
 		return err
 	}
-	result, err := tea.NewProgram(m).Run()
+	// The metadata page draws covers; the others have none to draw.
+	var result tea.Model
+	if strings.HasPrefix(command, "/meta") {
+		result, err = runCoverProgram(m)
+	} else {
+		result, err = tea.NewProgram(m).Run()
+	}
 	if err != nil {
 		return err
 	}

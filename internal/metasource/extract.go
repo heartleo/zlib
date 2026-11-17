@@ -44,6 +44,9 @@ type Extraction struct {
 	// "embedded", "recorded by a download", "copyright page", "download
 	// record" or "file name".
 	ISBNFrom []string
+	// ZlibID is the Z-Library record (id:hash) a download wrote into the file,
+	// or "".
+	ZlibID string
 }
 
 // Extract builds the query for a book. The file name is read first: a Z-Library
@@ -61,6 +64,7 @@ func Extract(fileName string, m *ebookmeta.Metadata, scanned []string, hint Hint
 		m = &ebookmeta.Metadata{}
 	}
 	x.Embedded = embeddedOf(m)
+	x.ZlibID = strings.TrimSpace(m.Identifier(SchemeZlibID))
 	fg, emb := x.FileName, x.Embedded
 	if authors, ok := dashReading(fg, emb, hint); ok {
 		fg.Title, fg.Authors, fg.Structured = fg.DashTitle, authors, true

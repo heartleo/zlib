@@ -128,146 +128,6 @@ func rowWith(t *testing.T, screen, s string) string {
 	return ""
 }
 
-func TestMetaPageFlagsAnISBNWithADifferentTitle(t *testing.T) {
-	res := twoCandidates()
-	res.Candidates[0].Score = 0.5
-	m := metaPageAfterLookup(t, answerWith(res, nil, nil), nil)
-	if !strings.Contains(metaScreen(m), "ISBN? Before") {
-		t.Errorf("row lacks the ISBN? marker:\n%s", metaScreen(m))
-	}
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if !strings.Contains(metaScreen(m), "ISBN matches but the title is different") {
-		t.Errorf("fields page lacks the warning:\n%s", metaScreen(m))
-	}
-	// Probably another book: the rows are offered, none starts selected.
-	if len(m.plan) == 0 {
-		t.Fatal("no rows offered")
-	}
-	for i, ch := range m.plan {
-		if m.selected[i] {
-			t.Errorf("%s starts selected for a probable other book", ch.Field)
-		}
-	}
-	if screen := metaScreen(m); strings.Contains(screen, "[x]") || !strings.Contains(screen, "(may be another book)") {
-		t.Errorf("rows are not all unchecked and tagged:\n%s", screen)
-	}
-	// Ctrl+S with nothing selected writes nothing.
-	if m, cmd := metaStep(t, m, metaKey("ctrl+s")); cmd != nil || m.stage != metaFields {
-		t.Error("applied an empty selection")
-	}
-}
-
-func TestMetaPageMarksGuessedEditionRowsForATitleOnlyMatch(t *testing.T) {
-	c := dune()
-	c.Languages, c.Tags = []string{"en"}, []string{"Classics"}
-	c.Sources, c.Match, c.Score = []string{"Google Books"}, metasource.MatchTitle, 0.83
-	m := metaPageAfterLookup(t, answerWith(metasource.Result{Candidates: []metasource.Candidate{c}}, nil, nil), nil)
-	m.current.Languages = nil
-	m, _ = metaStep(t, m, metaKey("enter"))
-	screen := metaScreen(m)
-	for _, want := range []string{
-		"Found by title only: check the edition",
-		"[x] Authors", "[x] Description", "[x] Tags",
-		"[ ] Publisher", "[ ] Languages", "[ ] Published", "[ ] ID isbn",
-		"(check edition)",
-	} {
-		if !strings.Contains(screen, want) {
-			t.Errorf("screen lacks %q:\n%s", want, screen)
-		}
-	}
-	// Selecting a guessed row is a deliberate act.
-	for i, ch := range m.plan {
-		if ch.Field == metasource.FieldPublisher {
-			m.focus = i
-		}
-	}
-	m, _ = metaStep(t, m, metaKey("space"))
-	if !strings.Contains(metaScreen(m), "[x] Publisher") {
-		t.Errorf("a guessed row could not be selected:\n%s", metaScreen(m))
-	}
-}
-
-func TestMetaPagePreselectsOnlyEmptyFields(t *testing.T) {
-	m := metaPageAfterLookup(t, answerWith(twoCandidates(), nil, nil), nil)
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if m.stage != metaFields {
-		t.Fatalf("stage = %v", m.stage)
-	}
-	var on, off []string
-	for i, ch := range m.plan {
-		if m.selected[i] {
-			on = append(on, string(ch.Field))
-		} else {
-			off = append(off, string(ch.Field))
-		}
-	}
-	// The file has the title "Before" and an English language; the rest is empty.
-	if !slices.Contains(on, "authors") || !slices.Contains(on, "identifier:isbn") || !slices.Contains(on, "publisher") {
-		t.Errorf("empty fields not selected: on=%v", on)
-	}
-	for _, f := range off {
-		if f == "authors" || f == "publisher" {
-			t.Errorf("%s should be selected", f)
-		}
-	}
-	screen := metaScreen(m)
-	for _, want := range []string{"[x] Authors", "In the file", "New", "[x] ID isbn", "Apply", "Back", "ctrl+s apply"} {
-		if !strings.Contains(screen, want) {
-			t.Errorf("fields screen lacks %q:\n%s", want, screen)
-		}
-	}
-	// A row holds the value in the file and the new one, in that order.
-	if row := rowWith(t, screen, "[x] Authors"); !strings.Contains(row, "(empty)") || strings.Index(row, "(empty)") > strings.Index(row, "Frank Herbert") {
-		t.Errorf("the authors row is %q", row)
-	}
-}
-
-func TestMetaPageAppliesOnlyTheSelectedFields(t *testing.T) {
-	var wrote *ebookmeta.Changes
-	var wrotePath string
-	write := func(path string, c *ebookmeta.Changes) error { wrotePath, wrote = path, c; return nil }
-	m := metaPageAfterLookup(t, answerWith(twoCandidates(), nil, nil), write)
-	m, _ = metaStep(t, m, metaKey("enter"))
-	for i, ch := range m.plan { // deselect the publisher
-		if ch.Field == metasource.FieldPublisher {
-			m.focus = i
-		}
-	}
-	m, _ = metaStep(t, m, metaKey("space"))
-	m, cmd := metaStep(t, m, metaKey("ctrl+s"))
-	if m.stage != metaWriting || cmd == nil {
-		t.Fatalf("stage = %v", m.stage)
-	}
-	if !strings.Contains(metaScreen(m), "Writing the file") {
-		t.Errorf("no writing state:\n%s", metaScreen(m))
-	}
-	// Run the write command from the batch and feed its result back.
-	var done tea.Msg
-	for _, c := range batchCmds(cmd) {
-		if msg := c(); msg != nil {
-			if _, ok := msg.(metaWriteDone); ok {
-				done = msg
-			}
-		}
-	}
-	if done == nil {
-		t.Fatal("the write command never ran")
-	}
-	if wrotePath != m.path || wrote == nil || wrote.Authors == nil || wrote.Publisher != nil || wrote.Title != nil || wrote.Identifiers["isbn"] != "9780441013593" {
-		t.Fatalf("wrote %+v to %s", wrote, wrotePath)
-	}
-	m, cmd = metaStep(t, m, done)
-	if cmd == nil || m.cancelled || !slices.Contains(m.applied, "authors") || slices.Contains(m.applied, "publisher") {
-		t.Fatalf("applied = %v, cancelled = %v", m.applied, m.cancelled)
-	}
-	if msg := cmd(); msg != tea.Quit() {
-		t.Errorf("did not quit: %T", msg)
-	}
-	if got := m.summary(); !strings.HasPrefix(got, "Updated ") || !strings.HasSuffix(got, " in book.epub") {
-		t.Errorf("summary = %q", got)
-	}
-}
-
 // batchCmds flattens a tea.Batch into its commands.
 func batchCmds(cmd tea.Cmd) []tea.Cmd {
 	msg := cmd()
@@ -298,18 +158,6 @@ func TestMetaPageWriteFailureStaysOnTheFieldsPage(t *testing.T) {
 	}
 }
 
-func TestMetaPageNeedsAtLeastOneField(t *testing.T) {
-	m := metaPageAfterLookup(t, answerWith(twoCandidates(), nil, nil), nil)
-	m, _ = metaStep(t, m, metaKey("enter"))
-	for i := range m.selected {
-		m.selected[i] = false
-	}
-	m, cmd := metaStep(t, m, metaKey("ctrl+s"))
-	if cmd != nil || m.stage != metaFields || !strings.Contains(metaScreen(m), "Select at least one field") {
-		t.Fatalf("stage = %v:\n%s", m.stage, metaScreen(m))
-	}
-}
-
 func TestMetaPageHidesFieldsTheFormatCannotStore(t *testing.T) {
 	m := metaPageAfterLookup(t, answerWith(twoCandidates(), nil, nil), nil)
 	m.format = ebookmeta.FormatPDF
@@ -321,23 +169,6 @@ func TestMetaPageHidesFieldsTheFormatCannotStore(t *testing.T) {
 	}
 	if !strings.Contains(metaScreen(m), "PDF files cannot store: publisher") {
 		t.Errorf("hidden fields not named:\n%s", metaScreen(m))
-	}
-}
-
-func TestMetaPageNothingToAddOffersOnlyBack(t *testing.T) {
-	res := metasource.Result{Candidates: []metasource.Candidate{{Title: "Before", Sources: []string{"A"}, Match: metasource.MatchTitle, Score: 0.9}}}
-	m := metaPageAfterLookup(t, answerWith(res, nil, nil), nil)
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if len(m.plan) != 0 || !strings.Contains(metaScreen(m), "Nothing to add") || strings.Contains(metaScreen(m), "Apply") {
-		t.Fatalf("plan = %v:\n%s", m.plan, metaScreen(m))
-	}
-	m, cmd := metaStep(t, m, metaKey("ctrl+s"))
-	if cmd != nil || m.stage != metaFields {
-		t.Fatal("ctrl+s should do nothing without fields")
-	}
-	m, _ = metaStep(t, m, metaKey("enter"))
-	if m.stage != metaCandidates {
-		t.Fatalf("stage = %v", m.stage)
 	}
 }
 

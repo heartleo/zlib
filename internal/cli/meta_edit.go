@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -140,26 +141,6 @@ func (m metaPageModel) acceptQueryEdit() (tea.Model, tea.Cmd) {
 	return m.search()
 }
 
-// startValueEdit opens the editor on the focused row, filled with the value
-// the catalogue proposed (or the one typed before). A row that cannot be edited
-// says so; on a button the key does nothing.
-func (m metaPageModel) startValueEdit() (tea.Model, tea.Cmd) {
-	if m.focus >= len(m.plan) {
-		return m, nil
-	}
-	ch := m.plan[m.focus]
-	label := metaFieldLabel(ch.Field)
-	if !ch.Editable() {
-		m.message = label + " cannot be edited here"
-		return m, nil
-	}
-	var cmd tea.Cmd
-	m.editor, cmd = newMetaEditor("Edit "+label, []string{label}, []string{ch.New}, m.width)
-	m.editor.help = metaEditHelp(ch.Field)
-	m.editing, m.editKind, m.editRow, m.message = true, editValue, m.focus, ""
-	return m, cmd
-}
-
 // metaEditHelp says how the value of a field is written.
 func metaEditHelp(f metasource.Field) string {
 	switch f {
@@ -185,32 +166,21 @@ func (m metaPageModel) editKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.editing = false
 		return m, nil
 	case "enter", "ctrl+s":
+		// In the description's text area Enter starts a new line; Ctrl+S keeps it.
+		if m.editor.multiline() && msg.String() == "enter" {
+			break
+		}
 		switch m.editKind {
 		case editQuery:
 			return m.acceptQueryEdit()
 		case editName:
 			return m.acceptNameEdit()
 		}
-		return m.acceptValueEdit(), nil
+		return m.acceptBenchEdit(), nil
 	}
 	var cmd tea.Cmd
 	m.editor, cmd = m.editor.update(msg)
 	return m, cmd
-}
-
-// acceptValueEdit replaces the row with the edited one, or keeps the editor
-// open with the reason the text was refused.
-func (m metaPageModel) acceptValueEdit() metaPageModel {
-	ch, err := m.plan[m.editRow].Edit(m.editor.values()[0])
-	if err != nil {
-		m.editor.err = err.Error()
-		return m
-	}
-	m.plan[m.editRow] = ch
-	m.selected[m.editRow] = true
-	m.editing = false
-	m.message = "Edited " + strings.ToLower(metaFieldLabel(ch.Field))
-	return m
 }
 
 // metaEditor is the text entry the metadata page opens in place: one input to
@@ -221,10 +191,28 @@ type metaEditor struct {
 	title  string
 	labels []string
 	inputs []textinput.Model
-	focus  int
-	err    string // why the last attempt to accept was refused
-	help   string // one line under the inputs
+	// area replaces the inputs for a text of several lines, the description.
+	area  *textarea.Model
+	focus int
+	err   string // why the last attempt to accept was refused
+	help  string // one line under the inputs
 }
+
+// newMetaTextEditor opens a text area for a value of several lines.
+func newMetaTextEditor(title, value string, width, height int) (metaEditor, tea.Cmd) {
+	a := textarea.New()
+	a.ShowLineNumbers = false
+	a.Prompt = "│ "
+	a.CharLimit = 0
+	a.MaxHeight = 0
+	a.SetWidth(max(10, width-6))
+	a.SetHeight(max(3, height))
+	a.SetValue(value)
+	e := metaEditor{title: title, labels: []string{title}, area: &a}
+	return e, a.Focus()
+}
+
+func (e metaEditor) multiline() bool { return e.area != nil }
 
 // newMetaEditor opens an editor with one input per label, filled with values.
 // The first input has the cursor.
@@ -258,6 +246,9 @@ func (e *metaEditor) refocus() tea.Cmd {
 }
 
 func (e *metaEditor) resize(width int) {
+	if e.area != nil {
+		e.area.SetWidth(max(10, width-6))
+	}
 	for i := range e.inputs {
 		e.inputs[i].SetWidth(max(10, width-6))
 	}
@@ -265,6 +256,9 @@ func (e *metaEditor) resize(width int) {
 
 // values are the texts typed so far, one per label.
 func (e metaEditor) values() []string {
+	if e.area != nil {
+		return []string{e.area.Value()}
+	}
 	out := make([]string, len(e.inputs))
 	for i, in := range e.inputs {
 		out[i] = in.Value()
@@ -276,6 +270,15 @@ func (e metaEditor) values() []string {
 // to the focused input: typing, editing keys, paste and the cursor blink. A
 // change clears the last refusal, since it no longer describes the text.
 func (e metaEditor) update(msg tea.Msg) (metaEditor, tea.Cmd) {
+	if e.area != nil {
+		before := e.area.Value()
+		a, cmd := e.area.Update(msg)
+		e.area = &a
+		if a.Value() != before {
+			e.err = ""
+		}
+		return e, cmd
+	}
 	if k, ok := msg.(tea.KeyPressMsg); ok && len(e.inputs) > 1 {
 		switch k.String() {
 		case "tab", "down":
@@ -299,6 +302,11 @@ func (e metaEditor) update(msg tea.Msg) (metaEditor, tea.Cmd) {
 // the help line, each cut to the width.
 func (e metaEditor) view(width int) string {
 	lines := []string{"  " + colorBold(safeText(e.title))}
+	if e.area != nil {
+		for _, l := range strings.Split(e.area.View(), "\n") {
+			lines = append(lines, "  "+ansi.Truncate(l, max(1, width-2), "…"))
+		}
+	}
 	for i, in := range e.inputs {
 		if len(e.labels) > 1 {
 			label := e.labels[i]

@@ -30,6 +30,10 @@ type Metadata struct {
 	// Cover reports the embedded cover's media type, or "" when the file
 	// has none or the format cannot carry one.
 	Cover string `json:"cover,omitempty"`
+	// UniqueScheme is the scheme of the identifier an EPUB package names as its
+	// unique identifier. The package must keep one, so that identifier can be
+	// given a new value but not removed. It is "" for other formats.
+	UniqueScheme string `json:"-"`
 }
 
 // Identifier is a typed book identifier such as isbn:9780000000000.

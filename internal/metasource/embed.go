@@ -20,6 +20,10 @@ const (
 	embedMinTitleSimilarity = 0.8
 )
 
+// SchemeZlibID is the identifier a download writes for the Z-Library record a
+// file came from, as id:hash, so it can be traced back to that record.
+const SchemeZlibID = "zlib-id"
+
 // PlanDownloadISBN decides how to record the ISBN of a Z-Library record in the
 // file it was downloaded as. isbns are tried in order and the first valid one
 // is used. It returns the identifier scheme written and the change, or "" and

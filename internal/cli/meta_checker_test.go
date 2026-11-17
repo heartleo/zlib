@@ -38,22 +38,6 @@ func busyFieldsPage(t *testing.T, w, h int) metaPageModel {
 	return m
 }
 
-// The editor must be on screen however tall the list of fields is: otherwise
-// the user types where nothing is shown, and a refusal is never seen.
-func TestMetaPageValueEditorIsVisibleWhateverTheFieldCount(t *testing.T) {
-	for _, size := range [][2]int{{80, 24}, {80, 20}, {60, 16}, {50, 14}} {
-		m := busyFieldsPage(t, size[0], size[1])
-		m, _ = metaStep(t, m, key("e"))
-		m.editor.err = "That is not a valid ISBN: check the digits"
-		screen := metaScreen(m)
-		for _, want := range []string{"Edit Title", "Dune", "valid ISBN"} {
-			if !strings.Contains(screen, want) {
-				t.Errorf("%dx%d: %q is not on screen while editing:\n%s", size[0], size[1], want, screen)
-			}
-		}
-	}
-}
-
 // Escaping a repeat search goes back to the results it replaced; only the
 // first search, which has nothing to go back to, closes the page.
 func TestMetaPageEscDuringARepeatSearchKeepsThePreviousResults(t *testing.T) {

@@ -70,7 +70,11 @@ file's metadata before any Kindle or WeRead delivery, so a later
 JSON document then has `isbn`: `{"scheme":"isbn","value":"978..."}`, or
 `{"scheme":"zlib-isbn","value":"978..."}` when the record's title did not agree
 with the file's, or the record lists the ISBNs of several editions. An existing
-ISBN is never replaced. Add `--no-embed` to leave
+ISBN is never replaced. An EPUB also records the Z-Library book ID (`id:hash`)
+as the identifier `zlib-id`, so the file can always be traced back to its
+record; the JSON document then has `zlib_id`, and `zlib meta` shows it as
+`Z-Library ID`. Other formats have no place for an identifier of their own and
+keep only the ISBN. Add `--no-embed` to leave
 the file untouched. Downloads from a direct URL (`history --download`) have no
 record and write nothing.
 

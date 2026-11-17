@@ -26,6 +26,9 @@ func (m metaPageModel) metaStepInfo() (int, string) {
 		}
 		return 0, "File details"
 	}
+	if stage == metaFields && m.manual {
+		return 0, "Edit metadata"
+	}
 	switch stage {
 	case metaPrepare:
 		return 1, "Prepare the search"
@@ -60,204 +63,6 @@ func (m metaPageModel) metaSubtitle() string {
 	return file
 }
 
-// --- Fields page -----------------------------------------------------------
-
-// fieldsLayout says which parts of the fields page fit and how many plan rows it
-// shows from which one. It depends only on the size, the plan and the focus,
-// so scrolling follows the cursor.
-//
-// The lines are handed out in order of what matters: the buttons and the
-// focused row always, then the match line, the warning, the column titles, the
-// other rows (with a line counting those out of sight), the spacers and last
-// the preview of the focused row.
-type fieldsLayout struct {
-	top, rows                   int
-	from, warn, columns, spaced bool
-	more                        bool // a line counts the rows out of sight
-	previewRows                 int
-}
-
-func (m metaPageModel) fieldsHeaderLines() []string {
-	width := max(20, m.width)
-	lines := []string{ansi.Truncate("  "+colorFaint("From ")+safeText(m.cand.Title)+colorFaint(" · "+safeText(strings.Join(m.cand.Sources, ", "))), width, "…")}
-	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
-	switch {
-	case m.cand.Match == metasource.MatchISBN && m.cand.Score < 1:
-		lines = append(lines, ansi.Truncate("  "+warn.Render("The ISBN matches but the title is different: check this is the right book."), width, "…"))
-	case m.cand.Match != metasource.MatchISBN:
-		lines = append(lines, ansi.Truncate("  "+warn.Render("Found by title only: check the edition before keeping its ISBN, publisher, date or language."), width, "…"))
-	}
-	return lines
-}
-
-func (m metaPageModel) fieldsLayoutFor(header, buttons int) fieldsLayout {
-	n := len(m.plan)
-	budget := max(0, m.height-6) - buttons - 1 // what screenView leaves, less the buttons and the focused row
-	take := func(k int) bool {
-		if budget >= k {
-			budget -= k
-			return true
-		}
-		return false
-	}
-	l := fieldsLayout{rows: 1}
-	l.from = take(1)
-	// Saying that rows are out of sight matters more than the warning and the
-	// column titles; it is given back below when every row fits.
-	l.more = n > 1 && take(1)
-	l.warn = header > 1 && l.from && take(1)
-	l.columns = take(1)
-	// Keep room for a preview when there is plenty, so a long value can be read.
-	reserve := 0
-	if budget-4 >= min(n-1, 3)+2 {
-		reserve = 4
-		budget -= reserve
-	}
-	if l.more && n-1 <= budget+1 { // every row fits in what the count would take
-		l.more, budget = false, budget+1
-	}
-	if n-1 <= budget {
-		l.rows, budget = n, budget-(n-1)
-	} else {
-		l.rows, budget = 1+budget, 0
-	}
-	l.spaced = take(2)
-	budget += reserve
-	if budget >= 3 {
-		l.previewRows = budget - 1 // one blank line before it
-	}
-	focus := min(m.focus, max(0, n-1))
-	l.top = min(max(0, focus-l.rows/2), max(0, n-l.rows))
-	return l
-}
-
-func btoi(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-// fieldsBody is the review page: the match, a table of the proposed changes
-// with what the file holds now beside each, the focused row in full, and the
-// Apply and Back buttons.
-func (m metaPageModel) fieldsBody() string {
-	width := max(20, m.width)
-	n := len(m.plan)
-	// Button focus is one-based: Apply is plan index n, Back is n+1.
-	buttons := actionButtonRows([]string{"Apply", "Back"}, max(0, m.focus-n+1), width)
-	if n == 0 {
-		buttons = actionButtonRows([]string{"", "Back"}, 2, width)
-	}
-	header := m.fieldsHeaderLines()
-	if n == 0 {
-		lines := append(append([]string{}, header...), "", "  "+colorFaint("Nothing to change."), "")
-		return strings.Join(append(lines, buttons...), "\n")
-	}
-	l := m.fieldsLayoutFor(len(header), len(buttons))
-	var lines []string
-	if l.from {
-		lines = append(lines, header[0])
-	}
-	if l.warn {
-		lines = append(lines, header[1])
-	}
-	if l.spaced && l.from {
-		lines = append(lines, "")
-	}
-	fieldW, oldW, newW := m.fieldColumns(width)
-	if l.columns {
-		lines = append(lines, colorFaint(ansi.Truncate("      "+padCell("Field", fieldW)+"  "+padCell("In the file", oldW)+"  "+"New", width, "…")))
-	}
-	for i := l.top; i < min(n, l.top+l.rows); i++ {
-		lines = append(lines, m.fieldRow(i, fieldW, oldW, newW, width))
-	}
-	if l.more {
-		above, below := l.top, n-l.top-l.rows
-		var parts []string
-		if above > 0 {
-			parts = append(parts, "↑ "+strconv.Itoa(above)+" more")
-		}
-		if below > 0 {
-			parts = append(parts, "↓ "+strconv.Itoa(below)+" more")
-		}
-		lines = append(lines, "  "+colorFaint(strings.Join(parts, "  ")))
-	}
-	if preview := m.fieldPreview(l.previewRows, width); len(preview) > 0 {
-		lines = append(lines, "")
-		lines = append(lines, preview...)
-	}
-	if l.spaced {
-		lines = append(lines, "")
-	}
-	return strings.Join(append(lines, buttons...), "\n")
-}
-
-// fieldColumns splits the width between the field name, the value in the file
-// and the new value, after the longest notes, so a long note such as
-// "(replaces, may be another book)" does not squeeze the new value away. The
-// new value gets the larger share: it is what would be written.
-func (m metaPageModel) fieldColumns(width int) (fieldW, oldW, newW int) {
-	fieldW, noteW := 5, 0
-	for _, ch := range m.plan {
-		fieldW = max(fieldW, ansi.StringWidth(metaFieldLabel(ch.Field)))
-		noteW = max(noteW, ansi.StringWidth(fieldNote(ch)))
-	}
-	fieldW = min(fieldW, 14)
-	// "> [x] " is six cells, and two spaces separate each column.
-	rest := max(10, width-6-fieldW-4-min(noteW, width/3))
-	oldW = max(5, rest*2/5)
-	newW = max(5, rest-oldW)
-	return fieldW, oldW, newW
-}
-
-// fieldNote is the notes after a row's new value, such as "  (replaces)".
-func fieldNote(ch metasource.Change) string {
-	var notes []string
-	if !ch.Fill {
-		notes = append(notes, "replaces")
-	}
-	if ch.Note != "" {
-		notes = append(notes, ch.Note)
-	}
-	if len(notes) == 0 {
-		return ""
-	}
-	return "  (" + strings.Join(notes, ", ") + ")"
-}
-
-// fieldRow is one proposed change: the checkbox, the field, the value in the
-// file and the new one, then the notes. A field the change adds is coloured
-// apart from one it replaces, and the notes say the same in words.
-func (m metaPageModel) fieldRow(i, fieldW, oldW, newW, width int) string {
-	ch := m.plan[i]
-	box := "[ ]"
-	if m.selected[i] {
-		box = "[x]"
-	}
-	old := safeText(oneLine(ch.Old))
-	if old == "" {
-		old = "(empty)"
-	}
-	note := fieldNote(ch)
-	value := safeText(oneLine(ch.New))
-	// The new value gives way to the notes, which say what selecting it does.
-	room := newW
-	if extra := 6 + fieldW + 2 + oldW + 2 + newW + ansi.StringWidth(note); extra > width {
-		room = max(5, newW-(extra-width))
-	}
-	name := padCell(metaFieldLabel(ch.Field), fieldW)
-	if m.focus != i { // a selected row is drawn in one style; colour the rest
-		if ch.Fill {
-			name = colorGreen(name)
-		} else {
-			name = lipgloss.NewStyle().Foreground(currentTheme.Warning).Render(name)
-		}
-	}
-	label := box + " " + name + "  " + padCell(old, oldW) + "  " + ansi.Truncate(value, room, "…") + note
-	return styledListRow(label, m.focus == i, width, currentTheme)
-}
-
 // padCell cuts s to w cells and pads it to exactly w, counting wide
 // characters as two.
 func padCell(s string, w int) string {
@@ -265,79 +70,11 @@ func padCell(s string, w int) string {
 	return s + strings.Repeat(" ", max(0, w-ansi.StringWidth(s)))
 }
 
-// fieldPreview shows the focused row in full: what the file holds and what
-// would be written, each wrapped, within rows lines.
-func (m metaPageModel) fieldPreview(rows, width int) []string {
-	if rows < 3 || len(m.plan) == 0 {
-		return nil
+func btoi(b bool) int {
+	if b {
+		return 1
 	}
-	ch := m.plan[min(m.focus, len(m.plan)-1)]
-	state := "will be written"
-	if i := min(m.focus, len(m.plan)-1); !m.selected[i] {
-		state = "not selected"
-	}
-	out := []string{sectionHeader(metaFieldLabel(ch.Field), state, width)}
-	each := max(1, (rows-1)/2)
-	add := func(label, value string) {
-		if value == "" {
-			value = "(empty)"
-		}
-		wrapped := strings.Split(ansi.Wrap(safeText(oneLine(value)), max(10, width-16), ""), "\n")
-		if len(wrapped) > each {
-			wrapped = append(wrapped[:each-1], ansi.Truncate(wrapped[each-1], max(1, width-17), "…")+" …")
-		}
-		for j, w := range wrapped {
-			prefix := "  " + colorFaint(padCell(label, 12)) + "  "
-			if j > 0 {
-				prefix = strings.Repeat(" ", 16)
-			}
-			out = append(out, ansi.Truncate(prefix+w, width, "…"))
-		}
-	}
-	add("In the file", ch.Old)
-	add("New", ch.New)
-	return out[:min(len(out), rows)]
-}
-
-// fieldsStatus says how many changes are selected and how many replace a
-// value, then which fields the format cannot store, or the last message.
-func (m metaPageModel) fieldsStatus() string {
-	var parts []string
-	if m.message != "" {
-		parts = append(parts, m.message)
-	} else if n := len(m.plan); n > 0 {
-		chosen, replacing := 0, 0
-		for i, ch := range m.plan {
-			if m.selected[i] {
-				chosen++
-				if !ch.Fill {
-					replacing++
-				}
-			}
-		}
-		s := strconv.Itoa(chosen) + " of " + strconv.Itoa(n) + " selected"
-		if replacing > 0 {
-			s += ", " + strconv.Itoa(replacing) + " replacing a value"
-		}
-		parts = append(parts, s)
-	}
-	if len(m.hidden) > 0 {
-		parts = append(parts, strings.ToUpper(string(m.format))+" files cannot store: "+strings.Join(m.hidden, ", "))
-	}
-	return strings.Join(parts, " · ")
-}
-
-// toggleAll selects every row, or none when every row is selected already.
-func (m metaPageModel) toggleAll() metaPageModel {
-	all := true
-	for _, s := range m.selected {
-		all = all && s
-	}
-	for i := range m.selected {
-		m.selected[i] = !all
-	}
-	m.message = "" // the status line counts the selection
-	return m
+	return 0
 }
 
 // --- Results page ------------------------------------------------------------
@@ -390,6 +127,17 @@ func (m metaPageModel) candidatesBody() string {
 		lines = append(lines, "  "+colorFaint(strconv.Itoa(m.cursor+1)+" of "+strconv.Itoa(len(m.res.Candidates))))
 	}
 	c := m.res.Candidates[m.cursor]
+	if m.compareFits() {
+		// The file beside the highlighted match, field for field, before
+		// choosing it: what it would add, then both panels.
+		var effect []string
+		for _, r := range m.candidateEffect(c) {
+			effect = append(effect, r[0]+": "+r[1])
+		}
+		lines = append(lines, "", "  "+colorFaint(ansi.Truncate(strings.Join(effect, " · "), max(1, width-4), "…")))
+		cm := m.compareModel()
+		return strings.Join(append(lines, cm.benchPanelsWith(cm.compareRows(), m.compareCovers())...), "\n")
+	}
 	lines = append(lines, "", sectionHeader("Details", "", width))
 	for _, l := range formatDetailRows(append(m.candidateEffect(c), metaDetailRows(c)...), "  ", colorFaint) {
 		lines = append(lines, ansi.Truncate(l, width, "…"))
@@ -486,7 +234,7 @@ func (m metaPageModel) metaHelpRows() [][2]string {
 	case metaPrepare:
 		rows = [][2]string{{"↑/↓", "move between sources"}, {"space", "turn the highlighted source on or off"},
 			{"e", "edit the title, authors and ISBN to search for"}, {"t", "use the other title"},
-			{"ctrl+d", "save the sources that are on as the default"}, {"i", "show everything in the file"},
+			{"ctrl+d", "save the sources that are on as the default"}, {"i", "show everything in the file"}, {"m", "edit the file's metadata without a search"},
 			{"n", "rename the file"}, {"enter", "search"}}
 	case metaCandidates:
 		rows = [][2]string{{"↑/↓", "choose a match"}, {"pgup/pgdown", "move a page"}, {"enter", "review its fields"},
@@ -494,9 +242,16 @@ func (m metaPageModel) metaHelpRows() [][2]string {
 	case metaFailed:
 		rows = [][2]string{{"e", "edit the search"}, {"s", "change the sources"}, {"r", "search again"}, {"n", "rename the file"}}
 	case metaFields:
-		rows = [][2]string{{"↑/↓", "move between fields and the buttons"}, {"space", "select or deselect the field"},
-			{"a", "select all, or none when all are selected"}, {"e", "edit the new value before it is written"},
-			{"enter", "toggle the field, or press the focused button"}, {"ctrl+s", "write the selected fields"}, {"n", "rename the file"}}
+		rows = [][2]string{{"↑/↓", "move between fields"}, {"→ / l", "use the match's value for this field"},
+			{"space", "switch between the match's value and the file's"}, {"← / h", "keep the file's value (undo this field)"},
+			{"e / enter", "type a value; the description opens a text area"}, {"x", "clear this field"},
+			{"a", "use the match for every field it proposes, or for none"}, {"u", "undo every change"},
+			{"ctrl+s", "write the changed fields"}, {"n", "rename the file"}}
+		if m.manual {
+			rows = [][2]string{{"↑/↓", "move between fields"}, {"e / enter", "type a value; the description opens a text area"},
+				{"x", "clear this field"}, {"← / h", "undo this field"}, {"u", "undo every change"},
+				{"ctrl+s", "write the changed fields"}, {"n", "rename the file"}}
+		}
 	case metaRename:
 		rows = [][2]string{{"↑/↓", "choose a name"}, {"enter", "rename to it"}, {"e", "edit the name first"}}
 	case metaInfo:
@@ -559,8 +314,8 @@ func (m metaPageModel) helpScreen(subtitle string) tea.View {
 // scrolls instead of being cut.
 func (m metaPageModel) openInfo() metaPageModel {
 	m.stage = metaInfo
-	m.infoView = viewport.New(viewport.WithWidth(max(1, m.width)), viewport.WithHeight(max(1, m.height-7)))
-	m.infoView.SetContent(m.infoContent())
+	m.infoView = viewport.New(viewport.WithWidth(max(1, m.sideNarrow().width)), viewport.WithHeight(max(1, m.height-7)))
+	m.infoView.SetContent(m.sideNarrow().infoContent())
 	return m
 }
 
@@ -573,9 +328,9 @@ func (m metaPageModel) resizeInfo() metaPageModel {
 	if m.stage != metaInfo {
 		return m
 	}
-	m.infoView.SetWidth(max(1, m.width))
+	m.infoView.SetWidth(max(1, m.sideNarrow().width))
 	m.infoView.SetHeight(max(1, m.height-7))
-	m.infoView.SetContent(m.infoContent())
+	m.infoView.SetContent(m.sideNarrow().infoContent())
 	return m
 }
 

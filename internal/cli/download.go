@@ -51,7 +51,7 @@ type deliveries struct {
 func addDeliveryFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("send-to-kindle", false, "Send the downloaded book to Kindle")
 	cmd.Flags().Bool("send-to-weread", false, "Import the downloaded book into WeRead")
-	cmd.Flags().Bool("no-embed", false, "Do not record the Z-Library ISBN in the downloaded file's metadata")
+	cmd.Flags().Bool("no-embed", false, "Do not record the Z-Library ISBN or book ID in the downloaded file's metadata")
 }
 
 func deliveryFlags(cmd *cobra.Command) deliveries {
@@ -70,6 +70,9 @@ type downloadResult struct {
 	WeRead *wereadResult `json:"weread,omitempty"`
 	// ISBN is what the download recorded in the file's metadata, if anything.
 	ISBN *embeddedISBN `json:"isbn,omitempty"`
+	// ZlibID is the Z-Library record ID (id:hash) written into the file, if it
+	// could be.
+	ZlibID string `json:"zlib_id,omitempty"`
 }
 
 // kindleResult reports the Send to Kindle step of a download.
@@ -127,7 +130,10 @@ func runDownload(m downloadModel, deliver deliveries, cmd *cobra.Command) error 
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
 	}
-	result := downloadResult{ID: dm.id, Name: dm.bookName, Path: path, Size: dm.savedSize, ISBN: dm.embedded}
+	result := downloadResult{ID: dm.id, Name: dm.bookName, Path: path, Size: dm.savedSize, ISBN: dm.embedded.isbnPart()}
+	if dm.embedded != nil {
+		result.ZlibID = dm.embedded.ZlibID
+	}
 	if !jsonOut {
 		lipgloss.Fprintln(os.Stdout)
 		lipgloss.Fprintf(os.Stdout, "%s Saved to: %s (%d bytes)\n",
@@ -224,7 +230,12 @@ func (m downloadModel) runPlain(status io.Writer) (downloadModel, error) {
 		fmt.Fprintf(status, "Warning: could not record the ISBN in the file: %s\n", safeText(err.Error()))
 	} else if embedded != nil {
 		m.embedded = embedded
-		fmt.Fprintf(status, "Recorded ISBN %s in the file metadata (%s)\n", embedded.Value, embedded.Scheme)
+		if embedded.Scheme != "" {
+			fmt.Fprintf(status, "Recorded ISBN %s in the file metadata (%s)\n", embedded.Value, embedded.Scheme)
+		}
+		if embedded.ZlibID != "" {
+			fmt.Fprintf(status, "Recorded the Z-Library ID %s in the file metadata\n", safeText(embedded.ZlibID))
+		}
 	}
 	return m, nil
 }

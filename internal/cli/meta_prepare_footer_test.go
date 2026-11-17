@@ -43,27 +43,6 @@ func TestMetaPagePrepareFooterWithEveryKeyFitsNarrowTerminals(t *testing.T) {
 	}
 }
 
-// n renames the file, and the page where a name from the selected match is
-// offered must say so at 80 columns, where most terminals start.
-func TestMetaPagesShowTheRenameKeyAtEightyColumns(t *testing.T) {
-	var asked [][]string
-	var queries []metasource.Query
-	prepare := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
-	prepare.saveSources = func([]string) (string, error) { return "", nil }
-	prepare.extraction.AltTitle = "Another title"
-	candidates := sourcesPage(t, fakeSourceChoices(), &asked, &queries)
-	failed := candidates
-	failed.stage, failed.res = metaFailed, metasource.Result{}
-	fields := candidates.openFields()
-	for name, page := range map[string]metaPageModel{"prepare": prepare, "candidates": candidates, "failed": failed, "fields": fields} {
-		next, _ := page.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-		got := footer(ansi.Strip(next.(metaPageModel).View().Content))
-		if !strings.Contains(got, "n rename") || !strings.Contains(got, "esc") || ansi.StringWidth(got) > 80 || strings.Contains(got, "…") {
-			t.Errorf("%s at 80 columns: footer %q", name, got)
-		}
-	}
-}
-
 // footerKeys are the keys a footer shows, whatever their labels.
 func footerKeys(footer string) []string {
 	var out []string

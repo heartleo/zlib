@@ -86,6 +86,8 @@ func (m metaPageModel) prepareKey(k string) (tea.Model, tea.Cmd) {
 		return m.openRename()
 	case "i":
 		return m.openInfo(), nil
+	case "m":
+		return m.openManual(), nil
 	case "enter", "ctrl+s":
 		return m.startSearch()
 	}
@@ -225,7 +227,7 @@ func (m metaPageModel) prepareBody() string {
 			lines = append(lines, "  "+colorFaint(ansi.Truncate(note, max(1, width-4), "…")))
 		}
 	}
-	lines = append(lines, "", "  "+colorBold("In the file"))
+	lines = append(lines, "", "  "+colorBold("In the file")+"  "+colorFaint("m edit without a search · i everything"))
 	// The block comes last, so it is what a short terminal cuts. Rather than
 	// lose rows silently, it says how many are left out and where to see them.
 	fileLines := formatDetailRows(m.fileRows(true), "    ", colorFaint)
@@ -271,7 +273,7 @@ func (m metaPageModel) fileRows(description bool) [][2]string {
 	for _, r := range metadataRows(m.format, m.current) {
 		rows = append(rows, [2]string{r[0], oneLine(r[1])})
 	}
-	if first, _, _ := strings.Cut(strings.TrimSpace(m.current.Description), "\n"); description && strings.TrimSpace(first) != "" {
+	if first, _, _ := strings.Cut(metasource.PlainText(m.current.Description), "\n"); description && strings.TrimSpace(first) != "" {
 		rows = append(rows, [2]string{"Description", oneLine(safeText(first))})
 	}
 	return rows
@@ -286,7 +288,7 @@ func (m metaPageModel) infoContent() string {
 	for _, l := range formatDetailRows(rows, "    ", colorFaint) {
 		lines = append(lines, ansi.Truncate(l, width, "…"))
 	}
-	if d := strings.TrimSpace(safeText(m.current.Description)); d != "" {
+	if d := strings.TrimSpace(safeText(metasource.PlainText(m.current.Description))); d != "" {
 		lines = append(lines, "", "  "+colorBold("Description"))
 		var wrapped []string
 		for para := range strings.SplitSeq(d, "\n") {

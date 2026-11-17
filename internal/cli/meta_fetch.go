@@ -240,6 +240,7 @@ type metaExtractionJSON struct {
 	AuthorsFrom string               `json:"authors_from,omitempty"`
 	AltTitle    string               `json:"alt_title,omitempty"`
 	ISBNFrom    []string             `json:"isbn_from,omitempty"`
+	ZlibID      string               `json:"zlib_id,omitempty"`
 }
 
 type metaFetchErrorJSON struct {
@@ -294,7 +295,7 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 	}
 	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
 		doc := metaFetchJSON{File: path, Current: m, Query: q, Extraction: metaExtractionJSON{
-			FileName: x.FileName, Embedded: x.Embedded, TitleFrom: x.TitleFrom, AuthorsFrom: x.AuthorsFrom, AltTitle: x.AltTitle, ISBNFrom: x.ISBNFrom,
+			FileName: x.FileName, Embedded: x.Embedded, TitleFrom: x.TitleFrom, AuthorsFrom: x.AuthorsFrom, AltTitle: x.AltTitle, ISBNFrom: x.ISBNFrom, ZlibID: x.ZlibID,
 		}}
 		for _, c := range res.Candidates {
 			doc.Candidates = append(doc.Candidates, metaCandidateJSON{Candidate: c, SuggestedFileName: metasource.FileNameFor(c.Title, c.Authors, bookExt(path))})

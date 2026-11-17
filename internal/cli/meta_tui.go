@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	keys "charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
@@ -106,10 +105,10 @@ type metaPageModel struct {
 
 	// editor is the text entry open over the fields (editing a proposed
 	// value). While editing is set it owns the keyboard.
-	editor   metaEditor
-	editing  bool
-	editKind metaEditKind
-	editRow  int // plan index being edited, when editKind is editValue
+	editor    metaEditor
+	editing   bool
+	editKind  metaEditKind
+	editField metasource.Field // the field being edited, when editKind is editValue
 
 	// extraction is what the file name and the file said about the book, and
 	// hint the download's record, if any. query is what will be searched; it
@@ -153,6 +152,20 @@ type metaPageModel struct {
 	renameCursor int
 	renameBack   metaStage
 	renamedFrom  string
+
+	// The fields workbench. extra holds the values the user typed or cleared,
+	// which win over the match's; manual is set when the workbench edits the
+	// file with no lookup. fileCover is the file's own cover, coverCache the
+	// match covers downloaded for the previews (shared by copies of the page),
+	// coverEdit an image the user chose. confirmDiscard asks before leaving
+	// with changes not written.
+	extra          map[metasource.Field]metasource.Change
+	manual         bool
+	fileCover      *metaCoverImage
+	coverCache     map[string]*metaCoverImage
+	coverEdit      *metaCoverImage
+	confirmDiscard bool
+	baseline       []bool // m.selected as the workbench opened it
 
 	// Outcome for the caller.
 	applied   []string
@@ -201,6 +214,7 @@ func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, o
 	m := metaPageModel{
 		path: path, format: format, current: cur, lookup: lookup, write: write,
 		spinner: newLoadingSpinner(), width: 80, height: 24, run: newMetaRun(), stage: metaPrepare,
+		fileCover: loadFileCover(path), coverCache: map[string]*metaCoverImage{},
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -265,6 +279,9 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		if m.editing {
 			m.editor.resize(m.width)
+			if m.editor.area != nil {
+				m.editor.area.SetHeight(max(3, m.height-12))
+			}
 		}
 		return m.resizeInfo(), nil
 	case spinner.TickMsg:
@@ -278,9 +295,13 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.gen != m.gen || m.stage != metaLooking {
 			return m, nil // an answer to a lookup the user already left
 		}
-		return m.lookedUp(msg), nil
+		m = m.lookedUp(msg)
+		return m, m.lookedUpCmd()
 	case metaWriteDone:
 		return m.written(msg)
+	case metaCoverFetched:
+		m.coverCache[msg.url] = msg.got
+		return m, nil
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	default:
@@ -303,6 +324,14 @@ func (m metaPageModel) lookedUp(msg metaLookupDone) metaPageModel {
 	}
 	m.stage, m.err, m.cursor, m.top = metaCandidates, nil, 0, 0
 	return m
+}
+
+// lookedUpCmd fetches the first match's cover for the preview.
+func (m metaPageModel) lookedUpCmd() tea.Cmd {
+	if m.stage != metaCandidates || len(m.res.Candidates) == 0 {
+		return nil
+	}
+	return m.matchCoverCmd(m.res.Candidates[m.cursor].CoverURL)
 }
 
 func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -356,13 +385,15 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "n":
 			return m.openRename()
 		case "enter":
-			return m.openFields(), nil
+			m = m.openFields()
+			return m, m.matchCoverCmd(m.cand.CoverURL)
 		default:
 			m.cursor = listCursor(k, m.cursor, len(m.res.Candidates), m.listRows())
 			m.scrollTo(m.cursor)
+			return m, m.matchCoverCmd(m.res.Candidates[m.cursor].CoverURL)
 		}
 	case metaFields:
-		return m.fieldsKey(k)
+		return m.benchKey(k)
 	case metaRename:
 		return m.renameKey(k)
 	case metaInfo:
@@ -397,6 +428,9 @@ func (m metaPageModel) openFields() metaPageModel {
 		m.selected = append(m.selected, ch.DefaultSelected())
 	}
 	m.stage, m.focus, m.message = metaFields, 0, ""
+	m.manual, m.confirmDiscard = false, false
+	m.extra = map[metasource.Field]metasource.Change{}
+	m.baseline = append([]bool(nil), m.selected...)
 	if len(m.plan) == 0 {
 		m.message = "Nothing to add: the file already has these values"
 		if len(m.hidden) > 0 {
@@ -415,93 +449,6 @@ func (m metaPageModel) canOffer(ch metasource.Change) bool {
 	return !(ch.Field == metasource.FieldCover && m.format == ebookmeta.FormatMOBI && m.current.Cover == "")
 }
 
-func (m metaPageModel) fieldsKey(k string) (tea.Model, tea.Cmd) {
-	if k == "n" {
-		return m.openRename()
-	}
-	n := len(m.plan)
-	if n == 0 { // only Back is on offer
-		if k == "esc" || k == "ctrl+c" || k == "enter" {
-			m.stage, m.message = metaCandidates, ""
-		}
-		return m, nil
-	}
-	switch k {
-	case "esc", "ctrl+c":
-		m.stage, m.message = metaCandidates, ""
-		return m, nil
-	case "up", "shift+tab", "k":
-		m.focus = (m.focus + n + 1) % (n + 2)
-	case "down", "tab", "j":
-		m.focus = (m.focus + 1) % (n + 2)
-	case "space", " ":
-		if m.focus < n {
-			m.selected[m.focus] = !m.selected[m.focus]
-			m.message = ""
-		}
-	case "a":
-		return m.toggleAll(), nil
-	case "e":
-		return m.startValueEdit()
-	case "ctrl+s":
-		return m.apply()
-	case "enter":
-		switch {
-		case m.focus < n:
-			m.selected[m.focus] = !m.selected[m.focus]
-			m.message = ""
-		case m.focus == n:
-			return m.apply()
-		default:
-			m.stage, m.message = metaCandidates, ""
-		}
-	}
-	return m, nil
-}
-
-// apply writes the selected fields in the background. A selected cover is
-// downloaded first; if that fails nothing is written, so the user can
-// deselect it and apply again.
-func (m metaPageModel) apply() (tea.Model, tea.Cmd) {
-	var chosen []metasource.Change
-	coverURL := ""
-	for i, ch := range m.plan {
-		if !m.selected[i] {
-			continue
-		}
-		chosen = append(chosen, ch)
-		if ch.Field == metasource.FieldCover {
-			coverURL = ch.CoverURL()
-		}
-	}
-	changes := metasource.BuildChanges(chosen, func(metasource.Change) bool { return true })
-	if changes == nil && coverURL == "" {
-		m.message = "Select at least one field"
-		return m, nil
-	}
-	m.applied = m.applied[:0:0]
-	for _, ch := range chosen {
-		m.applied = append(m.applied, string(ch.Field))
-	}
-	m.stage, m.message = metaWriting, ""
-	write, fetch, path := m.write, m.cover, m.path
-	return m, tea.Batch(m.spinner.Tick, func() tea.Msg {
-		if coverURL != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-			defer cancel()
-			cov, err := fetch(ctx, coverURL)
-			if err != nil {
-				return metaWriteDone{err: metaCoverError{err}}
-			}
-			if changes == nil {
-				changes = &ebookmeta.Changes{}
-			}
-			changes.Cover = cov
-		}
-		return metaWriteDone{err: write(path, changes)}
-	})
-}
-
 func (m metaPageModel) written(msg metaWriteDone) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		// The file is untouched; stay here so the user can try again.
@@ -518,9 +465,14 @@ func (m metaPageModel) written(msg metaWriteDone) (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-// listRows is how many candidate rows fit above the detail pane.
+// listRows is how many candidate rows fit above the detail pane, or above the
+// comparison panels when they fit.
 func (m metaPageModel) listRows() int {
-	return max(1, min(len(m.res.Candidates), max(3, (m.height-8)/2)))
+	n := len(m.res.Candidates)
+	if m.compareFits() {
+		return max(1, min(n, max(0, m.height-6)-m.compareNeed()-2))
+	}
+	return max(1, min(n, max(3, (m.height-8)/2)))
 }
 
 func (m metaPageModel) View() tea.View {
@@ -557,7 +509,7 @@ func (m metaPageModel) View() tea.View {
 	case metaRename:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.renameBody(), m.message, m.renameKeys()...)
 	case metaPrepare:
-		return screenView(m.width, m.height, "Fix metadata", subtitle, m.prepareBody(), m.message, m.prepareKeys()...)
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.sideNarrow().prepareBody(), m.message, m.prepareKeys()...)
 	case metaLooking:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.lookingBody(), "", uiKey("esc", "cancel"))
 	case metaFailed:
@@ -569,7 +521,7 @@ func (m metaPageModel) View() tea.View {
 				[][2]string{{"e", ""}, {"s", ""}, {"n", "rename"}, {"r", ""}, {"esc", ""}},
 				[][2]string{{"e", ""}, {"s", ""}, {"n", ""}, {"r", ""}, {"esc", ""}})...)...)
 	case metaCandidates:
-		return screenView(m.width, m.height, "Fix metadata", subtitle, m.candidatesBody(), m.sourceNote(),
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.sideNarrow().candidatesBody(), m.sourceNote(),
 			m.keysFor(withHelpKey(
 				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"?", "keys"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
@@ -582,22 +534,16 @@ func (m metaPageModel) View() tea.View {
 	case metaFields:
 		if m.editing {
 			// The editor leads the page, so a long list of fields can never push
-			// it off the screen; the row's current value follows it.
+			// it off the screen; the field's value in the file follows it.
+			tiers := [][][2]string{{{"enter", "keep"}, {"esc", "cancel"}}, {{"enter", ""}, {"esc", ""}}}
+			if m.editor.multiline() {
+				tiers = [][][2]string{{{"ctrl+s", "keep"}, {"enter", "new line"}, {"esc", "cancel"}},
+					{{"ctrl+s", "keep"}, {"esc", "cancel"}}, {{"ctrl+s", ""}, {"esc", ""}}}
+			}
 			return screenView(m.width, m.height, "Fix metadata", subtitle, m.editor.view(max(20, m.width))+"\n\n"+m.editingContext(), "",
-				m.keysFor(
-					[][2]string{{"enter", "accept"}, {"esc", "cancel"}},
-					[][2]string{{"enter", ""}, {"esc", ""}})...)
+				m.keysFor(tiers...)...)
 		}
-		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), m.fieldsStatus(),
-			m.keysFor(withHelpKey(
-				[][2]string{{"↑/↓", "move"}, {"space", "select"}, {"a", "all"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"?", "keys"}, {"esc", "back"}},
-				[][2]string{{"space", "select"}, {"a", "all"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"?", "keys"}, {"esc", "back"}},
-				[][2]string{{"space", "select"}, {"a", "all"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "move"}, {"space", "select"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
-				[][2]string{{"space", "select"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
-				[][2]string{{"space", ""}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
-				[][2]string{{"space", ""}, {"e", ""}, {"n", "rename"}, {"ctrl+s", ""}, {"esc", ""}},
-				[][2]string{{"space", ""}, {"e", ""}, {"n", ""}, {"ctrl+s", ""}, {"esc", ""}})...)...)
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), m.fieldsStatus(), m.fieldsKeys()...)
 	}
 	note := "Writing the file…"
 	for i, ch := range m.plan {
@@ -611,14 +557,14 @@ func (m metaPageModel) View() tea.View {
 // editingContext says what the row being edited holds in the file now, so the
 // user sees what the edit replaces without the list of fields.
 func (m metaPageModel) editingContext() string {
-	if m.editRow >= len(m.plan) {
-		return ""
+	old := shownValue(m.editField, metasource.FileValue(m.current, m.editField))
+	if m.editField == metasource.FieldCover {
+		old = coverLabel(m.fileCover, m.current.Cover)
 	}
-	old := safeText(oneLine(m.plan[m.editRow].Old))
 	if old == "" {
 		old = "(empty)"
 	}
-	return "  " + colorFaint("In the file now: "+old)
+	return "  " + colorFaint(ansi.Truncate("In the file now: "+old, max(1, max(20, m.width)-4), "…"))
 }
 
 // keysFor picks the key hints for the page's width: the first wording in tiers
@@ -757,6 +703,7 @@ func metaFieldLabel(f metasource.Field) string {
 	if name != string(f) {
 		return "ID " + name
 	}
+	name = strings.ReplaceAll(name, "_", " ") // title_sort reads "Title sort"
 	return strings.ToUpper(name[:1]) + name[1:]
 }
 
