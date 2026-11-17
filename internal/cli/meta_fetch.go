@@ -197,13 +197,31 @@ func metaFetchHasOverrides(cmd *cobra.Command) bool {
 }
 
 type metaFetchJSON struct {
-	File  string           `json:"file"`
-	Query metasource.Query `json:"query"`
+	File string `json:"file"`
+	// Current is the metadata the file holds now, before anything is looked up.
+	Current *ebookmeta.Metadata `json:"current,omitempty"`
+	Query   metasource.Query    `json:"query"`
 	// Extraction says what the file name and the file offered and where each
 	// part of the query came from.
 	Extraction metaExtractionJSON   `json:"extraction"`
 	Candidates []metaCandidateJSON  `json:"candidates"`
 	Errors     []metaFetchErrorJSON `json:"errors,omitempty"`
+}
+
+// printCurrentMetadata shows what a file already holds under a heading, above
+// the matches a lookup finds: the file name, and every value as `zlib meta` prints
+// it, with the description cut to its first line.
+func printCurrentMetadata(out io.Writer, path string, format ebookmeta.Format, m *ebookmeta.Metadata) {
+	lipgloss.Fprintln(out, colorBold("In the file"))
+	rows := [][2]string{{"Name", safeText(filepath.Base(path))}}
+	rows = append(rows, metadataRows(format, m)...)
+	if first, _, _ := strings.Cut(strings.TrimSpace(m.Description), "\n"); strings.TrimSpace(first) != "" {
+		rows = append(rows, [2]string{"Description", runewidth.Truncate(oneLine(safeText(first)), 100, "…")})
+	}
+	for _, line := range formatDetailRows(rows, "  ", colorFaint) {
+		lipgloss.Fprintln(out, line)
+	}
+	lipgloss.Fprintln(out)
 }
 
 // metaCandidateJSON is a candidate with the file name it would give the book:
@@ -238,7 +256,7 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 	if asJSON, _ := cmd.Flags().GetBool("json"); !asJSON && metaIsInteractive() && !metaFetchHasOverrides(cmd) {
 		return runStandaloneShellCommand(metaShellCommand(path))
 	}
-	m, _, err := ebookmeta.ReadFile(path)
+	m, format, err := ebookmeta.ReadFile(path)
 	if err != nil {
 		return metaError(path, err)
 	}
@@ -247,6 +265,11 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 		return err
 	}
 	q := x.Query
+	asJSON, _ := cmd.Flags().GetBool("json")
+	if !asJSON {
+		// What the file already holds comes first, before any catalogue is asked.
+		printCurrentMetadata(cmd.OutOrStdout(), path, format, m)
+	}
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
@@ -270,7 +293,7 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 		return errNoMetadataMatch
 	}
 	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
-		doc := metaFetchJSON{File: path, Query: q, Extraction: metaExtractionJSON{
+		doc := metaFetchJSON{File: path, Current: m, Query: q, Extraction: metaExtractionJSON{
 			FileName: x.FileName, Embedded: x.Embedded, TitleFrom: x.TitleFrom, AuthorsFrom: x.AuthorsFrom, AltTitle: x.AltTitle, ISBNFrom: x.ISBNFrom,
 		}}
 		for _, c := range res.Candidates {

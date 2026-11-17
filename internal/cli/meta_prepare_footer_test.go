@@ -23,10 +23,10 @@ func TestMetaPagePrepareFooterWithEveryKeyFitsNarrowTerminals(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{130, []string{"move", "toggle", "edit search", "other title", "save sources", "rename", "search", "back"}},
+		{150, []string{"move", "toggle", "edit search", "other title", "save sources", "rename", "file info", "search", "back"}},
 		{100, []string{"space toggle", "n rename", "enter search", "esc back"}},
 		{80, []string{"toggle", "enter", "esc"}},
-		{60, []string{"r", "enter", "esc"}},
+		{60, []string{"?", "enter", "esc"}}, // ctrl+d is in the ? list
 		{40, []string{"enter", "esc"}},
 		{24, []string{"enter", "esc"}},
 	} {
@@ -92,7 +92,7 @@ func TestMetaPagesShowRenameAndEscAtEveryWidth(t *testing.T) {
 			next, _ := page.Update(tea.WindowSizeMsg{Width: width, Height: 24})
 			got := footer(ansi.Strip(next.(metaPageModel).View().Content))
 			keys := footerKeys(got)
-			if !slices.Contains(keys, "n") || !slices.Contains(keys, "esc") || ansi.StringWidth(got) > width || strings.Contains(got, "…") {
+			if !slices.Contains(keys, "n") || !slices.Contains(keys, "?") || !slices.Contains(keys, "esc") || ansi.StringWidth(got) > width || strings.Contains(got, "…") {
 				t.Errorf("%s at %d columns: footer %q", name, width, got)
 			}
 		}

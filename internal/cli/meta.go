@@ -340,7 +340,10 @@ func readLimited(path string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-func printMetadata(out io.Writer, format ebookmeta.Format, m *ebookmeta.Metadata) {
+// metadataRows are the labelled values of a file's metadata, in the order the
+// command prints them, with control characters removed. The description is not
+// among them: it can run to many lines.
+func metadataRows(format ebookmeta.Format, m *ebookmeta.Metadata) [][2]string {
 	var rows [][2]string
 	add := func(label, value string) {
 		if value != "" {
@@ -376,7 +379,11 @@ func printMetadata(out io.Writer, format ebookmeta.Format, m *ebookmeta.Metadata
 		add("Rating", strconv.FormatFloat(m.Rating, 'f', -1, 64)+"/5")
 	}
 	add("Cover", m.Cover)
-	for _, line := range formatDetailRows(rows, "", colorFaint) {
+	return rows
+}
+
+func printMetadata(out io.Writer, format ebookmeta.Format, m *ebookmeta.Metadata) {
+	for _, line := range formatDetailRows(metadataRows(format, m), "", colorFaint) {
 		lipgloss.Fprintln(out, line)
 	}
 	if m.Description != "" {

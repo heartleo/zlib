@@ -257,10 +257,22 @@ WeRead file pickers open in the default download directory.
 Z-Library login. It opens a file picker listing folders and the formats
 `zlib meta` reads, or takes a path (`/meta "<file>"`). The page does not search
 at once: it moves through a prepare step, a lookup, candidates, fields and
-writing:
+writing. The subtitle says which of the three steps you are on (`Step 2 of 3:
+Choose a match`, or `2/3` when the terminal is narrow), and `?` on any page
+lists every key it takes, including those the footer has no room for, and
+leaves out keys that do nothing there; the list scrolls when the terminal is
+short. `?`, Esc, `q` or Enter close it. In an editor `?` is text, and it does
+nothing while a search or a write runs:
 
 - **Prepare** reads the file name first and then the file, shows what will be
-  searched and where each part came from, and lists the sources to ask. A
+  searched and where each part came from, lists the sources to ask, and shows
+  what the file already holds under `In the file`: its name and every value in
+  its own metadata (title, authors, publisher, date, languages, tags, series,
+  identifiers, cover), with the first line of the description. Nothing has been
+  sent yet. The block comes last, so a short terminal clips it; `i` opens
+  `File details` with all of it, the description wrapped, in a view that
+  scrolls with the arrow keys and Page Up/Down when it is taller than the
+  terminal (the status line gives the position); Esc, `i` or Enter return. A
   Z-Library name such as `Title (Author).epub` is usually cleaner than the
   title inside the file, which often carries a marketing line, so the name's
   title is used, with the file's own title offered as the other choice: press
@@ -274,14 +286,21 @@ writing:
   the name or the download is marked `a guess` and cannot by itself confirm a
   hint ISBN; the file's own title, or one you edit, can. The terms and sources
   come first on the page, so a short terminal still shows them. Space toggles a
-  source, `e` edits the terms, Enter searches and Esc leaves. `r` saves the
+  source, `e` edits the terms, Enter searches and Esc leaves. Ctrl+D saves the
   sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
   `.env`); nothing is saved unless you press it, and the page says so when the
   environment or a `.env` in the working directory overrides it. A file with nothing to search
   with opens on the editor.
 - **Looking up** shows the title, authors and ISBN being searched. Esc cancels
   the request and returns to the page it started from.
-- **Candidates** list the merged matches, best first. Each row starts with a
+- **Candidates** list the merged matches, best first, in columns (match, title,
+  authors, year, sources) that line up for wide characters too. The details
+  pane starts with what choosing the highlighted match would do to the file:
+  `Would add` names the empty fields it fills and selects, `Could add` empty
+  fields it offers unselected (the edition fields of a title-only or `ISBN?`
+  match), `Differs on` the values it would replace, which stay as they are
+  unless you select them, and `Cannot store` what the file's format has no
+  place for. Page Up and Page Down move a page of matches. Each row starts with a
   five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
   the title is different or nothing independent vouches for it, or a percentage for a title match. The pane under the
   list shows the selected match's details. Each row ends with the sources that
@@ -306,7 +325,7 @@ writing:
   search used it, even when its key is missing and it can only report that; it
   can be turned off but not back on without the key. While a search runs, Esc
   returns to the page it started from. The choice applies to this session and
-  is saved only by `r`; the page says that WeRead sends each title to Tencent
+  is saved only by Ctrl+D; the page says that WeRead sends each title to Tencent
   under your account. WeRead cannot search by ISBN, so when it is on and the
   search has no title the page says so.
 - **Rename** (`n` on the prepare, results, no-match and fields pages) shows the
@@ -322,7 +341,15 @@ writing:
   under its new name, and the saved-file page of a download follows the rename,
   so Send to Kindle and Send to WeRead use it. See
   [Rename a file](metadata.md#rename-a-file) for how a name is built.
-- **Fields** show one row per change as `[x] Field  old → new`. What starts
+- **Fields** show the changes as a table: the field, what the file holds now
+  and the new value, then notes such as `(replaces)`. A field the change adds
+  and one it replaces are also coloured apart. Under the table the focused row
+  is shown in full, wrapped, with whether it will be written, so a long
+  description can be read before it is. The status line counts the selection
+  (`3 of 6 selected, 1 replacing a value`); `a` selects every row, or none
+  when all are selected. A list taller than the terminal scrolls with the
+  cursor and says how many rows are above or below, and the Apply and Back
+  buttons stay on screen. What starts
   selected depends on the match. With `ISBN`, the fields the file leaves empty.
   With a percentage (a title match), the empty fields that describe the book;
   publisher, date, language and identifiers differ between editions, so they

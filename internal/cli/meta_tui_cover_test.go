@@ -49,7 +49,7 @@ func TestMetaPageDownloadsTheCoverBeforeWriting(t *testing.T) {
 	write := func(_ string, c *ebookmeta.Changes) error { wrote = c; return nil }
 	m := metaPageAfterLookup(t, answerWith(withCover(), nil, nil), write, withMetaCover(cover))
 	m, _ = metaStep(t, m, metaKey("enter"))
-	if !strings.Contains(metaScreen(m), "[x] Cover") || !strings.Contains(metaScreen(m), "(empty) → image from covers.openlibrary.org") {
+	if !strings.Contains(metaScreen(m), "[x] Cover") || !strings.Contains(rowWith(t, metaScreen(m), "[x] Cover"), "image from covers.openlibrary.org") {
 		t.Fatalf("no cover row:\n%s", metaScreen(m))
 	}
 	m, cmd := metaStep(t, m, metaKey("ctrl+s"))

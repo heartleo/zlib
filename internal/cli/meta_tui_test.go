@@ -25,6 +25,8 @@ func metaKey(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyDown}
 	case "ctrl+s":
 		return tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl}
+	case "ctrl+d":
+		return tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl}
 	}
 	return key(s)
 }
@@ -97,11 +99,33 @@ func TestMetaPageListsCandidatesWithMatchKind(t *testing.T) {
 		t.Fatalf("stage = %v", m.stage)
 	}
 	screen := metaScreen(m)
-	for _, want := range []string{"Fix metadata", "book.epub · EPUB", "ISBN  Before — Frank Herbert (2005)", " 71%  Before (2nd ed.)", "Details", "Open Library, Google Books", "esc back"} {
+	for _, want := range []string{"Fix metadata", "book.epub · EPUB", "Match", "Title", "Authors", "Year", "Sources", "Details", "Open Library, Google Books", "esc back"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("screen lacks %q:\n%s", want, screen)
 		}
 	}
+	// One row per match, its cells in aligned columns.
+	first, second := rowWith(t, screen, "ISBN  Before "), rowWith(t, screen, " 71%  Before (2nd ed.)")
+	for _, cell := range []string{"Frank Herbert", "2005", "[Open Library+Google Books]"} {
+		if !strings.Contains(first, cell) {
+			t.Errorf("the first row %q lacks %q", first, cell)
+		}
+	}
+	if strings.Index(first, "[") != strings.Index(second, "[") {
+		t.Errorf("the source columns are not aligned:\n%s\n%s", first, second)
+	}
+}
+
+// rowWith is the line of screen that holds s.
+func rowWith(t *testing.T, screen, s string) string {
+	t.Helper()
+	for _, l := range strings.Split(screen, "\n") {
+		if strings.Contains(l, s) {
+			return l
+		}
+	}
+	t.Fatalf("no line holds %q:\n%s", s, screen)
+	return ""
 }
 
 func TestMetaPageFlagsAnISBNWithADifferentTitle(t *testing.T) {
@@ -187,10 +211,14 @@ func TestMetaPagePreselectsOnlyEmptyFields(t *testing.T) {
 		}
 	}
 	screen := metaScreen(m)
-	for _, want := range []string{"[x] Authors", "(empty) → Frank Herbert", "[x] ID isbn", "Apply", "Back", "ctrl+s apply"} {
+	for _, want := range []string{"[x] Authors", "In the file", "New", "[x] ID isbn", "Apply", "Back", "ctrl+s apply"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("fields screen lacks %q:\n%s", want, screen)
 		}
+	}
+	// A row holds the value in the file and the new one, in that order.
+	if row := rowWith(t, screen, "[x] Authors"); !strings.Contains(row, "(empty)") || strings.Index(row, "(empty)") > strings.Index(row, "Frank Herbert") {
+		t.Errorf("the authors row is %q", row)
 	}
 }
 

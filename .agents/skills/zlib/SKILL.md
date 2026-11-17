@@ -136,7 +136,7 @@ authors) but renames nothing; use it to offer the user a name, then
 `zlib meta "<file>" --fetch --json` looks the book up in online catalogues
 without changing the file. It returns ranked `candidates`, each with `match`
 (`isbn` or `title`), `score`, `sources` and the metadata fields, plus any
-per-source `errors`, and an `extraction` object saying what the file name
+per-source `errors`, the file's own metadata as `current`, and an `extraction` object saying what the file name
 and the file offered and where the query came from. `-t`, `-a` and `--isbn`
 set what to search for. `--source openlibrary,google,douban,weread` picks the
 catalogues for that run; `douban` and `weread` send the title to a third

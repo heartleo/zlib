@@ -64,7 +64,7 @@ func TestMetaPageOpensOnThePrepareStepAndSearchesNothingYet(t *testing.T) {
 	for _, want := range []string{
 		"Search for", "Title", "Before", "from the file", // the embedded title of the test file
 		"[x] Open Library", "[x] Google Books", "[ ] Douban", "[ ] WeRead", "shared quota", "needs ZLIB_WEREAD_API_KEY (not set)",
-		"In the file", "Name", "book.epub", "Embedded",
+		"In the file", "Name", "book", "Format", "EPUB", "Identifiers",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the prepare page lacks %q:\n%s", want, screen)
@@ -109,7 +109,7 @@ func TestMetaPagePrepareShowsTheFileNameBeforeTheEmbeddedMetadata(t *testing.T) 
 	}
 	// The file name's reading comes before what the file embeds, and the terms
 	// before both.
-	search, name, embedded := strings.Index(screen, "Search for"), strings.Index(screen, "Name"), strings.Index(screen, "Embedded")
+	search, name, embedded := strings.Index(screen, "Search for"), strings.Index(screen, "Name"), strings.Index(screen, "Format")
 	if search < 0 || name < 0 || embedded < 0 || search >= name || name >= embedded {
 		t.Errorf("the order is wrong (search %d, name %d, embedded %d):\n%s", search, name, embedded, screen)
 	}
@@ -319,7 +319,7 @@ func TestMetaPageRemembersTheSourcesOnlyWhenAsked(t *testing.T) {
 	if len(saved) != 0 {
 		t.Fatalf("toggling saved: %v", saved)
 	}
-	m, _ = metaStep(t, m, key("r"))
+	m, _ = metaStep(t, m, metaKey("ctrl+d"))
 	if want := [][]string{{"openlibrary", "google", "douban"}}; !reflect.DeepEqual(saved, want) {
 		t.Fatalf("saved = %v, want %v", saved, want)
 	}
@@ -337,17 +337,17 @@ func TestMetaPageRememberReportsAFailureAndRefusesNothing(t *testing.T) {
 	var asked [][]string
 	var queries []metasource.Query
 	m := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
-	m, _ = metaStep(t, m, key("r"))
+	m, _ = metaStep(t, m, metaKey("ctrl+d"))
 	if !strings.Contains(m.message, "cannot be saved") {
 		t.Errorf("no way to save: %q", m.message)
 	}
 	m.saveSources = func([]string) (string, error) { return "", errors.New("disk full") }
-	m, _ = metaStep(t, m, key("r"))
+	m, _ = metaStep(t, m, metaKey("ctrl+d"))
 	if !strings.Contains(m.message, "Could not save") || !strings.Contains(m.message, "disk full") {
 		t.Errorf("a failed save: %q", m.message)
 	}
 	m.saveSources = func([]string) (string, error) { return "Process environment", nil }
-	m, _ = metaStep(t, m, key("r"))
+	m, _ = metaStep(t, m, metaKey("ctrl+d"))
 	if !strings.Contains(m.message, "Saved, but Process environment takes precedence") {
 		t.Errorf("an overridden save: %q", m.message)
 	}
@@ -355,7 +355,7 @@ func TestMetaPageRememberReportsAFailureAndRefusesNothing(t *testing.T) {
 	m, _ = metaStep(t, m, metaKey("space"))
 	m, _ = metaStep(t, m, metaKey("down"))
 	m, _ = metaStep(t, m, metaKey("space"))
-	m, _ = metaStep(t, m, key("r"))
+	m, _ = metaStep(t, m, metaKey("ctrl+d"))
 	if !strings.Contains(m.message, "at least one source") {
 		t.Errorf("saving nothing: %q", m.message)
 	}

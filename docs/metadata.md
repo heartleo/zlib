@@ -101,6 +101,10 @@ anything is written are: using both options, an empty name, a name that is
 taken, a file with no title to name it by. They run before the other options of
 the same command write the file, so a refused rename leaves it untouched.
 
+A plain `--fetch` prints what the file already holds, under `In the file`,
+before the matches, and before any catalogue is asked; `--fetch --json` carries
+the same as `current`.
+
 `--fetch --json` adds a `suggested_file_name` to each candidate, built from the
 candidate's title and authors with the extension of the file looked up. In the
 terminal interface, `n` on the prepare, results and fields pages renames the
@@ -214,7 +218,7 @@ the title to a third party. Turn it on with a source list:
 ZLIB_METADATA_SOURCES=douban,openlibrary,google zlib meta book.epub --fetch
 ```
 
-Add the line to `.env` to keep it, or press `r` on the prepare page of the
+Add the line to `.env` to keep it, or press Ctrl+D on the prepare page of the
 terminal interface, which writes it for you. The names are `openlibrary`, `google`,
 `douban` and `weread`; with `--fetch` an unknown name is reported as a failing
 source, and the prepare page leaves it out. An ISBN is resolved
@@ -279,9 +283,10 @@ A guessed ISBN would later be read as an exact ISBN match, so keep one only
 after checking the edition.
 
 The page opens on a prepare step and sends nothing until you press Enter. It
-shows what the file name and the file said, the search built from them and
+shows what the file already holds (every value in its own metadata, in full on
+`i`), what the file name and the file said, the search built from them and
 where each part came from, and the sources to ask with `[x]` or `[ ]`. Space
-toggles a source, `e` edits the search, `t` uses the other title and `r` saves
+toggles a source, `e` edits the search, `t` uses the other title and Ctrl+D saves
 the sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
 `.env`); nothing is saved unless you press it. The page starts from, in this
 order, `--source`, a real environment variable, a `.env` in the working
@@ -299,6 +304,8 @@ is written:
 | Key | Where | What it does |
 | --- | --- | --- |
 | `e` | Candidates, or no match | Edit the title, authors and ISBNs searched for, then search again. Only the search changes, never the file. A file with no title, author or ISBN opens on this editor |
+| `a` | Fields | Select every proposed change, or none when all are selected |
+| `?` | Any page but a search or a write in progress | List every key of the page |
 | `n` | Prepare, candidates, no match, fields | Rename the file: choose a name from the search terms, the file's own title or the selected match, or type one. Takes effect at once and never replaces another file |
 | `s` | Candidates, or no match | Go back to the prepare page to change the sources: Open Library, Google Books, Douban, WeRead. A source whose key is missing says so |
 | `e` | Fields | Edit the proposed value of the focused row (title, authors, publisher, languages, tags, date, ISBN) before it is written. An invalid value is refused with the reason, and an edited row is marked `edited` |

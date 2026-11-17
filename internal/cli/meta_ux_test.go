@@ -1,0 +1,447 @@
+package cli
+
+import (
+	"strconv"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"github.com/heartleo/zlib/internal/ebookmeta"
+	"github.com/heartleo/zlib/internal/metasource"
+)
+
+func sized(t *testing.T, m metaPageModel, w, h int) metaPageModel {
+	t.Helper()
+	next, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+	return next.(metaPageModel)
+}
+
+func screenOf(m metaPageModel) string { return ansi.Strip(m.View().Content) }
+
+// richFields is the review page of a match against a file that has most fields
+// already, so it proposes replacements as well as additions.
+func richFields(t *testing.T) metaPageModel {
+	t.Helper()
+	m, _ := richPage(t)
+	m = searchFromPrepare(t, m)
+	m, _ = metaStep(t, m, key("enter"))
+	if m.stage != metaFields || len(m.plan) < 5 {
+		t.Fatalf("stage %v with %d rows", m.stage, len(m.plan))
+	}
+	return m
+}
+
+func focusField(t *testing.T, m metaPageModel, f metasource.Field) metaPageModel {
+	t.Helper()
+	for i, ch := range m.plan {
+		if ch.Field == f {
+			m.focus = i
+			return m
+		}
+	}
+	t.Fatalf("no %s row", f)
+	return m
+}
+
+func TestMetaFieldsSelectAllAndNoneAndSaySoInTheStatus(t *testing.T) {
+	m := sized(t, richFields(t), 100, 30)
+	n := len(m.plan)
+	if got := screenOf(m); !strings.Contains(got, "1 of "+itoa(n)+" selected") {
+		t.Fatalf("no selection count:\n%s", got)
+	}
+	m, _ = metaStep(t, m, key("a"))
+	for i, s := range m.selected {
+		if !s {
+			t.Fatalf("row %d is not selected after a", i)
+		}
+	}
+	if got := screenOf(m); !strings.Contains(got, itoa(n)+" of "+itoa(n)+" selected") || !strings.Contains(got, "replacing a value") {
+		t.Errorf("the status does not count the replacements:\n%s", got)
+	}
+	m, _ = metaStep(t, m, key("a"))
+	for i, s := range m.selected {
+		if s {
+			t.Fatalf("row %d is still selected after a second a", i)
+		}
+	}
+	if got := screenOf(m); !strings.Contains(got, "0 of "+itoa(n)+" selected") {
+		t.Errorf("the status does not say none is selected:\n%s", got)
+	}
+	// Nothing is written by selecting.
+	if m.stage != metaFields || len(m.applied) != 0 {
+		t.Errorf("stage %v applied %v", m.stage, m.applied)
+	}
+}
+
+// The focused row is shown in full under the table, so a long value can be read
+// before it is written.
+func TestMetaFieldsPreviewShowsTheFocusedValueInFull(t *testing.T) {
+	m := sized(t, richFields(t), 100, 30)
+	m = focusField(t, m, metasource.FieldDescription)
+	got := strings.Join(strings.Fields(screenOf(m)), " ")
+	for _, want := range []string{"Description ─", "In the file", "A desert planet. A second paragraph about the spice melange", "grants long life.", "not selected"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the preview lacks %q:\n%s", want, screenOf(m))
+		}
+	}
+	m, _ = metaStep(t, m, key("space"))
+	if !strings.Contains(screenOf(m), "will be written") {
+		t.Errorf("the preview does not follow the selection:\n%s", screenOf(m))
+	}
+}
+
+// A plan taller than the screen scrolls with the cursor, says how many rows are
+// out of sight, and never pushes the buttons off the screen.
+func TestMetaFieldsScrollWithTheCursorAndKeepTheButtons(t *testing.T) {
+	isbn := richFields(t)
+	title := isbn // a title-only match has a warning line under the match
+	title.cand.Match, title.cand.Score = metasource.MatchTitle, 0.8
+	for name, m := range map[string]metaPageModel{"isbn": isbn, "title only": title} {
+		checkFieldsScroll(t, name, m)
+	}
+}
+
+// longPlan repeats the rows of m until it has n, to test a plan taller than the
+// screen.
+func longPlan(m metaPageModel, n int) metaPageModel {
+	plan, sel := m.plan, m.selected
+	for len(m.plan) < n {
+		m.plan = append(m.plan, plan[len(m.plan)%len(plan)])
+		m.selected = append(m.selected, sel[len(m.selected)%len(sel)])
+	}
+	return m
+}
+
+func checkFieldsScroll(t *testing.T, name string, m metaPageModel) {
+	t.Helper()
+	m = longPlan(m, 14)
+	n := len(m.plan)
+	var sizes [][2]int
+	for h := 8; h <= 30; h++ {
+		sizes = append(sizes, [2]int{80, h}, [2]int{40, h})
+	}
+	for _, size := range sizes {
+		p := sized(t, m, size[0], size[1])
+		for i := range n + 2 { // every row, then Apply and Back
+			p.focus = i
+			screen := screenOf(p)
+			lines := strings.Split(screen, "\n")
+			if len(lines) > size[1] {
+				t.Fatalf("%dx%d: %d lines", size[0], size[1], len(lines))
+			}
+			if !strings.Contains(screen, "Apply") || !strings.Contains(screen, "Back") {
+				t.Fatalf("%s %dx%d focus %d: the buttons are off the screen:\n%s", name, size[0], size[1], i, screen)
+			}
+			if i < n && !strings.Contains(screen, "> [") {
+				t.Errorf("%s %dx%d focus %d: the focused row is off the screen:\n%s", name, size[0], size[1], i, screen)
+			}
+			if size[1] >= 11 && size[1] < 26 && !strings.Contains(screen, "more") {
+				t.Errorf("%s %dx%d focus %d: hidden rows are not counted:\n%s", name, size[0], size[1], i, screen)
+			}
+			for _, l := range lines {
+				if ansi.StringWidth(l) > size[0] {
+					t.Fatalf("%dx%d: line wider than the terminal: %q", size[0], size[1], l)
+				}
+			}
+		}
+	}
+}
+
+// Chinese text takes two cells a character: the columns still line up.
+func TestMetaFieldsAndResultsAlignWideCharacters(t *testing.T) {
+	p := namedEPUB(t, "三体 (刘慈欣).epub")
+	if err := ebookmeta.WriteFile(p, &ebookmeta.Changes{Title: new("三体"), Publisher: new("重庆出版社")}); err != nil {
+		t.Fatal(err)
+	}
+	c := metasource.Candidate{Title: "三体：地球往事", Authors: []string{"刘慈欣"}, Publisher: "重庆出版社出版集团", Published: "2008-01",
+		Sources: []string{"Douban"}, Match: metasource.MatchTitle, Score: 0.9, EditionLevel: true}
+	other := metasource.Candidate{Title: "The Three-Body Problem", Authors: []string{"Cixin Liu"}, Published: "2014",
+		Sources: []string{"Open Library"}, Match: metasource.MatchTitle, Score: 0.6}
+	var queries []metasource.Query
+	m, err := newMetaPageModel(p, recordingLookup(metasource.Result{Candidates: []metasource.Candidate{c, other}}, &queries), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m = sized(t, searchFromPrepare(t, m), 100, 30)
+	screen := screenOf(m)
+	a, b := rowWith(t, screen, "三体：地球往事"), rowWith(t, screen, "The Three-Body Problem")
+	if ansi.StringWidth(a[:strings.Index(a, "[")]) != ansi.StringWidth(b[:strings.Index(b, "[")]) {
+		t.Errorf("the result columns do not line up:\n%s\n%s", a, b)
+	}
+	m, _ = metaStep(t, m, key("enter"))
+	screen = screenOf(m)
+	// The New column starts at the same cell after a Chinese value in the file
+	// (the title, 三体) as after an ASCII one ("(empty)" for the authors).
+	wide, ascii := rowWith(t, screen, "三体  "), rowWith(t, screen, "(empty)")
+	newOf := func(row, value string) int {
+		i := strings.Index(row, value)
+		if i < 0 {
+			t.Fatalf("%q is not in %q", value, row)
+		}
+		return ansi.StringWidth(row[:i])
+	}
+	if a, b := newOf(wide, "三体："), newOf(ascii, "刘慈欣"); a != b {
+		t.Errorf("the New column starts at %d after a wide value and %d after an ASCII one:\n%s\n%s", a, b, wide, ascii)
+	}
+}
+
+func TestMetaPageHelpListsEveryKeyOfThePageAndCloses(t *testing.T) {
+	m := sized(t, richFields(t), 80, 24)
+	m, _ = metaStep(t, m, key("?"))
+	if !m.helpOpen {
+		t.Fatal("? did not open the help")
+	}
+	screen := screenOf(m)
+	for _, want := range []string{"Keys", "space", "select or deselect", "a ", "select all", "ctrl+s", "write the selected fields", "n ", "rename", "esc"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the help lacks %q:\n%s", want, screen)
+		}
+	}
+	// A key other than close does nothing while the help is open.
+	m, _ = metaStep(t, m, key("a"))
+	if !m.helpOpen || m.selected[len(m.selected)-1] != true || m.selected[0] {
+		t.Errorf("a acted through the help")
+	}
+	for _, k := range []string{"?", "esc", "q", "enter"} {
+		next, _ := metaStep(t, m, key(k))
+		if next.helpOpen || next.stage != metaFields || next.cancelled {
+			t.Errorf("%s: help %v stage %v cancelled %v", k, next.helpOpen, next.stage, next.cancelled)
+		}
+	}
+	// Each page has its own keys.
+	var asked [][]string
+	var queries []metasource.Query
+	prep := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	prep.saveSources = func([]string) (string, error) { return "", nil }
+	prep = sized(t, prep, 80, 40)
+	prep, _ = metaStep(t, prep, key("?"))
+	if s := screenOf(prep); !strings.Contains(s, "ctrl+d") || !strings.Contains(s, "save the sources") || !strings.Contains(s, "show everything in the file") {
+		t.Errorf("the prepare help lacks its keys:\n%s", s)
+	}
+	// Keys that do nothing on the page are not listed.
+	bare, _ := richPage(t) // no sources, no saver, no other title
+	bare = sized(t, bare, 80, 40)
+	bare.extraction.AltTitle = ""
+	bare, _ = metaStep(t, bare, key("?"))
+	for _, k := range []string{"ctrl+d", "space ", "t      "} {
+		if s := screenOf(bare); strings.Contains(s, "  "+k) {
+			t.Errorf("the help lists %q, which does nothing here:\n%s", k, s)
+		}
+	}
+}
+
+// While an editor is open, ? is text.
+func TestMetaPageQuestionMarkIsTextInTheEditor(t *testing.T) {
+	m := richFields(t)
+	m, _ = metaStep(t, m, key("e"))
+	m, _ = metaStep(t, m, key("?"))
+	if m.helpOpen || !strings.HasSuffix(m.editor.values()[0], "?") {
+		t.Errorf("help %v, field %q", m.helpOpen, m.editor.values()[0])
+	}
+}
+
+func TestMetaPageSubtitleSaysWhichStep(t *testing.T) {
+	prep, _ := richPage(t)
+	prep = sized(t, prep, 100, 30)
+	fields := sized(t, richFields(t), 100, 30)
+	cands := fields
+	cands.stage = metaCandidates
+	for want, page := range map[string]metaPageModel{
+		"Step 1 of 3: Prepare the search": prep,
+		"Step 2 of 3: Choose a match":     cands,
+		"Step 3 of 3: Review changes":     fields,
+	} {
+		if !strings.Contains(screenOf(page), want) {
+			t.Errorf("the subtitle lacks %q:\n%s", want, screenOf(page))
+		}
+	}
+	// Narrow terminals get the short form, and the file name keeps its place.
+	narrow := sized(t, fields, 52, 20)
+	if s := screenOf(narrow); !strings.Contains(s, "3/3") || !strings.Contains(s, "Whatever (Nobody).epub") {
+		t.Errorf("the narrow subtitle:\n%s", s)
+	}
+}
+
+// The results say what choosing a match would do to the file, from the same
+// plan the review page uses.
+func TestMetaResultsSayWhatAMatchWouldChange(t *testing.T) {
+	m, _ := richPage(t)
+	m = sized(t, searchFromPrepare(t, m), 100, 30)
+	screen := screenOf(m)
+	add, differ := rowWith(t, screen, "Would add"), rowWith(t, screen, "Differs on")
+	if !strings.Contains(add, "ID isbn") || !strings.Contains(differ, "Title") || !strings.Contains(differ, "kept unless you select them") {
+		t.Errorf("rows:\n%s\n%s", add, differ)
+	}
+	// A match found by title only fills empty edition fields, but they start
+	// unselected: the results must not promise to add them.
+	title := dune()
+	title.Title, title.Match, title.Score = "Whatever", metasource.MatchTitle, 0.8
+	effect := m.candidateEffect(title)
+	for _, r := range effect {
+		if r[0] == "Would add" && strings.Contains(r[1], "ID isbn") {
+			t.Errorf("a title-only match promises its ISBN: %v", effect)
+		}
+	}
+	found := false
+	for _, r := range effect {
+		found = found || (r[0] == "Could add" && strings.Contains(r[1], "ID isbn") && strings.Contains(r[1], "not selected"))
+	}
+	if !found {
+		t.Errorf("the ISBN is not offered as unselected: %v", effect)
+	}
+	// What the results promise is exactly what the next page selects.
+	f := m
+	f.res = metasource.Result{Candidates: []metasource.Candidate{title}}
+	f.cursor = 0
+	f = f.openFields()
+	for i, ch := range f.plan {
+		if f.selected[i] && ch.Field == "identifier:isbn" {
+			t.Errorf("the ISBN of a title-only match starts selected")
+		}
+	}
+	// A match that changes nothing says so.
+	same := metaPageModel{current: &ebookmeta.Metadata{Title: "Dune"}, format: ebookmeta.FormatEPUB}
+	if rows := same.candidateEffect(metasource.Candidate{Title: "Dune"}); len(rows) != 1 || !strings.Contains(rows[0][1], "nothing") {
+		t.Errorf("rows = %v", rows)
+	}
+}
+
+// The file details scroll in a viewport, so a long description is never cut.
+// A long note such as "(replaces, may be another book)" does not squeeze the
+// new value away at 80 columns.
+func TestMetaFieldsLongNotesLeaveRoomForTheNewValue(t *testing.T) {
+	m, _ := richPage(t)
+	c := dune()
+	c.Match, c.Score = metasource.MatchISBN, 0.5
+	m.res = metasource.Result{Candidates: []metasource.Candidate{c}}
+	m.stage, m.cursor = metaCandidates, 0
+	m = sized(t, m.openFields(), 80, 24)
+	row := rowWith(t, screenOf(m), "Title ")
+	if !strings.Contains(row, "Before") || !strings.Contains(row, "may be another book") {
+		t.Errorf("the title row lost its new value or its note: %q", row)
+	}
+}
+
+// On a short terminal the help scrolls, so the keys at its end can be read.
+func TestMetaPageHelpScrollsOnShortTerminals(t *testing.T) {
+	m := sized(t, richFields(t), 80, 14)
+	m, _ = metaStep(t, m, key("?"))
+	first := screenOf(m)
+	if !strings.Contains(first, "%") || !strings.Contains(footer(first), "scroll") {
+		t.Fatalf("the short help does not say it scrolls:\n%s", first)
+	}
+	for range 20 {
+		m, _ = metaStep(t, m, metaKey("down"))
+	}
+	if last := screenOf(m); !strings.Contains(last, "ctrl+c") || !strings.Contains(last, "100%") || !m.helpOpen {
+		t.Errorf("the end of the help is not reachable:\n%s", last)
+	}
+}
+
+// Page Up and Page Down move a page of results, as the help says.
+func TestMetaResultsPageKeysMoveAPage(t *testing.T) {
+	var cands []metasource.Candidate
+	for i := range 20 {
+		c := dune()
+		c.Title = "Before " + itoa(i)
+		cands = append(cands, c)
+	}
+	var queries []metasource.Query
+	m, err := newMetaPageModel(richEPUB(t), recordingLookup(metasource.Result{Candidates: cands}, &queries), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m = sized(t, searchFromPrepare(t, m), 80, 30)
+	rows := m.listRows()
+	m, _ = metaStep(t, m, key("pgdown"))
+	if m.cursor != rows || rows < 2 {
+		t.Errorf("pgdown moved to %d, want %d", m.cursor, rows)
+	}
+	m, _ = metaStep(t, m, key("pgup"))
+	if m.cursor != 0 {
+		t.Errorf("pgup moved to %d", m.cursor)
+	}
+}
+
+// A PDF cannot store a publisher or a date: the results say so rather than
+// claiming the file has them already.
+func TestMetaResultsNameFieldsTheFormatCannotStore(t *testing.T) {
+	m := metaPageModel{current: &ebookmeta.Metadata{Title: "Dune", Authors: []string{"Frank Herbert"}}, format: ebookmeta.FormatPDF}
+	c := metasource.Candidate{Title: "Dune", Authors: []string{"Frank Herbert"}, Publisher: "Ace", Published: "2005", Match: metasource.MatchTitle, Score: 0.9}
+	rows := m.candidateEffect(c)
+	var got string
+	for _, r := range rows {
+		got += r[0] + ": " + r[1] + "\n"
+	}
+	if strings.Contains(got, "already has these values") || !strings.Contains(got, "Cannot store: Publisher") || !strings.Contains(got, "(PDF has no place for them)") {
+		t.Errorf("rows:\n%s", got)
+	}
+}
+
+// A non-ASCII date is cut by cells, not bytes.
+func TestMetaResultsYearIsNotCutByBytes(t *testing.T) {
+	m, _ := richPage(t)
+	c := dune()
+	c.Published = "二〇〇八年"
+	m.res = metasource.Result{Candidates: []metasource.Candidate{c}}
+	m.stage, m.cursor = metaCandidates, 0
+	if s := screenOf(sized(t, m, 100, 30)); strings.Contains(s, "\uFFFD") || !strings.Contains(s, "二〇") {
+		t.Errorf("the year cell:\n%s", s)
+	}
+}
+
+// On the first page the file's metadata comes last, so a 24-row terminal (23
+// in the shell) cuts it: the page says how many rows are left out and that i
+// shows them, instead of dropping them silently.
+func TestMetaPreparePageSaysWhenTheFilesMetadataIsCut(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	m, err := newMetaPageModel(richEPUB(t), recordingLookup(twoCandidates(), &queries), nil,
+		withMetaSources(fakeSourceChoices(), func(names []string) metaLookupFunc {
+			asked = append(asked, names)
+			return recordingLookup(twoCandidates(), &queries)
+		}), withMetaSourceSaver(func([]string) (string, error) { return "", nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range []int{24, 23, 20} {
+		screen := screenOf(sized(t, m, 80, h))
+		if len(strings.Split(screen, "\n")) > h {
+			t.Fatalf("80x%d: too many lines", h)
+		}
+		if !strings.Contains(screen, "more: press i to see everything in the file") {
+			t.Errorf("80x%d: the cut is not said:\n%s", h, screen)
+		}
+		if !strings.Contains(screen, "In the file") || !strings.Contains(screen, "[x] Open Library") {
+			t.Errorf("80x%d: the page lost its terms or sources:\n%s", h, screen)
+		}
+	}
+	// Tall enough, nothing is cut and nothing is said.
+	if screen := screenOf(sized(t, m, 100, 60)); strings.Contains(screen, "press i to see") || !strings.Contains(screen, "Description") {
+		t.Errorf("a tall terminal:\n%s", screen)
+	}
+}
+
+func TestMetaFileDetailsScroll(t *testing.T) {
+	m, _ := richPage(t)
+	m = sized(t, m, 50, 14)
+	m, _ = metaStep(t, m, key("i"))
+	first := screenOf(m)
+	if !strings.Contains(first, "%") || !strings.Contains(footer(first), "scroll") {
+		t.Fatalf("the details do not say they scroll:\n%s", first)
+	}
+	for range 30 {
+		m, _ = metaStep(t, m, metaKey("down"))
+	}
+	last := screenOf(m)
+	if !strings.Contains(strings.Join(strings.Fields(last), " "), "long life.") || !strings.Contains(last, "100%") {
+		t.Errorf("the end of the description is not reachable:\n%s", last)
+	}
+	m, _ = metaStep(t, m, key("esc"))
+	if m.stage != metaPrepare {
+		t.Errorf("esc: stage %v", m.stage)
+	}
+}
+
+func itoa(n int) string { return strconv.Itoa(n) }

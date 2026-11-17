@@ -3,6 +3,7 @@ package cli
 import (
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	keys "charm.land/bubbles/v2/key"
@@ -79,10 +80,12 @@ func (m metaPageModel) prepareKey(k string) (tea.Model, tea.Cmd) {
 		m.extraction = m.extraction.UseOtherTitle()
 		m.query = m.extraction.Query
 		m.message = ""
-	case "r":
+	case "ctrl+d":
 		return m.rememberSources()
 	case "n":
 		return m.openRename()
+	case "i":
+		return m.openInfo(), nil
 	case "enter", "ctrl+s":
 		return m.startSearch()
 	}
@@ -223,8 +226,19 @@ func (m metaPageModel) prepareBody() string {
 		}
 	}
 	lines = append(lines, "", "  "+colorBold("In the file"))
-	lines = append(lines, row("Name", strings.TrimSuffix(filepath.Base(m.path), filepath.Ext(m.path)), "")) // the file as it is now, after a rename
-	lines = append(lines, row("Embedded", embeddedSummary(x.Embedded), ""))
+	// The block comes last, so it is what a short terminal cuts. Rather than
+	// lose rows silently, it says how many are left out and where to see them.
+	fileLines := formatDetailRows(m.fileRows(true), "    ", colorFaint)
+	if room := max(0, m.height-6) - len(lines); room < len(fileLines) && room >= 1 {
+		hidden := len(fileLines) - (room - 1)
+		fileLines = append(fileLines[:room-1], "    "+colorFaint(strconv.Itoa(hidden)+" more: press i to see everything in the file"))
+	}
+	for _, l := range fileLines {
+		lines = append(lines, ansi.Truncate(l, width, "…"))
+	}
+	if len(metadataRows(m.format, m.current)) <= 1 && strings.TrimSpace(m.current.Description) == "" { // only the format row
+		lines = append(lines, "    "+colorFaint("The file has no metadata of its own."))
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -249,22 +263,42 @@ func isbnLine(q metasource.Query, from []string) string {
 	return strings.Join(parts, ", ")
 }
 
-// embeddedSummary is what the file itself says, in one line, or that it says
-// nothing useful.
-func embeddedSummary(e metasource.Embedded) string {
-	var parts []string
-	for _, p := range []string{e.Title, strings.Join(e.Authors, " & "), e.Publisher, e.Year, e.Language} {
-		if p = strings.TrimSpace(p); p != "" {
-			parts = append(parts, p)
+// fileRows are the file's name, as it is now (after a rename), and the metadata
+// it holds, as the command prints it, each value on one line. With description,
+// the first line of the description is the last row.
+func (m metaPageModel) fileRows(description bool) [][2]string {
+	rows := [][2]string{{"Name", safeText(strings.TrimSuffix(filepath.Base(m.path), bookExt(m.path)))}}
+	for _, r := range metadataRows(m.format, m.current) {
+		rows = append(rows, [2]string{r[0], oneLine(r[1])})
+	}
+	if first, _, _ := strings.Cut(strings.TrimSpace(m.current.Description), "\n"); description && strings.TrimSpace(first) != "" {
+		rows = append(rows, [2]string{"Description", oneLine(safeText(first))})
+	}
+	return rows
+}
+
+// infoContent is the file details: every value the file holds and the whole
+// description, wrapped. The page scrolls it in a viewport.
+func (m metaPageModel) infoContent() string {
+	width := max(20, m.width)
+	var lines []string
+	rows := m.fileRows(false)
+	for _, l := range formatDetailRows(rows, "    ", colorFaint) {
+		lines = append(lines, ansi.Truncate(l, width, "…"))
+	}
+	if d := strings.TrimSpace(safeText(m.current.Description)); d != "" {
+		lines = append(lines, "", "  "+colorBold("Description"))
+		var wrapped []string
+		for para := range strings.SplitSeq(d, "\n") {
+			if para = strings.TrimSpace(para); para != "" {
+				wrapped = append(wrapped, strings.Split(ansi.Wrap(para, max(10, width-6), ""), "\n")...)
+			}
+		}
+		for _, l := range wrapped {
+			lines = append(lines, "    "+l)
 		}
 	}
-	for _, isbn := range e.ISBNs {
-		parts = append(parts, "ISBN "+isbn)
-	}
-	if len(parts) == 0 {
-		return "nothing useful"
-	}
-	return strings.Join(parts, " · ")
+	return strings.Join(lines, "\n")
 }
 
 // prepareKeys are the key hints of the prepare page, in the longest wording
@@ -276,7 +310,7 @@ func (m metaPageModel) prepareKeys() []keys.Binding {
 	hasSources := len(m.draft) > 0
 	hasAlt := m.extraction.AltTitle != ""
 	canSave := m.saveSources != nil && hasSources
-	type words struct{ move, toggle, edit, title, save, rename, search, esc string }
+	type words struct{ move, toggle, edit, title, save, rename, info, search, esc, help string }
 	// tier builds one wording. arrows, more (t and r) say which of the keys that
 	// matter least it still shows.
 	tier := func(arrows, more bool, w words) [][2]string {
@@ -292,15 +326,22 @@ func (m metaPageModel) prepareKeys() []keys.Binding {
 			out = append(out, [2]string{"t", w.title})
 		}
 		if canSave && more {
-			out = append(out, [2]string{"r", w.save})
+			out = append(out, [2]string{"ctrl+d", w.save})
 		}
-		return append(out, [2]string{"n", w.rename}, [2]string{"enter", w.search}, [2]string{"esc", w.esc})
+		out = append(out, [2]string{"n", w.rename})
+		if more {
+			out = append(out, [2]string{"i", w.info})
+		}
+		if w.help != "" {
+			out = append(out, [2]string{"?", w.help})
+		}
+		return append(out, [2]string{"enter", w.search}, [2]string{"esc", w.esc})
 	}
-	return m.keysFor(
-		tier(true, true, words{"move", "toggle", "edit search", "other title", "save sources", "rename", "search", "back"}),
-		tier(false, true, words{"", "toggle", "edit", "title", "save", "rename", "search", "back"}),
-		tier(false, false, words{"", "toggle", "edit", "", "", "rename", "search", "back"}),
-		tier(false, false, words{"", "", "", "", "", "rename", "", ""}),
+	return m.keysFor(withHelpKey(
+		tier(true, true, words{"move", "toggle", "edit search", "other title", "save sources", "rename", "file info", "search", "back", "keys"}),
+		tier(false, true, words{"", "toggle", "edit", "title", "save", "rename", "info", "search", "back", "keys"}),
+		tier(false, false, words{"", "toggle", "edit", "", "", "rename", "", "search", "back", ""}),
+		tier(false, false, words{"", "", "", "", "", "rename", "", "", "", ""}),
 		tier(false, false, words{}),
-		[][2]string{{"enter", ""}, {"esc", ""}})
+		[][2]string{{"enter", ""}, {"esc", ""}})...)
 }

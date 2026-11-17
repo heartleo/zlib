@@ -13,8 +13,8 @@ import (
 
 	keys "charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/metasource"
@@ -31,6 +31,7 @@ const (
 	metaWriting                     // rewriting the file
 	metaPrepare                     // what is known about the book, and which sources to ask, before any search
 	metaRename                      // choosing a new name for the file
+	metaInfo                        // everything the file's own metadata says
 )
 
 // metaCoverError marks a failed cover download, which happens before
@@ -141,6 +142,13 @@ type metaPageModel struct {
 	// highlighted one and renameBack the stage Esc returns to. renamedFrom is
 	// the path the file had before the first rename, empty if it was never
 	// renamed.
+	// helpOpen shows every key of helpStage over the page. infoView scrolls the
+	// file details.
+	helpOpen  bool
+	helpStage metaStage
+	infoView  viewport.Model
+	helpView  viewport.Model
+
 	renameOpts   []renameOption
 	renameCursor int
 	renameBack   metaStage
@@ -258,7 +266,7 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.editing {
 			m.editor.resize(m.width)
 		}
-		return m, nil
+		return m.resizeInfo(), nil
 	case spinner.TickMsg:
 		if m.stage != metaLooking && m.stage != metaWriting {
 			return m, nil
@@ -300,10 +308,16 @@ func (m metaPageModel) lookedUp(msg metaLookupDone) metaPageModel {
 func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// An open editor takes every key first, so q, j, k, e and space type into
 	// it instead of acting on the page.
+	if m.helpOpen {
+		return m.helpKey(msg)
+	}
 	if m.editing {
 		return m.editKey(msg)
 	}
 	k := msg.String()
+	if k == "?" && m.stage != metaLooking && m.stage != metaWriting {
+		return m.openHelp(), nil
+	}
 	switch m.stage {
 	case metaPrepare:
 		return m.prepareKey(k)
@@ -344,13 +358,15 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case "enter":
 			return m.openFields(), nil
 		default:
-			m.cursor = listCursor(k, m.cursor, len(m.res.Candidates), 1)
+			m.cursor = listCursor(k, m.cursor, len(m.res.Candidates), m.listRows())
 			m.scrollTo(m.cursor)
 		}
 	case metaFields:
 		return m.fieldsKey(k)
 	case metaRename:
 		return m.renameKey(k)
+	case metaInfo:
+		return m.infoKey(msg)
 	}
 	return m, nil
 }
@@ -383,6 +399,9 @@ func (m metaPageModel) openFields() metaPageModel {
 	m.stage, m.focus, m.message = metaFields, 0, ""
 	if len(m.plan) == 0 {
 		m.message = "Nothing to add: the file already has these values"
+		if len(m.hidden) > 0 {
+			m.message = "Nothing to add that this file can store"
+		}
 	}
 	return m
 }
@@ -420,6 +439,8 @@ func (m metaPageModel) fieldsKey(k string) (tea.Model, tea.Cmd) {
 			m.selected[m.focus] = !m.selected[m.focus]
 			m.message = ""
 		}
+	case "a":
+		return m.toggleAll(), nil
 	case "e":
 		return m.startValueEdit()
 	case "ctrl+s":
@@ -503,7 +524,10 @@ func (m metaPageModel) listRows() int {
 }
 
 func (m metaPageModel) View() tea.View {
-	subtitle := safeText(filepath.Base(m.path)) + " · " + strings.ToUpper(string(m.format))
+	subtitle := m.metaSubtitle()
+	if m.helpOpen {
+		return m.helpScreen(subtitle)
+	}
 	if m.editing && m.editKind == editQuery {
 		// From the prepare page Enter keeps the terms; from the results it searches.
 		accept := "search"
@@ -523,6 +547,13 @@ func (m metaPageModel) View() tea.View {
 				[][2]string{{"enter", ""}, {"esc", ""}})...)
 	}
 	switch m.stage {
+	case metaInfo:
+		body := "  " + colorBold("File details") + "\n" + m.infoView.View()
+		if m.infoScrollable() {
+			return screenView(m.width, m.height, "Fix metadata", subtitle, body, m.infoStatus(),
+				m.keysFor(withHelpKey([][2]string{{"↑/↓", "scroll"}, {"?", "keys"}, {"esc", "back"}}, [][2]string{{"↑/↓", ""}, {"esc", "back"}})...)...)
+		}
+		return screenView(m.width, m.height, "Fix metadata", subtitle, body, "", uiKey("?", "keys"), uiKey("esc", "back"))
 	case metaRename:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.renameBody(), m.message, m.renameKeys()...)
 	case metaPrepare:
@@ -531,21 +562,23 @@ func (m metaPageModel) View() tea.View {
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.lookingBody(), "", uiKey("esc", "cancel"))
 	case metaFailed:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.failedBody(), "",
-			m.keysFor(
+			m.keysFor(withHelpKey(
+				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"?", "keys"}, {"esc", "back"}},
 				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
 				[][2]string{{"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
 				[][2]string{{"e", ""}, {"s", ""}, {"n", "rename"}, {"r", ""}, {"esc", ""}},
-				[][2]string{{"e", ""}, {"s", ""}, {"n", ""}, {"r", ""}, {"esc", ""}})...)
+				[][2]string{{"e", ""}, {"s", ""}, {"n", ""}, {"r", ""}, {"esc", ""}})...)...)
 	case metaCandidates:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.candidatesBody(), m.sourceNote(),
-			m.keysFor(
+			m.keysFor(withHelpKey(
+				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"?", "keys"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"enter", ""}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"s", ""}, {"n", ""}, {"esc", ""}},
-				[][2]string{{"enter", ""}, {"e", ""}, {"s", ""}, {"n", ""}, {"esc", ""}})...)
+				[][2]string{{"enter", ""}, {"e", ""}, {"s", ""}, {"n", ""}, {"esc", ""}})...)...)
 	case metaFields:
 		if m.editing {
 			// The editor leads the page, so a long list of fields can never push
@@ -555,17 +588,16 @@ func (m metaPageModel) View() tea.View {
 					[][2]string{{"enter", "accept"}, {"esc", "cancel"}},
 					[][2]string{{"enter", ""}, {"esc", ""}})...)
 		}
-		status := m.message
-		if status == "" && len(m.hidden) > 0 {
-			status = strings.ToUpper(string(m.format)) + " files cannot store: " + strings.Join(m.hidden, ", ")
-		}
-		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), status,
-			m.keysFor(
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), m.fieldsStatus(),
+			m.keysFor(withHelpKey(
+				[][2]string{{"↑/↓", "move"}, {"space", "select"}, {"a", "all"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"?", "keys"}, {"esc", "back"}},
+				[][2]string{{"space", "select"}, {"a", "all"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"?", "keys"}, {"esc", "back"}},
+				[][2]string{{"space", "select"}, {"a", "all"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", "move"}, {"space", "select"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
 				[][2]string{{"space", "select"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
 				[][2]string{{"space", ""}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
 				[][2]string{{"space", ""}, {"e", ""}, {"n", "rename"}, {"ctrl+s", ""}, {"esc", ""}},
-				[][2]string{{"space", ""}, {"e", ""}, {"n", ""}, {"ctrl+s", ""}, {"esc", ""}})...)
+				[][2]string{{"space", ""}, {"e", ""}, {"n", ""}, {"ctrl+s", ""}, {"esc", ""}})...)...)
 	}
 	note := "Writing the file…"
 	for i, ch := range m.plan {
@@ -676,35 +708,6 @@ func (m metaPageModel) sourceNote() string {
 	return strings.Join(parts, "; ")
 }
 
-func (m metaPageModel) candidatesBody() string {
-	width := max(20, m.width)
-	rows := m.listRows()
-	end := min(len(m.res.Candidates), m.top+rows)
-	var lines []string
-	for i := m.top; i < end; i++ {
-		c := m.res.Candidates[i]
-		label := metaScoreCell(c) + " " + safeText(c.Title)
-		if len(c.Authors) > 0 {
-			label += " — " + safeText(strings.Join(c.Authors, " & "))
-		}
-		if y := c.Published; y != "" {
-			label += " (" + safeText(y[:min(4, len(y))]) + ")"
-		}
-		// Where the match came from, so an entry from one catalogue is not
-		// taken for a merge of several.
-		if len(c.Sources) > 0 {
-			label += " [" + safeText(strings.Join(c.Sources, "+")) + "]"
-		}
-		lines = append(lines, styledListRow(label, i == m.cursor, width, currentTheme))
-	}
-	c := m.res.Candidates[m.cursor]
-	lines = append(lines, "", sectionHeader("Details", "", width))
-	for _, l := range formatDetailRows(metaDetailRows(c), "  ", colorFaint) {
-		lines = append(lines, ansi.Truncate(l, width, "…"))
-	}
-	return strings.Join(lines, "\n")
-}
-
 // metaScoreCell is the fixed-width match marker at the start of a row.
 func metaScoreCell(c metasource.Candidate) string {
 	switch {
@@ -747,58 +750,6 @@ func metaDetailRows(c metasource.Candidate) [][2]string {
 		add("Description", first)
 	}
 	return rows
-}
-
-// fieldsBody is the rows with the Apply and Back buttons under them.
-func (m metaPageModel) fieldsBody() string {
-	width := max(20, m.width)
-	lines := []string{m.fieldsRows(), ""}
-	n := len(m.plan)
-	// Button focus is one-based: Apply is plan index n, Back is n+1.
-	buttons := actionButtonRows([]string{"Apply", "Back"}, max(0, m.focus-n+1), width)
-	if n == 0 {
-		buttons = actionButtonRows([]string{"", "Back"}, 2, width)
-	}
-	return strings.Join(append(lines, buttons...), "\n")
-}
-
-// fieldsRows is the match header and one row per proposed change.
-func (m metaPageModel) fieldsRows() string {
-	width := max(20, m.width)
-	lines := []string{"  " + colorFaint("From ") + safeText(m.cand.Title) + colorFaint(" · "+strings.Join(m.cand.Sources, ", ")), ""}
-	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
-	switch {
-	case m.cand.Match == metasource.MatchISBN && m.cand.Score < 1:
-		lines = append(lines, "  "+warn.Render("The ISBN matches but the title is different: check this is the right book."), "")
-	case m.cand.Match != metasource.MatchISBN:
-		lines = append(lines, "  "+warn.Render("Found by title only: check the edition before keeping its ISBN, publisher, date or language."), "")
-	}
-	for i, ch := range m.plan {
-		box := "[ ]"
-		if m.selected[i] {
-			box = "[x]"
-		}
-		old := safeText(oneLine(ch.Old))
-		if old == "" {
-			old = "(empty)"
-		}
-		label := fmt.Sprintf("%s %-12s %s → %s", box, metaFieldLabel(ch.Field), old, safeText(oneLine(ch.New)))
-		var notes []string
-		if !ch.Fill {
-			notes = append(notes, "replaces")
-		}
-		if ch.Note != "" {
-			notes = append(notes, ch.Note)
-		}
-		if len(notes) > 0 {
-			label += "  (" + strings.Join(notes, ", ") + ")"
-		}
-		lines = append(lines, styledListRow(label, m.focus == i, width, currentTheme))
-	}
-	if len(m.plan) == 0 {
-		lines = append(lines, "  "+colorFaint("Nothing to change."))
-	}
-	return strings.Join(lines, "\n")
 }
 
 func metaFieldLabel(f metasource.Field) string {

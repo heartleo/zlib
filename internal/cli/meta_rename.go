@@ -279,11 +279,12 @@ func (m metaPageModel) renameBody() string {
 
 // renameKeys are the key hints of the rename page.
 func (m metaPageModel) renameKeys() []keys.Binding {
-	return m.keysFor(
+	return m.keysFor(withHelpKey(
+		[][2]string{{"↑/↓", "choose"}, {"enter", "rename"}, {"e", "edit name"}, {"?", "keys"}, {"esc", "back"}},
 		[][2]string{{"↑/↓", "choose"}, {"enter", "rename"}, {"e", "edit name"}, {"esc", "back"}},
 		[][2]string{{"↑/↓", ""}, {"enter", "rename"}, {"e", "edit"}, {"esc", "back"}},
 		[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"esc", ""}},
-		[][2]string{{"enter", ""}, {"esc", ""}})
+		[][2]string{{"enter", ""}, {"esc", ""}})...)
 }
 
 // renameSummary words a rename for the notice shown when the page ends.
