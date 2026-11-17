@@ -30,6 +30,7 @@ const (
 	metaFields                      // choosing which fields to write
 	metaWriting                     // rewriting the file
 	metaPrepare                     // what is known about the book, and which sources to ask, before any search
+	metaRename                      // choosing a new name for the file
 )
 
 // metaCoverError marks a failed cover download, which happens before
@@ -135,6 +136,15 @@ type metaPageModel struct {
 
 	gen int
 	run *metaRun
+
+	// renameOpts are the names on offer on the rename page, renameCursor the
+	// highlighted one and renameBack the stage Esc returns to. renamedFrom is
+	// the path the file had before the first rename, empty if it was never
+	// renamed.
+	renameOpts   []renameOption
+	renameCursor int
+	renameBack   metaStage
+	renamedFrom  string
 
 	// Outcome for the caller.
 	applied   []string
@@ -315,6 +325,8 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.startQueryEdit()
 		case "s":
 			return m.openPrepare()
+		case "n":
+			return m.openRename()
 		case "r":
 			return m.search()
 		}
@@ -327,6 +339,8 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.startQueryEdit()
 		case "s":
 			return m.openPrepare()
+		case "n":
+			return m.openRename()
 		case "enter":
 			return m.openFields(), nil
 		default:
@@ -335,6 +349,8 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case metaFields:
 		return m.fieldsKey(k)
+	case metaRename:
+		return m.renameKey(k)
 	}
 	return m, nil
 }
@@ -381,6 +397,9 @@ func (m metaPageModel) canOffer(ch metasource.Change) bool {
 }
 
 func (m metaPageModel) fieldsKey(k string) (tea.Model, tea.Cmd) {
+	if k == "n" {
+		return m.openRename()
+	}
 	n := len(m.plan)
 	if n == 0 { // only Back is on offer
 		if k == "esc" || k == "ctrl+c" || k == "enter" {
@@ -497,7 +516,15 @@ func (m metaPageModel) View() tea.View {
 				[][2]string{{"enter", accept}, {"tab", ""}, {"esc", "cancel"}},
 				[][2]string{{"enter", ""}, {"tab", ""}, {"esc", ""}})...)
 	}
+	if m.editing && m.editKind == editName {
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.editor.view(max(20, m.width)), "",
+			m.keysFor(
+				[][2]string{{"enter", "rename"}, {"esc", "cancel"}},
+				[][2]string{{"enter", ""}, {"esc", ""}})...)
+	}
 	switch m.stage {
+	case metaRename:
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.renameBody(), m.message, m.renameKeys()...)
 	case metaPrepare:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.prepareBody(), m.message, m.prepareKeys()...)
 	case metaLooking:
@@ -505,14 +532,20 @@ func (m metaPageModel) View() tea.View {
 	case metaFailed:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.failedBody(), "",
 			m.keysFor(
-				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"r", "retry"}, {"esc", "back"}},
-				[][2]string{{"e", ""}, {"s", ""}, {"r", ""}, {"esc", ""}})...)
+				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
+				[][2]string{{"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
+				[][2]string{{"e", ""}, {"s", ""}, {"n", "rename"}, {"r", ""}, {"esc", ""}},
+				[][2]string{{"e", ""}, {"s", ""}, {"n", ""}, {"r", ""}, {"esc", ""}})...)
 	case metaCandidates:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.candidatesBody(), m.sourceNote(),
 			m.keysFor(
-				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"s", ""}, {"esc", ""}})...)
+				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"enter", ""}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"s", ""}, {"n", ""}, {"esc", ""}},
+				[][2]string{{"enter", ""}, {"e", ""}, {"s", ""}, {"n", ""}, {"esc", ""}})...)
 	case metaFields:
 		if m.editing {
 			// The editor leads the page, so a long list of fields can never push
@@ -528,9 +561,11 @@ func (m metaPageModel) View() tea.View {
 		}
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.fieldsBody(), status,
 			m.keysFor(
-				[][2]string{{"↑/↓", "move"}, {"space", "select"}, {"e", "edit"}, {"ctrl+s", "apply"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "move"}, {"space", ""}, {"e", "edit"}, {"ctrl+s", "apply"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", ""}, {"space", ""}, {"e", ""}, {"ctrl+s", ""}, {"esc", ""}})...)
+				[][2]string{{"↑/↓", "move"}, {"space", "select"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
+				[][2]string{{"space", "select"}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
+				[][2]string{{"space", ""}, {"e", "edit"}, {"n", "rename"}, {"ctrl+s", "apply"}, {"esc", "back"}},
+				[][2]string{{"space", ""}, {"e", ""}, {"n", "rename"}, {"ctrl+s", ""}, {"esc", ""}},
+				[][2]string{{"space", ""}, {"e", ""}, {"n", ""}, {"ctrl+s", ""}, {"esc", ""}})...)
 	}
 	note := "Writing the file…"
 	for i, ch := range m.plan {
@@ -776,12 +811,22 @@ func metaFieldLabel(f metasource.Field) string {
 
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
-// summary words what was applied, for the notice shown after the page ends.
+// summary words what was applied and whether the file was renamed, for the
+// notice shown after the page ends.
 func (m metaPageModel) summary() string {
 	n := len(m.applied)
+	if n == 0 {
+		if m.renamedFrom == "" {
+			return ""
+		}
+		return "Renamed to " + filepath.Base(m.path)
+	}
 	noun := "fields"
 	if n == 1 {
 		noun = "field"
+	}
+	if m.renamedFrom != "" {
+		return "Updated " + strconv.Itoa(n) + " " + noun + " and renamed to " + filepath.Base(m.path)
 	}
 	return "Updated " + strconv.Itoa(n) + " " + noun + " in " + filepath.Base(m.path)
 }

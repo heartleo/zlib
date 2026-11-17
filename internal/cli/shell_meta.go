@@ -77,14 +77,21 @@ func (m *shellModel) openMetaForDownload(dl downloadModel) tea.Cmd {
 func (m *shellModel) metaDone(page metaPageModel) tea.Cmd {
 	page.stop()
 	wrote := !page.cancelled && len(page.applied) > 0
+	changed := wrote || page.renamedFrom != "" // a rename stands even if the page was left with Esc
+	if !wrote {
+		page.applied = nil
+	}
 	if m.deliveryReturn != nil {
-		if wrote {
+		// The saved-file page sends this path to Kindle and WeRead: it must be
+		// the file's name now.
+		m.deliveryReturn.savedPath = page.path
+		if changed {
 			return m.returnToDownloadCompletion(noticeSuccess, page.summary())
 		}
 		return m.returnToDownloadCompletion(noticeInfo, "")
 	}
 	m.restore()
-	if wrote {
+	if changed {
 		m.setSuccess(page.summary())
 	}
 	return nil

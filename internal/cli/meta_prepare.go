@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -80,6 +81,8 @@ func (m metaPageModel) prepareKey(k string) (tea.Model, tea.Cmd) {
 		m.message = ""
 	case "r":
 		return m.rememberSources()
+	case "n":
+		return m.openRename()
 	case "enter", "ctrl+s":
 		return m.startSearch()
 	}
@@ -220,7 +223,7 @@ func (m metaPageModel) prepareBody() string {
 		}
 	}
 	lines = append(lines, "", "  "+colorBold("In the file"))
-	lines = append(lines, row("Name", x.FileName.Stem, ""))
+	lines = append(lines, row("Name", strings.TrimSuffix(filepath.Base(m.path), filepath.Ext(m.path)), "")) // the file as it is now, after a rename
 	lines = append(lines, row("Embedded", embeddedSummary(x.Embedded), ""))
 	return strings.Join(lines, "\n")
 }
@@ -266,35 +269,38 @@ func embeddedSummary(e metasource.Embedded) string {
 
 // prepareKeys are the key hints of the prepare page, in the longest wording
 // that fits. Keys that do nothing here are left out: moving and toggling need
-// sources, t needs another title and r needs a way to save.
+// sources, t needs another title and r needs a way to save. As the width
+// shrinks the hints lose their labels and then the keys that matter least
+// (moving, t, r), but every tier keeps n and esc.
 func (m metaPageModel) prepareKeys() []keys.Binding {
 	hasSources := len(m.draft) > 0
 	hasAlt := m.extraction.AltTitle != ""
 	canSave := m.saveSources != nil && hasSources
-	// tier lists the keys that matter more first dropped last: the narrowest
-	// tiers keep only toggling, editing, searching and leaving, so esc is on
-	// screen whatever the width.
-	tier := func(move, toggle, edit, title, save, search, esc string, extras bool) [][2]string {
+	type words struct{ move, toggle, edit, title, save, rename, search, esc string }
+	// tier builds one wording. arrows, more (t and r) say which of the keys that
+	// matter least it still shows.
+	tier := func(arrows, more bool, w words) [][2]string {
 		var out [][2]string
 		if hasSources {
-			if extras {
-				out = append(out, [2]string{"↑/↓", move})
+			if arrows {
+				out = append(out, [2]string{"↑/↓", w.move})
 			}
-			out = append(out, [2]string{"space", toggle})
+			out = append(out, [2]string{"space", w.toggle})
 		}
-		out = append(out, [2]string{"e", edit})
-		if hasAlt && extras {
-			out = append(out, [2]string{"t", title})
+		out = append(out, [2]string{"e", w.edit})
+		if hasAlt && more {
+			out = append(out, [2]string{"t", w.title})
 		}
-		if canSave && extras {
-			out = append(out, [2]string{"r", save})
+		if canSave && more {
+			out = append(out, [2]string{"r", w.save})
 		}
-		return append(out, [2]string{"enter", search}, [2]string{"esc", esc})
+		return append(out, [2]string{"n", w.rename}, [2]string{"enter", w.search}, [2]string{"esc", w.esc})
 	}
 	return m.keysFor(
-		tier("move", "toggle", "edit search", "other title", "save sources", "search", "back", true),
-		tier("", "toggle", "edit", "title", "save", "search", "back", true),
-		tier("", "", "", "", "", "", "", true),
-		tier("", "", "", "", "", "", "", false),
+		tier(true, true, words{"move", "toggle", "edit search", "other title", "save sources", "rename", "search", "back"}),
+		tier(false, true, words{"", "toggle", "edit", "title", "save", "rename", "search", "back"}),
+		tier(false, false, words{"", "toggle", "edit", "", "", "rename", "search", "back"}),
+		tier(false, false, words{"", "", "", "", "", "rename", "", ""}),
+		tier(false, false, words{}),
 		[][2]string{{"enter", ""}, {"esc", ""}})
 }

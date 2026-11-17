@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -22,7 +23,8 @@ func TestMetaPagePrepareFooterWithEveryKeyFitsNarrowTerminals(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{100, []string{"move", "toggle", "edit search", "other title", "save sources", "search", "back"}},
+		{130, []string{"move", "toggle", "edit search", "other title", "save sources", "rename", "search", "back"}},
+		{100, []string{"space toggle", "n rename", "enter search", "esc back"}},
 		{80, []string{"toggle", "enter", "esc"}},
 		{60, []string{"r", "enter", "esc"}},
 		{40, []string{"enter", "esc"}},
@@ -37,6 +39,62 @@ func TestMetaPagePrepareFooterWithEveryKeyFitsNarrowTerminals(t *testing.T) {
 		}
 		if ansi.StringWidth(got) > tc.width || strings.Contains(got, "…") {
 			t.Errorf("%d columns: footer %q is cut off", tc.width, got)
+		}
+	}
+}
+
+// n renames the file, and the page where a name from the selected match is
+// offered must say so at 80 columns, where most terminals start.
+func TestMetaPagesShowTheRenameKeyAtEightyColumns(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	prepare := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	prepare.saveSources = func([]string) (string, error) { return "", nil }
+	prepare.extraction.AltTitle = "Another title"
+	candidates := sourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	failed := candidates
+	failed.stage, failed.res = metaFailed, metasource.Result{}
+	fields := candidates.openFields()
+	for name, page := range map[string]metaPageModel{"prepare": prepare, "candidates": candidates, "failed": failed, "fields": fields} {
+		next, _ := page.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+		got := footer(ansi.Strip(next.(metaPageModel).View().Content))
+		if !strings.Contains(got, "n rename") || !strings.Contains(got, "esc") || ansi.StringWidth(got) > 80 || strings.Contains(got, "…") {
+			t.Errorf("%s at 80 columns: footer %q", name, got)
+		}
+	}
+}
+
+// footerKeys are the keys a footer shows, whatever their labels.
+func footerKeys(footer string) []string {
+	var out []string
+	for _, part := range strings.Split(footer, "•") {
+		if f := strings.Fields(part); len(f) > 0 {
+			out = append(out, f[0])
+		}
+	}
+	return out
+}
+
+// At every width from 40 up, each page shows the rename key and Esc, not only at
+// the widths where a long wording fits.
+func TestMetaPagesShowRenameAndEscAtEveryWidth(t *testing.T) {
+	var asked [][]string
+	var queries []metasource.Query
+	prepare := preparedSourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	prepare.saveSources = func([]string) (string, error) { return "", nil }
+	prepare.extraction.AltTitle = "Another title"
+	candidates := sourcesPage(t, fakeSourceChoices(), &asked, &queries)
+	failed := candidates
+	failed.stage, failed.res = metaFailed, metasource.Result{}
+	fields := candidates.openFields()
+	for name, page := range map[string]metaPageModel{"prepare": prepare, "candidates": candidates, "failed": failed, "fields": fields} {
+		for width := 40; width <= 130; width++ {
+			next, _ := page.Update(tea.WindowSizeMsg{Width: width, Height: 24})
+			got := footer(ansi.Strip(next.(metaPageModel).View().Content))
+			keys := footerKeys(got)
+			if !slices.Contains(keys, "n") || !slices.Contains(keys, "esc") || ansi.StringWidth(got) > width || strings.Contains(got, "…") {
+				t.Errorf("%s at %d columns: footer %q", name, width, got)
+			}
 		}
 	}
 }

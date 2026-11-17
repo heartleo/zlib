@@ -309,6 +309,19 @@ writing:
   is saved only by `r`; the page says that WeRead sends each title to Tencent
   under your account. WeRead cannot search by ISBN, so when it is on and the
   search has no title the page says so.
+- **Rename** (`n` on the prepare, results, no-match and fields pages) shows the
+  file's name and the names on offer, each `Authors - Title.ext`: from the
+  search terms (the default: read from the file name and the file, or as you
+  edited them), from the file's own embedded title, which often carries a
+  marketing line, and from the selected match (on the results and fields
+  pages). A name that is already the file's is marked and refused. `Type a
+  name…`, or `e` on any row, opens an editor on the name without its extension;
+  characters a file system rejects are replaced. Enter renames at once, never
+  over another file, and goes back to the page `n` was pressed on, with the
+  title and the sources unchanged. Fields written afterwards go to the file
+  under its new name, and the saved-file page of a download follows the rename,
+  so Send to Kindle and Send to WeRead use it. See
+  [Rename a file](metadata.md#rename-a-file) for how a name is built.
 - **Fields** show one row per change as `[x] Field  old → new`. What starts
   selected depends on the match. With `ISBN`, the fields the file leaves empty.
   With a percentage (a title match), the empty fields that describe the book;

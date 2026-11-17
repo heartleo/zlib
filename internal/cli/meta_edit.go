@@ -16,6 +16,7 @@ type metaEditKind int
 const (
 	editValue metaEditKind = iota // a proposed value on the fields page
 	editQuery                     // what is searched for
+	editName                      // the file's new name
 )
 
 // search starts a fresh lookup for m.query on a fresh channel, dropping the
@@ -184,8 +185,11 @@ func (m metaPageModel) editKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.editing = false
 		return m, nil
 	case "enter", "ctrl+s":
-		if m.editKind == editQuery {
+		switch m.editKind {
+		case editQuery:
 			return m.acceptQueryEdit()
+		case editName:
+			return m.acceptNameEdit()
 		}
 		return m.acceptValueEdit(), nil
 	}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -31,6 +32,12 @@ The format is detected from the file contents:
   PDF   title, authors, tags, description
 
 Fields a format cannot store are reported on stderr and skipped.
+
+--rename names the file Authors - Title.ext from the title and authors a lookup
+would search for (the file name first, then the file; the file's own when the
+same command sets -t, -a or an OPF), after any change above. --rename-to NAME
+gives it the name you type. The file stays in its directory and no other file
+is ever replaced.
 
 On a terminal, zlib meta with no file (or only --fetch) opens a file picker,
 then a page that reads the file name and the file, lets you choose the sources
@@ -101,6 +108,8 @@ func addMetaFlags(cmd *cobra.Command) {
 	f.String("from-opf", "", "Apply the metadata in this OPF file")
 	f.Bool("fetch", false, "Look the book up in online catalogues; on a terminal pick a match and apply it, otherwise list matches (-t, -a and --isbn set what to search for and list matches)")
 	f.StringSlice("source", nil, "With --fetch, the catalogues to ask: openlibrary, google, douban, weread (comma-separated or repeated); overrides "+metaSourcesEnv)
+	f.Bool("rename", false, "Rename the file to \"Authors - Title.ext\" from the title and authors a lookup would search for, after any change above")
+	f.String("rename-to", "", "Rename the file to this name; the extension is kept and characters a file system rejects are replaced")
 	f.Bool("json", false, "Print the metadata as JSON")
 }
 
@@ -108,6 +117,8 @@ func addMetaFlags(cmd *cobra.Command) {
 type metaJSON struct {
 	File   string           `json:"file"`
 	Format ebookmeta.Format `json:"format"`
+	// RenamedFrom is the path the file had before --rename or --rename-to.
+	RenamedFrom string `json:"renamed_from,omitempty"`
 	*ebookmeta.Metadata
 }
 
@@ -122,6 +133,9 @@ func runMeta(cmd *cobra.Command, args []string) error {
 	path := args[0]
 	if fetch, _ := cmd.Flags().GetBool("fetch"); fetch {
 		return runMetaFetch(cmd, path)
+	}
+	if err := precheckRename(cmd, path); err != nil {
+		return err
 	}
 	changes, err := metaChangesFromFlags(cmd)
 	if err != nil {
@@ -148,6 +162,13 @@ func runMeta(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return metaError(path, err)
 	}
+	renamedFrom := ""
+	if newPath, err := renameFromFlags(cmd, path, m); err != nil {
+		return err
+	} else if newPath != path {
+		renamedFrom, path = path, newPath
+		lipgloss.Fprintf(stderr, "%s Renamed to %s\n", colorFaint(symbolSuccess), safeText(filepath.Base(path)))
+	}
 	if out, _ := cmd.Flags().GetString("get-cover"); out != "" {
 		cov, err := ebookmeta.CoverFile(path)
 		if err != nil {
@@ -170,7 +191,7 @@ func runMeta(cmd *cobra.Command, args []string) error {
 	}
 
 	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
-		return printJSONTo(cmd.OutOrStdout(), metaJSON{File: path, Format: format, Metadata: m})
+		return printJSONTo(cmd.OutOrStdout(), metaJSON{File: path, Format: format, RenamedFrom: renamedFrom, Metadata: m})
 	}
 	printMetadata(cmd.OutOrStdout(), format, m)
 	return nil

@@ -58,6 +58,54 @@ zlib meta other.epub --from-opf book.opf
 e-book managers exchange. `--from-opf` applies every field present in an OPF
 file; options given alongside it take precedence.
 
+## Rename a file
+
+```sh
+zlib meta book.epub --rename
+zlib meta book.epub -t "Dune" -a "Frank Herbert" --rename
+zlib meta book.epub --rename-to "Frank Herbert - Dune"
+```
+
+`--rename` names the file from the title and authors a lookup would search for:
+the file name first, then the file, as [described below](#what-the-search-is-built-from).
+When the same command sets the title, the authors or an OPF file, the file's own
+metadata is what you just chose and is used instead. `--rename-to` takes the name as you
+type it; the extension is kept. Both stay in the file's directory, keep the
+extension, never replace another file (a clash is an error and nothing moves)
+and print the new path with `--json` (`file`, and `renamed_from`). `--fetch`
+only reads, so it cannot be combined with either.
+
+A name is `Authors - Title.ext`, or `Title.ext` when no author is known:
+
+- Up to three authors, separated by commas. `Last, First` is written
+  `First Last`, since a comma would split it into two people.
+- A subtitle is written after two spaces, not a colon, which Windows does not
+  accept; zlib reads two spaces back as a colon, so the file is found again.
+- No path separators or characters Windows rejects (`/ \ : " < > | ? *`), no
+  control or bidirectional marks, no leading or trailing dot, and no reserved
+  Windows device name. The name is at most 255 bytes, cut in the title.
+- A title that is a placeholder (`Unknown`) gives no name, and a file with no
+  title anywhere is an error. Embedded titles often carry a marketing line,
+  which is why the file name's title is preferred; the terminal interface
+  offers the file's own title as a separate choice.
+
+- A title that ends in a `(...)` group is written with square brackets,
+  because a Z-Library name reads that group as the authors.
+- The extension is kept, in lower case, when it is an e-book's. A file with no
+  extension, or a dot that is part of its name, keeps its name without one.
+
+A name is read back as `Authors - Title` (see
+[what the search is built from](#what-the-search-is-built-from)), so a second
+`--rename` of a renamed file changes nothing. The checks that can be made before
+anything is written are: using both options, an empty name, a name that is
+taken, a file with no title to name it by. They run before the other options of
+the same command write the file, so a refused rename leaves it untouched.
+
+`--fetch --json` adds a `suggested_file_name` to each candidate, built from the
+candidate's title and authors with the extension of the file looked up. In the
+terminal interface, `n` on the prepare, results and fields pages renames the
+file: see [the page](tui.md).
+
 ## Look a book up
 
 ```sh
@@ -117,6 +165,14 @@ metadata, the same way in the terminal page and in `--fetch`:
   name's authors when they do not.
 - **Edition hints.** The file's publisher and year rank editions of one title a
   little; they never exclude one.
+- **A dashed name.** `Authors - Title`, the name [`--rename`](#rename-a-file)
+  writes, is read that way when the file's or the download's authors are the
+  words before the dash, or when the file has no title or authors of its own to
+  contradict it. When only the title agrees, the file's authors stand. A
+  Z-Library name that ends in a `(...)` group keeps that group as its authors,
+  and is read as a dashed name only when the file's authors are the words
+  before the dash. Otherwise the whole name is the title, since a title can
+  have a dash in it.
 
 `--json` adds an `extraction` object with what the file name and the file said
 and where the title, authors and each ISBN came from.
@@ -243,6 +299,7 @@ is written:
 | Key | Where | What it does |
 | --- | --- | --- |
 | `e` | Candidates, or no match | Edit the title, authors and ISBNs searched for, then search again. Only the search changes, never the file. A file with no title, author or ISBN opens on this editor |
+| `n` | Prepare, candidates, no match, fields | Rename the file: choose a name from the search terms, the file's own title or the selected match, or type one. Takes effect at once and never replaces another file |
 | `s` | Candidates, or no match | Go back to the prepare page to change the sources: Open Library, Google Books, Douban, WeRead. A source whose key is missing says so |
 | `e` | Fields | Edit the proposed value of the focused row (title, authors, publisher, languages, tags, date, ISBN) before it is written. An invalid value is refused with the reason, and an edited row is marked `edited` |
 

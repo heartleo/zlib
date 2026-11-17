@@ -62,6 +62,10 @@ func Extract(fileName string, m *ebookmeta.Metadata, scanned []string, hint Hint
 	}
 	x.Embedded = embeddedOf(m)
 	fg, emb := x.FileName, x.Embedded
+	if authors, ok := dashReading(fg, emb, hint); ok {
+		fg.Title, fg.Authors, fg.Structured = fg.DashTitle, authors, true
+		x.FileName = fg
+	}
 	fileTitle := ""
 	if UsefulTitle(fg.Title) {
 		fileTitle = fg.Title
@@ -132,6 +136,47 @@ func Extract(fileName string, m *ebookmeta.Metadata, scanned []string, hint Hint
 	return x
 }
 
+// dashReading decides whether an "Author - Title" name is read that way, and
+// with which authors. A name can as well be a title with a dash in it, or a
+// Z-Library "X - Title (Author)", so the file must not contradict it:
+//
+//   - A name with a "(...)" group at the end is a Z-Library name, whose group
+//     holds the authors. It is read as a dashed name only when the file's or the
+//     download's authors are the words before the dash, and those words are not
+//     the group's authors too.
+//   - Otherwise the words before the dash are the authors when the file's or the
+//     download's authors agree, or when the file has no title or authors of its
+//     own and nothing contradicts the name (so a name this package built reads
+//     back as it was built, whatever the file holds).
+//   - When only the title agrees, those words are not known to be authors, and
+//     the authors the file has stand.
+func dashReading(fg FileGuess, emb Embedded, hint Hint) (authors []string, ok bool) {
+	if fg.DashTitle == "" || len(fg.DashAuthors) == 0 {
+		return nil, false
+	}
+	hintAuthors := cleanList(hint.Authors)
+	authorsAgree := sharePerson(fg.DashAuthors, emb.Authors) || sharePerson(fg.DashAuthors, hintAuthors)
+	if fg.Structured { // the name ends in a group
+		return fg.DashAuthors, authorsAgree && !sharePerson(fg.Authors, fg.DashAuthors)
+	}
+	if authorsAgree {
+		return fg.DashAuthors, true
+	}
+	hintTitle := clean(hint.Title)
+	for _, t := range []string{emb.Title, hintTitle} {
+		if t != "" && (sameFolded(fg.DashTitle, t) || titleSimilarity(fg.DashTitle, t) >= hintTitleSimilarity) {
+			if len(emb.Authors) > 0 || len(hintAuthors) > 0 {
+				return nil, true // the title agrees; the authors come from elsewhere
+			}
+			return fg.DashAuthors, true
+		}
+	}
+	if emb.Title == "" && hintTitle == "" && len(emb.Authors) == 0 && len(hintAuthors) == 0 {
+		return fg.DashAuthors, true
+	}
+	return nil, false
+}
+
 // UseOtherTitle returns x with the query using AltTitle, the title it did not
 // pick: the file name's for the file's own, or the reverse. The other title
 // takes its place as AltTitle, so switching twice returns where it started.
@@ -151,6 +196,10 @@ func (x Extraction) UseOtherTitle() Extraction {
 	}
 	return x
 }
+
+// EmbeddedOf is what is useful in a file's own metadata: a title that is not a
+// placeholder, and its authors, cleaned and split.
+func EmbeddedOf(m *ebookmeta.Metadata) Embedded { return embeddedOf(m) }
 
 // embeddedOf reads what is useful in a file's metadata. A placeholder title or
 // author is dropped, authors are cleaned and split, and the year is the first

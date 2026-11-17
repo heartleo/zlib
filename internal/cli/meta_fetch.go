@@ -136,7 +136,7 @@ func metaTransport() http.RoundTripper {
 // may be combined with --fetch, which only reads.
 var metaFetchWriteFlags = []string{
 	"title-sort", "author-sort", "publisher", "language", "tags", "series", "index", "identifier",
-	"rating", "date", "comments", "cover", "get-cover", "to-opf", "from-opf",
+	"rating", "date", "comments", "cover", "get-cover", "to-opf", "from-opf", "rename", "rename-to",
 }
 
 // metaFetchCheckFlags refuses an option that would change or export the file:
@@ -201,9 +201,17 @@ type metaFetchJSON struct {
 	Query metasource.Query `json:"query"`
 	// Extraction says what the file name and the file offered and where each
 	// part of the query came from.
-	Extraction metaExtractionJSON     `json:"extraction"`
-	Candidates []metasource.Candidate `json:"candidates"`
-	Errors     []metaFetchErrorJSON   `json:"errors,omitempty"`
+	Extraction metaExtractionJSON   `json:"extraction"`
+	Candidates []metaCandidateJSON  `json:"candidates"`
+	Errors     []metaFetchErrorJSON `json:"errors,omitempty"`
+}
+
+// metaCandidateJSON is a candidate with the file name it would give the book:
+// "Authors - Title.ext" from the candidate's own title and authors, with the
+// extension of the file that was looked up. Nothing is renamed by --fetch.
+type metaCandidateJSON struct {
+	metasource.Candidate
+	SuggestedFileName string `json:"suggested_file_name,omitempty"`
 }
 
 // metaExtractionJSON is the extraction as the --json document shows it.
@@ -262,9 +270,12 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 		return errNoMetadataMatch
 	}
 	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
-		doc := metaFetchJSON{File: path, Query: q, Candidates: res.Candidates, Extraction: metaExtractionJSON{
+		doc := metaFetchJSON{File: path, Query: q, Extraction: metaExtractionJSON{
 			FileName: x.FileName, Embedded: x.Embedded, TitleFrom: x.TitleFrom, AuthorsFrom: x.AuthorsFrom, AltTitle: x.AltTitle, ISBNFrom: x.ISBNFrom,
 		}}
+		for _, c := range res.Candidates {
+			doc.Candidates = append(doc.Candidates, metaCandidateJSON{Candidate: c, SuggestedFileName: metasource.FileNameFor(c.Title, c.Authors, bookExt(path))})
+		}
 		for _, e := range res.Errors {
 			doc.Errors = append(doc.Errors, metaFetchErrorJSON{Source: e.Source, Error: e.Err.Error()})
 		}

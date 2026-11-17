@@ -19,6 +19,12 @@ type FileGuess struct {
 	Authors []string
 	// ISBNs are valid ISBN-13 values found anywhere in the name.
 	ISBNs []string
+	// DashAuthors and DashTitle are the reading of an "Author - Title" name, the
+	// shape FileNameFor builds. The name is just as likely a title with a dash
+	// in it, so Title is left whole and Extract uses this only when the file's
+	// own metadata agrees with it.
+	DashAuthors []string
+	DashTitle   string
 	// Structured is true when the name has a trailing "(...)" group, which is
 	// what makes its title worth trusting over a bare name.
 	Structured bool
@@ -96,6 +102,7 @@ func GuessFromFileName(name string) FileGuess {
 			break
 		}
 	}
+	g.DashAuthors, g.DashTitle = dashedName(s)
 	g.Title = cleanFileTitle(title)
 	if numberLike(g.Title) && !shortNumber(g.Title) {
 		g.Title, g.Structured = "", false
@@ -104,6 +111,24 @@ func GuessFromFileName(name string) FileGuess {
 		g.Structured = false
 	}
 	return g
+}
+
+// dashedName reads "Author - Title": exactly one spaced dash, with names on the
+// left and something that is not a number on the right.
+func dashedName(s string) (authors []string, title string) {
+	if strings.Count(s, " - ") != 1 {
+		return nil, ""
+	}
+	left, right, _ := strings.Cut(s, " - ")
+	title = cleanFileTitle(right)
+	if title == "" || numberLike(left) || (numberLike(title) && !shortNumber(title)) {
+		return nil, ""
+	}
+	authors = parseFileAuthors(left)
+	if len(authors) == 0 || len(authors) > maxNameAuthors {
+		return nil, ""
+	}
+	return authors, title
 }
 
 // trailingGroup splits "head (inner)" at the last top-level bracket group
