@@ -51,8 +51,43 @@ func (m settingsModel) updateFormats(k string) (tea.Model, tea.Cmd) {
 }
 
 func (m settingsModel) formatsView(w, h int) tea.View {
+	summary := "Any format"
+	if len(m.formats) > 0 {
+		summary = fmt.Sprintf("%d selected", len(m.formats))
+	}
+	items := make([]checkItem, len(searchFormats))
+	for i, ext := range searchFormats {
+		items[i] = checkItem{label: ext.String(), checked: slices.Contains(m.formats, ext)}
+	}
+	return m.checklistView(w, h, checklist{
+		short: "Search formats", title: "Default search formats", summary: summary,
+		override: m.value(searchExtensionsEnv).Override, items: items, cursor: m.formatCursor, fallbackPage: "search",
+	})
+}
+
+// checkItem is one row of a checklist page.
+type checkItem struct {
+	label   string
+	checked bool
+}
+
+// checklist is what a settings checklist page shows: the default search formats
+// and the lookup sources share one look. summary says what is selected, and a
+// message the page holds (a refusal) replaces it.
+type checklist struct {
+	short, title, summary string
+	override              string // the setting that wins over what is saved here, or ""
+	items                 []checkItem
+	cursor                int
+	fallbackPage          string // the list page shown dimmed behind the panel when the opener is unknown
+}
+
+// checklistView draws a checklist as a panel over the dimmed list page, or full
+// screen when the terminal is small. The keys are those of updateFormats:
+// move, Space, Ctrl+A, Enter, Esc.
+func (m settingsModel) checklistView(w, h int, c checklist) tea.View {
 	if h < 7 || w < 16 {
-		return fullScreenView(w, h, "Search formats\nEnlarge terminal\nEsc cancel")
+		return fullScreenView(w, h, c.short+"\nEnlarge terminal\nEsc cancel")
 	}
 	overlay := w >= 36 && h >= 14
 	inner := w
@@ -63,40 +98,37 @@ func (m settingsModel) formatsView(w, h int) tea.View {
 	if overlay {
 		surface = surface.Background(currentTheme.Surface)
 	}
-	visible := max(1, min(len(searchFormats), h-5))
+	visible := max(1, min(len(c.items), h-5))
 	if overlay {
-		visible = max(1, min(len(searchFormats), h-10))
+		visible = max(1, min(len(c.items), h-10))
 	}
-	start := min(max(0, m.formatCursor-visible+1), len(searchFormats)-visible)
+	start := min(max(0, c.cursor-visible+1), len(c.items)-visible)
 	paint := func(text string, ink color.Color) string {
 		return surface.Foreground(ink).Width(inner).Render(ansi.Truncate(text, inner, "…"))
 	}
-	summary := "Any format"
-	if len(m.formats) > 0 {
-		summary = fmt.Sprintf("%d selected", len(m.formats))
-	}
-	if visible < len(searchFormats) {
-		summary += fmt.Sprintf(" · %d–%d/%d", start+1, start+visible, len(searchFormats))
+	summary := c.summary
+	if visible < len(c.items) {
+		summary += fmt.Sprintf(" · %d–%d/%d", start+1, start+visible, len(c.items))
 	}
 	summaryColor := currentTheme.Muted
 	if m.message != "" {
 		summary = m.message
 		summaryColor = currentTheme.Error
-	} else if override := m.value(searchExtensionsEnv).Override; override != "" {
-		summary = "Using " + override + " · " + summary
+	} else if c.override != "" {
+		summary = "Using " + c.override + " · " + summary
 	}
-	rows := []string{paint("Default search formats", currentTheme.Accent), paint(summary, summaryColor)}
+	rows := []string{paint(c.title, currentTheme.Accent), paint(summary, summaryColor)}
 	if overlay {
 		rows = append(rows, paint("", currentTheme.Muted))
 	}
 	for i := start; i < start+visible; i++ {
 		mark := "[ ] "
-		if slices.Contains(m.formats, searchFormats[i]) {
+		if c.items[i].checked {
 			mark = "[✓] "
 		}
-		row := mark + searchFormats[i].String()
+		row := mark + c.items[i].label
 		style := surface.Foreground(currentTheme.Title).Width(inner)
-		if i == m.formatCursor {
+		if i == c.cursor {
 			style = style.Foreground(currentTheme.Surface).Background(currentTheme.Accent).Bold(true)
 		}
 		rows = append(rows, style.Render(ansi.Truncate(row, inner, "…")))
@@ -120,7 +152,7 @@ func (m settingsModel) formatsView(w, h int) tea.View {
 	background := m
 	background.page, background.cursor = m.returnPage, m.returnCursor
 	if !isSettingsListPage(background.page) {
-		background.page = "search"
+		background.page = c.fallbackPage
 	}
 	base := lipgloss.NewStyle().Foreground(currentTheme.Muted).Render(ansi.Strip(background.View().Content))
 	x, y := max(0, (w-lipgloss.Width(panel))/2), max(0, (h-lipgloss.Height(panel))/2)

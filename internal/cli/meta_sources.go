@@ -96,7 +96,7 @@ func metaSourceChoices(listed []string) []metaSourceChoice {
 	return []metaSourceChoice{
 		{name: metasource.NameOpenLibrary, label: "Open Library", enabled: on(metasource.NameOpenLibrary), available: true},
 		{name: metasource.NameGoogle, label: "Google Books", enabled: on(metasource.NameGoogle), available: true, note: googleNote},
-		{name: metasource.NameDouban, label: "Douban", enabled: on(metasource.NameDouban), available: true, note: "sends the title to Douban"},
+		{name: metasource.NameDouban, label: "Douban", enabled: on(metasource.NameDouban), available: true},
 		// Listed means the first search asked it, key or not: without a key it
 		// answered with an error. The panel shows what was searched.
 		{name: metasource.NameWeRead, label: "WeRead", enabled: on(metasource.NameWeRead), available: wereadOK, note: wereadNote},

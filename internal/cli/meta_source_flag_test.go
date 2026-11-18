@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/heartleo/zlib/internal/metasource"
 )
 
@@ -159,35 +160,80 @@ func TestSaveMetaSourcesReportsWhatOverridesIt(t *testing.T) {
 	})
 }
 
-// The saved list has a settings row, so it can be seen, changed and cleared
-// without editing .env by hand, and clearing restores the built-in default.
+// The saved list has a settings row that opens a checklist, like the default
+// search formats, so it can be seen, changed and cleared without editing .env by
+// hand: nothing ticked is the built-in default, by book language.
 func TestSettingsPageEditsAndClearsTheLookupSources(t *testing.T) {
 	s := testSettingsStore(t)
 	t.Setenv(metaSourcesEnv, "")
+	t.Setenv(googleBooksKeyEnv, "")
+	t.Setenv(googleBooksKeyAliasEnv, "")
+	t.Setenv(wereadAPIKeyEnv, "wrk-fake-key-0000")
 	m, _ := newSettingsModel(t.Context(), s, "metadata")
+	m.width, m.height = 80, 30
 	if v := m.value(metaSourcesEnv); v.Value != metaSourcesByLanguage || v.Source != "Default" {
 		t.Fatalf("default row = %+v", v)
 	}
-	step := func(value string) {
+	press := func(keys ...string) {
 		t.Helper()
-		m.edit(metaSourcesEnv)
-		m.input.SetValue(value)
-		next, _ := m.Update(key("enter"))
-		m = next.(settingsModel)
+		for _, k := range keys {
+			next, _ := m.Update(key(k))
+			m = next.(settingsModel)
+		}
 	}
-	step("weread, Douban")
+	ticked := func() string { return m.sourcesValue() }
+
+	m.edit(metaSourcesEnv)
+	if m.page != "sources" || ticked() != "" {
+		t.Fatalf("the row did not open an empty checklist: page %q, ticked %q", m.page, ticked())
+	}
+	screen := ansi.Strip(m.View().Content)
+	for _, want := range []string{"Lookup sources", "[ ] Open Library", "[ ] Douban", "[ ] WeRead", "By book language", "Space toggle"} {
+		if !strings.Contains(screen, want) {
+			t.Errorf("the checklist lacks %q:\n%s", want, screen)
+		}
+	}
+	// Tick Douban and WeRead (down twice to Douban, then once more), then save.
+	press("down", "down", "space", "down", "space")
+	if ticked() != "douban,weread" || !strings.Contains(ansi.Strip(m.View().Content), "[✓] Douban") {
+		t.Fatalf("ticked %q:\n%s", ticked(), ansi.Strip(m.View().Content))
+	}
+	press("enter")
+	if m.page != "metadata" {
+		t.Fatalf("saving did not return to the list: page %q", m.page)
+	}
 	if v := m.value(metaSourcesEnv); v.Value != "douban,weread" || v.Source != "Global configuration" || os.Getenv(metaSourcesEnv) != "douban,weread" {
 		t.Fatalf("after saving: %+v, env %q", v, os.Getenv(metaSourcesEnv))
 	}
-	step("douban,goodreads")
-	if m.page != "edit" || !strings.Contains(m.message, "goodreads") {
-		t.Fatalf("a typo was saved: page=%q message=%q", m.page, m.message)
+
+	// Reopened, the saved list is ticked; Esc leaves it as it was.
+	m.edit(metaSourcesEnv)
+	if ticked() != "douban,weread" {
+		t.Fatalf("the saved list is not ticked: %q", ticked())
 	}
-	if saved, _ := readSettingsEnv(s.global); saved[metaSourcesEnv] != "douban,weread" {
-		t.Errorf("the typo reached the file: %v", saved)
+	press("space", "esc") // the cursor is on Open Library: tick it, then cancel
+	if v := m.value(metaSourcesEnv); v.Value != "douban,weread" {
+		t.Errorf("Esc saved the change: %+v", v)
 	}
-	m.page = "metadata"
-	step("")
+
+	// WeRead cannot be ticked without its key, but can be unticked while listed.
+	t.Setenv(wereadAPIKeyEnv, "")
+	m.edit(metaSourcesEnv)
+	press("down", "down", "down", "space")
+	if ticked() != "douban" {
+		t.Errorf("WeRead was not unticked: %q", ticked())
+	}
+	press("space")
+	if ticked() != "douban" || !strings.Contains(m.message, "WeRead") {
+		t.Errorf("WeRead was ticked without its key: %q (%q)", ticked(), m.message)
+	}
+
+	// Ctrl+A ticks what can run, again clears; nothing ticked saves the default.
+	press("ctrl+a")
+	if ticked() != "openlibrary,google,douban" {
+		t.Errorf("ctrl+a ticked %q", ticked())
+	}
+	press("ctrl+a", "enter")
 	if v := m.value(metaSourcesEnv); v.Value != metaSourcesByLanguage || v.Source != "Default" || os.Getenv(metaSourcesEnv) != "" {
 		t.Fatalf("after clearing: %+v, env %q", v, os.Getenv(metaSourcesEnv))
 	}

@@ -19,7 +19,7 @@ func fakeSourceChoices() []metaSourceChoice {
 	return []metaSourceChoice{
 		{name: "openlibrary", label: "Open Library", enabled: true, available: true},
 		{name: "google", label: "Google Books", enabled: true, available: true, note: "shared quota"},
-		{name: "douban", label: "Douban", available: true, note: "sends the title to Douban"},
+		{name: "douban", label: "Douban", available: true},
 		{name: "weread", label: "WeRead", note: "needs ZLIB_WEREAD_API_KEY (not set)"},
 	}
 }

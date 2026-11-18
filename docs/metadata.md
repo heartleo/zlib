@@ -337,13 +337,16 @@ toggles a source, `e` edits the search, `t` uses the other title and Ctrl+D save
 the sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
 `.env`); nothing is saved unless you press it. The page starts from, in this
 order, `--source`, a real environment variable, a `.env` in the working
-directory, the saved default and then Open Library with Google Books. When a
+directory, the saved default and then the defaults for the book's language. When a
 real environment variable or the working-directory `.env` overrides the saved
 default, the page says so after saving. Saving also replaces `--source` for the
 rest of that session unless the environment overrides the saved list.
-`zlib config metadata sources` (or the metadata page of `zlib config`) shows
-the saved list, changes it, and clears it, which restores Open Library and
-Google Books.
+`zlib config metadata sources` (or the metadata page of `zlib config`) opens
+the sources as a checklist, like the default search formats: Space ticks a
+source, Ctrl+A ticks every source that can run (or clears them), Enter saves
+and Esc cancels. A source that needs a key says so and cannot be ticked
+without it. Nothing ticked saves nothing, which restores the defaults for the
+book's language.
 
 The page lets you steer the lookup and fix what it proposes, before anything
 is written:

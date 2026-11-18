@@ -144,9 +144,12 @@ type settingsModel struct {
 	editAction   int
 	formats      []zlib.Extension
 	formatCursor int
-	original     string
-	returnPage   string
-	returnCursor int
+	// The lookup sources page (settings_sources.go).
+	sourceChoices []metaSourceChoice
+	sourceCursor  int
+	original      string
+	returnPage    string
+	returnCursor  int
 	// Domain page state (settings_domains.go).
 	checks        map[string]zlib.DomainCheck
 	pendingCheck  zlib.DomainCheck
@@ -297,6 +300,10 @@ func (m *settingsModel) edit(key string) tea.Cmd {
 		m.resetSecret = false
 	}
 	m.original = value
+	if key == metaSourcesEnv {
+		m.openSourcesPage(value)
+		return nil
+	}
 	if key == searchExtensionsEnv {
 		m.page = "formats"
 		m.formats, _ = parseDefaultSearchExtensions(value)
@@ -338,7 +345,7 @@ func (m *settingsModel) back() {
 			m.page = "network"
 		}
 		m.cursor = m.returnCursor
-	case "edit", "formats":
+	case "edit", "formats", "sources":
 		m.page = m.returnPage
 		if m.page == "" {
 			m.page = "home"
@@ -599,6 +606,9 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		k := msg.String()
 		if m.page == "formats" {
 			return m.updateFormats(k)
+		}
+		if m.page == "sources" {
+			return m.updateSources(k)
 		}
 		if k == "ctrl+c" {
 			if m.cancel != nil {
@@ -921,6 +931,9 @@ func (m settingsModel) View() tea.View {
 	if m.page == "formats" {
 		return m.formatsView(w, h)
 	}
+	if m.page == "sources" {
+		return m.sourcesView(w, h)
+	}
 	if m.page == "domain" || m.page == "mirror" {
 		return m.domainView(w, h)
 	}
@@ -955,13 +968,6 @@ func (m settingsModel) View() tea.View {
 		}
 		if m.key == wereadProxyEnv {
 			lines = append(lines, "Empty: system proxy (HTTPS_PROXY)", "direct: connect without any proxy", "Proxy URL: http, https, socks5 or socks5h", "The Z-Library proxy (ZLIB_PROXY) never applies", "")
-		}
-		if m.key == metaSourcesEnv {
-			lines = append(lines, "Comma-separated: openlibrary, google, douban, weread",
-				"Empty: by book language. Douban for a Chinese book; Open Library for any other,",
-				"and Google Books too when a Google Books key is set.",
-				"douban sends the title to Douban; weread sends it to Tencent",
-				"Saved to the global .env; "+metaSourcesEnv+" overrides it.", "")
 		}
 		if m.key == nameLayoutEnv {
 			lines = append(lines, "title-author   Title - Author   (the default)",
