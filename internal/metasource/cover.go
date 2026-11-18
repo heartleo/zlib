@@ -11,6 +11,7 @@ import (
 	_ "image/png"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/heartleo/zlib/internal/ebookmeta"
@@ -24,8 +25,21 @@ const (
 )
 
 // coverHosts are the hosts a cover may be fetched from: Open Library's cover
-// server and the Internet Archive hosts it redirects to, and Google Books.
-var coverHosts = hostPolicy{"covers.openlibrary.org", ".archive.org", "books.google.com"}
+// server and the Internet Archive hosts it redirects to, Google Books, and
+// Douban's image servers (imgN.doubanio.com).
+var coverHosts = hostPolicy{"covers.openlibrary.org", ".archive.org", "books.google.com", ".doubanio.com"}
+
+// doubanCoverReferer is sent to Douban's image servers, which answer HTTP 418
+// to a request without a Referer on a Douban site. Other hosts get none.
+const doubanCoverReferer = "https://book.douban.com/"
+
+// coverReferer returns the Referer a cover request to u needs, or "".
+func coverReferer(u *url.URL) string {
+	if name := strings.ToLower(u.Hostname()); strings.HasSuffix(name, ".doubanio.com") {
+		return doubanCoverReferer
+	}
+	return ""
+}
 
 // FetchCover downloads the cover image at rawURL through rt (nil for the
 // default transport). The URL must be https on a known cover host, every
@@ -46,6 +60,9 @@ func fetchCover(ctx context.Context, c *http.Client, rawURL string) (*ebookmeta.
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "image/*")
+	if ref := coverReferer(req.URL); ref != "" {
+		req.Header.Set("Referer", ref)
+	}
 	resp, err := c.Do(req)
 	if err != nil {
 		return nil, stripURL(err)

@@ -204,12 +204,14 @@ func (s *Douban) searchByTitle(ctx context.Context, q Query) ([]Candidate, error
 // doubanBook is the part of the mobile detail response a candidate uses. The
 // list fields are lists of strings. The response has no ISBN, language or
 // publisher key, and its tags list can be empty, so none of those are read.
+// CoverURL is the large cover on one of Douban's image hosts.
 type doubanBook struct {
-	Title   string   `json:"title"`
-	Author  []string `json:"author"`
-	Press   []string `json:"press"`
-	PubDate []string `json:"pubdate"`
-	Intro   string   `json:"intro"`
+	Title    string   `json:"title"`
+	CoverURL string   `json:"cover_url"`
+	Author   []string `json:"author"`
+	Press    []string `json:"press"`
+	PubDate  []string `json:"pubdate"`
+	Intro    string   `json:"intro"`
 }
 
 // detail reads one subject, or returns nil when it has no usable title.
@@ -227,6 +229,7 @@ func (s *Douban) detail(ctx context.Context, id string) (*Candidate, error) {
 		Title:        title,
 		Publisher:    firstNonEmpty(cleanList(b.Press)...),
 		Description:  ebookmeta.CleanText(stripHTML(b.Intro)),
+		CoverURL:     doubanCoverURL(b.CoverURL),
 	}
 	for _, a := range b.Author {
 		if name := cleanAuthorForQuery(clean(a)); name != "" {
@@ -264,6 +267,16 @@ func (s *Douban) getJSON(ctx context.Context, rawURL, referer string, v any) err
 		return fmt.Errorf("unreadable response: %w", err)
 	}
 	return nil
+}
+
+// doubanCoverURL returns raw when it is an https URL on a Douban image host,
+// and "" otherwise, so a response cannot point the cover fetch elsewhere.
+func doubanCoverURL(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Scheme != "https" || coverReferer(u) == "" || !coverHosts.allows(u) {
+		return ""
+	}
+	return u.String()
 }
 
 // hasHan reports whether s contains a Han ideograph and no kana or hangul, so

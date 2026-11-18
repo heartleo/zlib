@@ -63,7 +63,9 @@ resolution. zlib keeps one URL per book, preferring Open Library's large cover
 over Google's thumbnail, and checks the download itself: https only, an
 allow-listed host re-checked on every redirect (Open Library covers can
 redirect to Internet Archive hosts), at most 10 MiB, a real JPEG, PNG, GIF or
-WebP image, and at least 50 pixels on each side.
+WebP image, and at least 50 pixels on each side. Douban's image hosts
+(`img<N>.doubanio.com`) are on the list too; they answer a request without a
+Douban `Referer` with HTTP 418, so one is sent to those hosts only.
 
 For a book downloaded through zlib, the Z-Library record's own ISBN is added
 to the lookup. The record is validated like any other ISBN, and its title and
@@ -119,8 +121,9 @@ shares none of it.
 | An exact title wins over a subtitle match, and several editions of one title are never collapsed to the first hit | Results are ranked by title similarity and each Douban entry stays its own candidate; two different Douban entries are never pooled, like two ISBNs |
 | A sequel whose title ends in a Roman numeral glyph such as `Ⅱ` must not collapse into the first volume | `foldText` turns Roman numeral glyphs into digits, so the volume is part of the key (before, the glyph was dropped and the sequel scored as a perfect match) |
 
-Not taken from Douban: covers (another host, with hotlink rules), ratings,
-series and tags. The detail response's `tags` list was empty in the
+The cover is taken from Douban: the detail response's `cover_url` names the
+large image on an `img<N>.doubanio.com` host, which needs a `Referer` (see the
+measurements below). Not taken from Douban: ratings, series and tags. The detail response's `tags` list was empty in the
 measurement below, and `douban-cli` reads tags from a separate endpoint.
 
 The endpoints are the ones `douban-cli` uses and are not an API Douban
@@ -131,7 +134,8 @@ documents. Live measurements, status codes and key names only, made with
 | --- | --- |
 | `GET book.douban.com/isbn/<isbn>/` | 301 with an absolute `Location` of `https://book.douban.com/subject/<id>/`. The response sets a `bid` cookie, which is ignored |
 | `GET m.douban.com/rexxar/api/v2/search/book?q=…&start=0&count=3` | 200, JSON. Top level: `banned` (an empty string), `count`, `items`. Item: `layout`, `target`, `target_id`, `target_type` (`book`), `type_name`. Target: `id` (a string), `title`, `card_subtitle`, `abstract`, `cover_url`, `rating`, `uri`. A query with raw non-ASCII bytes in the URL was refused with 400 `Bad Request`; the percent-encoded query is accepted |
-| `GET m.douban.com/rexxar/api/v2/book/<id>` | 200, JSON. Used: `title` (string), `author`, `press`, `pubdate` (lists of strings, a date such as `2008-1`) and `intro` (string). Present and unused: `pages`, `translator`, `subtitle`, `book_subtitle`, `catalog`, `book_series`, `cover_url` and others. Absent: `isbn`, `isbn10`, `isbn13`, `language`, `publisher`, `original_title`, `summary` |
+| `GET m.douban.com/rexxar/api/v2/book/<id>` | 200, JSON. Used: `title` (string), `author`, `press`, `pubdate` (lists of strings, a date such as `2008-1`) and `intro` (string). Present and unused: `pages`, `translator`, `subtitle`, `book_subtitle`, `catalog`, `book_series` and others. Also used: `cover_url`, an https URL to the large cover (`pic` has `large` and `normal` variants of the same image). Absent: `isbn`, `isbn10`, `isbn13`, `language`, `publisher`, `original_title`, `summary` |
+| `GET img<N>.doubanio.com/view/subject/l/public/<name>.jpg` | 418 with a 14-byte body and no `Referer`; 200 `image/jpeg` with a `Referer` of `m.douban.com` or `book.douban.com` (a 350x500 JPEG for the entry measured) |
 
 Consequences: a title search yields candidates that name their edition by the
 Douban subject ID only, with no ISBN, which is why two of them are never

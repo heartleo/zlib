@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -89,6 +90,31 @@ func TestDoubanByISBNResolvesRedirectWithoutFollowingIt(t *testing.T) {
 		if strings.HasPrefix(p, "/subject/") {
 			t.Errorf("the subject page %s was downloaded", p)
 		}
+	}
+}
+
+// The detail response names the cover; only an https URL on a Douban image host
+// is kept, and the cover fetch sends the Referer those hosts require.
+func TestDoubanCandidateCarriesTheCoverOnDoubansImageHost(t *testing.T) {
+	const img = "https://img3.doubanio.com/view/subject/l/public/s2768378.jpg"
+	body := strings.Replace(doubanThreeBody, `"id":"2567698",`, `"id":"2567698","cover_url":"`+img+`",`, 1)
+	src, _ := doubanServer(t, map[string]string{"9787536692930": "2567698"}, "", map[string]string{"2567698": body})
+	got, err := src.Identify(context.Background(), Query{ISBNs: []string{"9787536692930"}})
+	if err != nil || len(got) != 1 || got[0].CoverURL != img {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	for _, raw := range []string{"http://img3.doubanio.com/a.jpg", "https://evil.example/a.jpg", "https://doubanio.com.evil.example/a.jpg", ""} {
+		if got := doubanCoverURL(raw); got != "" {
+			t.Errorf("doubanCoverURL(%q) = %q", raw, got)
+		}
+	}
+	u, _ := url.Parse(img)
+	if !coverHosts.allows(u) || coverReferer(u) != doubanCoverReferer {
+		t.Errorf("the Douban image host is not allowed with its Referer")
+	}
+	other, _ := url.Parse("https://covers.openlibrary.org/b/id/1-L.jpg")
+	if coverReferer(other) != "" {
+		t.Error("a Douban Referer would be sent to another host")
 	}
 }
 

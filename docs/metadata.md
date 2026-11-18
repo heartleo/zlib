@@ -226,8 +226,9 @@ through Douban's ISBN address and a title through its mobile search, then up to
 three entries are read. Editions of one title stay separate results, so you
 choose the edition. Requests carry no cookie or login, but the mobile
 endpoints need a `Referer` of `m.douban.com`, which is sent. Douban throttles:
-a refusal is reported like any other source failing. Covers and tags are not
-taken from Douban.
+a refusal is reported like any other source failing. The cover is taken from
+Douban (its image servers need a Douban `Referer`, which is sent to them
+only); tags are not.
 
 A result found by title carries the Douban entry's ID but no ISBN, because
 Douban's detail response has none, so it is a `title match` whose edition
@@ -322,8 +323,8 @@ and `-t`, `-a` or `--isbn` print the list instead.
 
 A match that has a cover adds a `Cover` row. Selecting it downloads the image
 when you apply: if the download fails, nothing is written and the page says
-why. A cover is only fetched from Open Library, the Internet Archive and Google
-Books, must be a JPEG, PNG, GIF or WebP image of at least 50 by 50 pixels, and
+why. A cover is only fetched from Open Library, the Internet Archive, Google Books
+and Douban, must be a JPEG, PNG, GIF or WebP image of at least 50 by 50 pixels, and
 is capped at 10 MiB. A MOBI or AZW3 file can only have an existing cover
 replaced, so the row is not offered for one without a cover.
 
