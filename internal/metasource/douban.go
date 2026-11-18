@@ -20,10 +20,6 @@ const (
 	doubanMobileBase = "https://m.douban.com"
 	doubanBookBase   = "https://book.douban.com"
 	sourceDouban     = "Douban"
-
-	// doubanDetailLimit caps the detail requests one title search makes, so a
-	// lookup stays a handful of requests against a throttled service.
-	doubanDetailLimit = 3
 )
 
 // Douban looks books up on Douban Books, the catalogue that covers Chinese
@@ -43,6 +39,7 @@ type Douban struct {
 	mobile, book string
 	client       *http.Client // follows redirects within the allowed hosts
 	noRedirect   *http.Client // returns the first response, for the ISBN hop
+	limit        int          // the lookup's result limit; 0 is the default
 }
 
 // NewDouban returns the source for rt (nil for the default transport).
@@ -182,8 +179,10 @@ func (s *Douban) searchByTitle(ctx context.Context, q Query) ([]Candidate, error
 	}
 	// Stable by similarity, so equal titles keep Douban's own order.
 	slices.SortStableFunc(hits, func(a, b hit) int { return cmp.Compare(b.sim, a.sim) })
-	if len(hits) > doubanDetailLimit {
-		hits = hits[:doubanDetailLimit]
+	// One detail request per hit, capped so a lookup stays a modest number of
+	// requests against a throttled service.
+	if n := detailCount(s.limit); len(hits) > n {
+		hits = hits[:n]
 	}
 	var out []Candidate
 	for _, h := range hits {

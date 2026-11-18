@@ -27,9 +27,6 @@ const (
 	// SKILL.md of Tencent/WeChatReading (revision d98e66e). The gateway checks
 	// it on every request.
 	wereadSkillVersion = "1.0.5"
-
-	// wereadDetailLimit caps the /book/info requests one lookup makes.
-	wereadDetailLimit = 3
 )
 
 var (
@@ -71,6 +68,7 @@ type WeRead struct {
 	base   string
 	client *http.Client
 	key    string
+	limit  int // the lookup's result limit; 0 is the default
 }
 
 // NewWeRead returns the source for rt (nil for the default transport). key is
@@ -155,8 +153,9 @@ func (s *WeRead) Identify(ctx context.Context, q Query) ([]Candidate, error) {
 	}
 	// Best title first; equal titles keep the gateway's own order.
 	slices.SortStableFunc(hits, func(a, b hit) int { return cmp.Compare(b.sim, a.sim) })
-	if len(hits) > wereadDetailLimit {
-		hits = hits[:wereadDetailLimit]
+	// One /book/info request per hit, capped like Douban's detail requests.
+	if n := detailCount(s.limit); len(hits) > n {
+		hits = hits[:n]
 	}
 
 	var out []Candidate

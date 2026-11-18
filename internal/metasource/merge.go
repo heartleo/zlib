@@ -10,7 +10,7 @@ import (
 
 const (
 	defaultMinScore   = 0.45
-	defaultMaxResults = 10
+	defaultMaxResults = DefaultMaxResults
 	maxMergedTags     = 10
 	maxTagRunes       = 40
 	// A found title must be at least this similar to the wanted one to

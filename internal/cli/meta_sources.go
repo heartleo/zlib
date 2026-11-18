@@ -40,8 +40,9 @@ var newMetaSourcesFor = func(names []string) []metasource.Source {
 // on another goroutine and must not read package state then.
 func newMetaLookupFor(names []string) metaLookupFunc {
 	sources := newMetaSourcesFor(names)
+	limit := metaResultLimit()
 	return func(ctx context.Context, q metasource.Query) (metasource.Result, error) {
-		return metasource.Lookup(ctx, sources, q, metasource.Options{})
+		return metasource.Lookup(ctx, sources, q, metasource.Options{MaxResults: limit})
 	}
 }
 

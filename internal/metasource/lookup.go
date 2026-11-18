@@ -163,6 +163,9 @@ type SourceConfig struct {
 	GoogleKey string
 	// WeReadKey is the WeRead API key the weread source needs.
 	WeReadKey string
+	// MaxResults is the result limit the lookup will apply; the sources fetch
+	// enough hits to fill it. Zero is DefaultMaxResults.
+	MaxResults int
 }
 
 // DefaultSources returns the default sources. googleKey is an optional Google
@@ -194,13 +197,21 @@ func NewSources(names []string, cfg SourceConfig) []Source {
 	for _, n := range names {
 		switch n {
 		case NameOpenLibrary:
-			out = append(out, NewOpenLibrary(cfg.Transport))
+			s := NewOpenLibrary(cfg.Transport)
+			s.limit = cfg.MaxResults
+			out = append(out, s)
 		case NameGoogle:
-			out = append(out, NewGoogleBooks(cfg.Transport, cfg.GoogleKey))
+			s := NewGoogleBooks(cfg.Transport, cfg.GoogleKey)
+			s.limit = cfg.MaxResults
+			out = append(out, s)
 		case NameDouban:
-			out = append(out, NewDouban(cfg.Transport))
+			s := NewDouban(cfg.Transport)
+			s.limit = cfg.MaxResults
+			out = append(out, s)
 		case NameWeRead:
-			out = append(out, NewWeRead(cfg.WeReadTransport, cfg.WeReadKey))
+			s := NewWeRead(cfg.WeReadTransport, cfg.WeReadKey)
+			s.limit = cfg.MaxResults
+			out = append(out, s)
 		default:
 			out = append(out, unknownSource{name: n})
 		}

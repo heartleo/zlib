@@ -48,7 +48,7 @@ var settingsSections = []settingsSection{
 	{"SEARCH", "search", []string{searchExtensionsEnv}},
 	{"KINDLE", "kindle", kindleSettingKeys},
 	{"WEREAD", "weread", []string{wereadAccountKey, wereadProxyEnv}},
-	{"METADATA", "metadata", []string{metaSourcesEnv, googleBooksKeyEnv}},
+	{"METADATA", "metadata", []string{metaSourcesEnv, metaResultsEnv, googleBooksKeyEnv}},
 }
 
 var settingLabels = map[string]string{
@@ -66,6 +66,7 @@ var settingLabels = map[string]string{
 	wereadProxyEnv:      "WeRead proxy",
 	googleBooksKeyEnv:   "Google Books key",
 	metaSourcesEnv:      "Lookup sources",
+	metaResultsEnv:      "Lookup results",
 }
 
 // settingsPageKeys lists the setting rows of a list page in display order.
@@ -940,7 +941,7 @@ func (m settingsModel) View() tea.View {
 		return m.settingsListView(w, h, titles[m.page])
 	} else if m.page == "edit" {
 		v := m.value(m.key)
-		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", metaSourcesEnv: "Lookup sources"}
+		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", metaSourcesEnv: "Lookup sources", metaResultsEnv: "Lookup results"}
 		if v.Override != "" {
 			subtitle = "Using " + v.Override
 		}
@@ -959,6 +960,12 @@ func (m settingsModel) View() tea.View {
 				"Empty: Open Library and Google Books",
 				"douban sends the title to Douban; weread sends it to Tencent",
 				"Saved to the global .env; "+metaSourcesEnv+" overrides it.", "")
+		}
+		if m.key == metaResultsEnv {
+			lines = append(lines, "A whole number from 1 to 50",
+				"Empty: 10",
+				"Each source is asked for enough hits to fill the list; Douban and WeRead read one page per hit, at most 10.",
+				"Saved to the global .env; "+metaResultsEnv+" overrides it.", "")
 		}
 		if m.key == googleBooksKeyEnv {
 			status := "No key is set: lookups use Google's shared quota"

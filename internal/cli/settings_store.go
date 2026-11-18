@@ -20,7 +20,7 @@ import (
 // settingKeys lists the settings backed by .env files and the environment, in
 // the order store.values returns them. New keys go at the end: a few pages
 // still index values by position.
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv}
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv, metaResultsEnv}
 
 // googleKeyNotSet is what the key row shows when there is no key. It is not a
 // value: displaySetting leaves it alone and masks everything else.
@@ -152,6 +152,8 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Value, v.Source = googleKeyNotSet, "Default"
 			case metaSourcesEnv:
 				v.Value, v.Source = strings.Join(metasource.DefaultSourceNames, ","), "Default"
+			case metaResultsEnv:
+				v.Value, v.Source = strconv.Itoa(metasource.DefaultMaxResults), "Default"
 			}
 		}
 		values = append(values, v)
@@ -215,6 +217,12 @@ func validateSetting(key, value string) (string, error) {
 		}
 	case metaSourcesEnv:
 		return metasource.NormalizeSourceList(value)
+	case metaResultsEnv:
+		n, err := metasource.ParseMaxResults(value)
+		if err != nil {
+			return "", err
+		}
+		return strconv.Itoa(n), nil
 	case downloadDirEnvVar:
 		path, err := expandTilde(value)
 		if err != nil {

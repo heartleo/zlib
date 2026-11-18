@@ -135,11 +135,12 @@ func TestWeReadDetailsAreCapped(t *testing.T) {
 		infos[id] = `{"bookId":"` + id + `","title":"三体"}`
 	}
 	src, calls := wereadGateway(t, groups(books...), infos)
+	src.limit = 3 // the details follow the result limit
 	got, err := src.Identify(context.Background(), Query{Title: "三体"})
-	if err != nil || len(got) != wereadDetailLimit {
+	if err != nil || len(got) != 3 {
 		t.Fatalf("got %d candidates, %v", len(got), err)
 	}
-	if len(*calls) != 1+wereadDetailLimit {
+	if len(*calls) != 1+3 {
 		t.Errorf("%d requests", len(*calls))
 	}
 }

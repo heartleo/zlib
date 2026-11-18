@@ -241,8 +241,9 @@ func newDefaultMetaCover() metaCoverFunc {
 // package state then.
 func newDefaultMetaLookup() metaLookupFunc {
 	sources := newMetaSources(metaTransport())
+	limit := metaResultLimit()
 	return func(ctx context.Context, q metasource.Query) (metasource.Result, error) {
-		return metasource.Lookup(ctx, sources, q, metasource.Options{})
+		return metasource.Lookup(ctx, sources, q, metasource.Options{MaxResults: limit})
 	}
 }
 

@@ -138,6 +138,10 @@ What it does:
 - Sources are asked in parallel. One failing, for example when Google
   Books refuses a request for quota reasons, is reported on stderr and the
   other results are still listed.
+- At most 10 results are listed, best first. `zlib config metadata results`
+  (or `ZLIB_METADATA_RESULTS`) sets the limit, 1 to 50; empty restores 10. Each
+  source is asked for enough hits to fill it. Douban and WeRead read one page
+  per hit, at most 10, so a high limit costs them more requests.
 - An ISBN gives the exact edition. Without one, the title and authors are
   searched, and results are ranked by how well they agree. A result found
   from a title alone is a guess about the edition: check it before using its
@@ -222,8 +226,8 @@ Add the line to `.env` to keep it, or press Ctrl+D on the prepare page of the
 terminal interface, which writes it for you. The names are `openlibrary`, `google`,
 `douban` and `weread`; with `--fetch` an unknown name is reported as a failing
 source, and the prepare page leaves it out. An ISBN is resolved
-through Douban's ISBN address and a title through its mobile search, then up to
-three entries are read. Editions of one title stay separate results, so you
+through Douban's ISBN address and a title through its mobile search, then up
+to ten entries are read (as many as the result limit, at most 10). Editions of one title stay separate results, so you
 choose the edition. Requests carry no cookie or login, but the mobile
 endpoints need a `Referer` of `m.douban.com`, which is sent. Douban throttles:
 a refusal is reported like any other source failing. The cover is taken from
@@ -258,7 +262,8 @@ is set, like the importer, and otherwise the system proxy; `ZLIB_PROXY` does
 not apply.
 
 The gateway cannot search by ISBN, so a lookup needs a title: it searches the
-title, reads up to three close matches, and compares the ISBN each entry
+title, reads up to ten close matches (as many as the result limit, at most
+10), and compares the ISBN each entry
 carries, which is often empty, with the wanted one. A result without an ISBN
 is a `title match` whose edition fields start unselected, and two WeRead
 entries of one title stay separate results. Covers are not taken from WeRead.

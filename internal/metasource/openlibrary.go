@@ -24,7 +24,11 @@ const (
 type OpenLibrary struct {
 	base   string
 	client *http.Client
+	limit  int // the lookup's result limit; 0 is the default
 }
+
+// openLibraryMaxResults is the most works one Open Library search returns here.
+const openLibraryMaxResults = 100
 
 // NewOpenLibrary returns the source for rt (nil for the default transport).
 func NewOpenLibrary(rt http.RoundTripper) *OpenLibrary {
@@ -146,7 +150,7 @@ type olSearch struct {
 func (s *OpenLibrary) byTitle(ctx context.Context, q Query) ([]Candidate, error) {
 	v := url.Values{
 		"title":  {mainTitle(q.Title)},
-		"limit":  {"10"},
+		"limit":  {strconv.Itoa(fetchCount(s.limit, openLibraryMaxResults))},
 		"fields": {"key,title,subtitle,author_name,first_publish_year,subject,language,cover_i"},
 	}
 	if len(q.Authors) > 0 {

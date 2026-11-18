@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +31,11 @@ type GoogleBooks struct {
 	base   string
 	client *http.Client
 	key    string
+	limit  int // the lookup's result limit; 0 is the default
 }
+
+// googleMaxResults is the most volumes one Google Books request returns.
+const googleMaxResults = 40
 
 // apiKeyRe is the shape of a Google API key: letters, digits, "-" and "_".
 // It also keeps a configured value from smuggling anything into a header.
@@ -105,7 +110,7 @@ func (s *GoogleBooks) Identify(ctx context.Context, q Query) ([]Candidate, error
 func (s *GoogleBooks) search(ctx context.Context, terms string) ([]Candidate, error) {
 	u := s.base + "/books/v1/volumes?" + url.Values{
 		"q":          {terms},
-		"maxResults": {"10"},
+		"maxResults": {strconv.Itoa(fetchCount(s.limit, googleMaxResults))},
 		"printType":  {"books"},
 		"fields":     {"items(id,volumeInfo(title,subtitle,authors,publisher,publishedDate,description,categories,language,industryIdentifiers,imageLinks/thumbnail))"},
 	}.Encode()

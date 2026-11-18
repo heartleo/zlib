@@ -54,6 +54,19 @@ const wereadAPIKeyEnv = "ZLIB_WEREAD_API_KEY"
 // douban and weread are opt-in.
 const metaSourcesEnv = "ZLIB_METADATA_SOURCES"
 
+// metaResultsEnv is how many matches a lookup lists, 1 to 50; unset means 10.
+const metaResultsEnv = "ZLIB_METADATA_RESULTS"
+
+// metaResultLimit is the configured result limit. A value that cannot be one
+// (a hand-edited .env) counts as unset rather than failing the lookup.
+func metaResultLimit() int {
+	n, err := metasource.ParseMaxResults(os.Getenv(metaResultsEnv))
+	if err != nil {
+		return metasource.DefaultMaxResults
+	}
+	return n
+}
+
 // newMetaSources builds the lookup sources; tests replace it to stay
 // offline. WeRead uses its own proxy setting (ZLIB_WEREAD_PROXY), like the
 // importer, while the others use rt.
@@ -106,6 +119,7 @@ func metaSourceConfig(rt http.RoundTripper) metasource.SourceConfig {
 		WeReadTransport: wereadTransport(os.Getenv(wereadProxyEnv)),
 		GoogleKey:       googleBooksKey(),
 		WeReadKey:       strings.TrimSpace(os.Getenv(wereadAPIKeyEnv)),
+		MaxResults:      metaResultLimit(),
 	}
 }
 
@@ -291,7 +305,7 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	res, err := metasource.Lookup(ctx, newMetaSources(metaTransport()), q, metasource.Options{})
+	res, err := metasource.Lookup(ctx, newMetaSources(metaTransport()), q, metasource.Options{MaxResults: metaResultLimit()})
 	if errors.Is(err, metasource.ErrNoQuery) {
 		return &usageError{fmt.Errorf("%s has no title, author or ISBN to look up; pass -t, -a or --isbn", path)}
 	}
