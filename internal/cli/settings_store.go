@@ -20,7 +20,7 @@ import (
 // settingKeys lists the settings backed by .env files and the environment, in
 // the order store.values returns them. New keys go at the end: a few pages
 // still index values by position.
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv, metaResultsEnv, nameLayoutEnv}
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv, metaResultsEnv, nameLayoutEnv, wereadAPIKeyEnv}
 
 // metaSourcesByLanguage is what the sources row shows when no list is set: the
 // sources follow the book's language.
@@ -29,6 +29,14 @@ const metaSourcesByLanguage = "By book language"
 // googleKeyNotSet is what the key row shows when there is no key. It is not a
 // value: displaySetting leaves it alone and masks everything else.
 const googleKeyNotSet = "Not set (shared quota)"
+
+// wereadKeyNotSet is the same for the WeRead API key row.
+const wereadKeyNotSet = "Not set"
+
+// isSecretSetting reports whether a setting is an API key: it is shown masked
+// everywhere, its editor hides what is typed and opens empty, and it is removed
+// only on request.
+func isSecretSetting(key string) bool { return key == googleBooksKeyEnv || key == wereadAPIKeyEnv }
 
 var settingsEnvironment map[string]string
 
@@ -154,6 +162,8 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Value, v.Source = "Any format", "Default"
 			case googleBooksKeyEnv:
 				v.Value, v.Source = googleKeyNotSet, "Default"
+			case wereadAPIKeyEnv:
+				v.Value, v.Source = wereadKeyNotSet, "Default"
 			case metaSourcesEnv:
 				v.Value, v.Source = metaSourcesByLanguage, "Default"
 			case metaResultsEnv:
@@ -169,8 +179,8 @@ func (s settingsStore) values() ([]settingValue, error) {
 
 func displaySetting(key, value string) string {
 	// An API key is a credential: every screen and --json shows it masked.
-	if key == googleBooksKeyEnv {
-		if strings.TrimSpace(value) == "" || value == googleKeyNotSet {
+	if isSecretSetting(key) {
+		if strings.TrimSpace(value) == "" || value == googleKeyNotSet || value == wereadKeyNotSet {
 			return value
 		}
 		return "Configured (hidden)"
@@ -220,6 +230,11 @@ func validateSetting(key, value string) (string, error) {
 		// The message never repeats the value: it is a credential.
 		if !metasource.ValidAPIKey(value) {
 			return "", fmt.Errorf("a Google API key is 20 to 128 letters, digits, - and _")
+		}
+	case wereadAPIKeyEnv:
+		// The message never repeats the value: it is a credential.
+		if !metasource.ValidWeReadKey(value) {
+			return "", fmt.Errorf("a WeRead API key is 8 to 128 letters, digits, - and _")
 		}
 	case metaSourcesEnv:
 		return metasource.NormalizeSourceList(value)

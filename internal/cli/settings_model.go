@@ -48,7 +48,7 @@ var settingsSections = []settingsSection{
 	{"SEARCH", "search", []string{searchExtensionsEnv}},
 	{"KINDLE", "kindle", kindleSettingKeys},
 	{"WEREAD", "weread", []string{wereadAccountKey, wereadProxyEnv}},
-	{"METADATA", "metadata", []string{metaSourcesEnv, metaResultsEnv, nameLayoutEnv, googleBooksKeyEnv}},
+	{"METADATA", "metadata", []string{metaSourcesEnv, metaResultsEnv, nameLayoutEnv, googleBooksKeyEnv, wereadAPIKeyEnv}},
 }
 
 var settingLabels = map[string]string{
@@ -65,6 +65,7 @@ var settingLabels = map[string]string{
 	wereadAccountKey:    "WeRead account",
 	wereadProxyEnv:      "WeRead proxy",
 	googleBooksKeyEnv:   "Google Books key",
+	wereadAPIKeyEnv:     "WeRead API key",
 	metaSourcesEnv:      "Lookup sources",
 	metaResultsEnv:      "Lookup results",
 	nameLayoutEnv:       "File name format",
@@ -294,7 +295,7 @@ func (m *settingsModel) edit(key string) tea.Cmd {
 	if (v.Source == "Default" && !isKindleSetting(key)) || (key == zlib.EnvDomain && v.Source == "Saved session") {
 		value = v.Saved
 	}
-	if key == googleBooksKeyEnv {
+	if isSecretSetting(key) {
 		// A secret is never shown or prefilled, so the box starts empty.
 		value = ""
 		m.resetSecret = false
@@ -318,12 +319,12 @@ func (m *settingsModel) edit(key string) tea.Cmd {
 		m.input.Placeholder = "http://host:port"
 	} else if key == wereadProxyEnv {
 		m.input.Placeholder = "http://host:port or direct"
-	} else if key == googleBooksKeyEnv {
+	} else if isSecretSetting(key) {
 		m.input.Placeholder = "Paste a key"
 	}
 	m.input.SetWidth(max(1, min(56, m.width-ansi.StringWidth(m.input.Prompt)-4)))
 	m.input.EchoMode = textinput.EchoNormal
-	if key == googleBooksKeyEnv {
+	if isSecretSetting(key) {
 		m.input.EchoMode = textinput.EchoPassword
 	}
 	return m.input.Focus()
@@ -690,7 +691,7 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			switch k {
 			case "enter":
-				if m.key == googleBooksKeyEnv && strings.TrimSpace(m.input.Value()) == "" && !m.resetSecret {
+				if isSecretSetting(m.key) && strings.TrimSpace(m.input.Value()) == "" && !m.resetSecret {
 					// Opening the editor and pressing Enter must not delete a saved key.
 					m.message = "Paste a key to save, or press Ctrl+R to remove the saved one"
 					return m, nil
@@ -700,7 +701,7 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+r":
 				m.input.SetValue("")
 				m.message = "Default selected; Enter saves"
-				if m.key == googleBooksKeyEnv {
+				if isSecretSetting(m.key) {
 					m.resetSecret = true
 					m.message = "Key removal selected; Enter saves"
 				}
@@ -743,7 +744,7 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			before := m.input.Value()
 			m.input, cmd = m.input.Update(msg)
-			if m.key == googleBooksKeyEnv && m.input.Value() != before {
+			if isSecretSetting(m.key) && m.input.Value() != before {
 				m.resetSecret = false // typing replaces a pending removal
 			}
 			if m.busy && m.input.Value() != before {
@@ -818,7 +819,7 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		before := m.input.Value()
 		m.input, cmd = m.input.Update(msg)
-		if m.key == googleBooksKeyEnv && m.input.Value() != before {
+		if isSecretSetting(m.key) && m.input.Value() != before {
 			m.resetSecret = false // a paste replaces a pending removal too
 		}
 		return m, cmd
@@ -955,7 +956,7 @@ func (m settingsModel) View() tea.View {
 		return m.settingsListView(w, h, titles[m.page])
 	} else if m.page == "edit" {
 		v := m.value(m.key)
-		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", metaSourcesEnv: "Lookup sources", metaResultsEnv: "Lookup results", nameLayoutEnv: "File name format"}
+		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", wereadAPIKeyEnv: "WeRead API key", metaSourcesEnv: "Lookup sources", metaResultsEnv: "Lookup results", nameLayoutEnv: "File name format"}
 		if v.Override != "" {
 			subtitle = "Using " + v.Override
 		}
@@ -982,6 +983,17 @@ func (m settingsModel) View() tea.View {
 				"Empty: 10",
 				"Each source is asked for enough hits to fill the list; Douban and WeRead read one page per hit, at most 10.",
 				"Saved to the global .env; "+metaResultsEnv+" overrides it.", "")
+		}
+		if m.key == wereadAPIKeyEnv {
+			status := "No key is set: the WeRead source cannot run"
+			if v.Source != "Default" || v.Saved != "" {
+				status = "A key is set (hidden). Paste a new one to replace it"
+			}
+			lines = append(lines, status,
+				"The key for WeRead's agent API (the WeRead skill), bound to your account.",
+				"It is not your WeRead login, which imports books.",
+				"Lookups on the weread source send each title to Tencent under it.",
+				"Saved to the global .env; "+wereadAPIKeyEnv+" overrides it.", "")
 		}
 		if m.key == googleBooksKeyEnv {
 			status := "No key is set: lookups use Google's shared quota"

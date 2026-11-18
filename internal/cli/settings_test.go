@@ -24,8 +24,8 @@ func TestSettingsCommandRoutesAndJSON(t *testing.T) {
 		args  []string
 		count int
 	}{
-		{[]string{"config"}, 16}, {[]string{"config", "network"}, 2},
-		{[]string{"config", "metadata"}, 4}, {[]string{"config", "metadata", "google-key"}, 1}, {[]string{"config", "metadata", "sources"}, 1}, {[]string{"config", "metadata", "results"}, 1}, {[]string{"config", "metadata", "filename"}, 1},
+		{[]string{"config"}, 17}, {[]string{"config", "network"}, 2},
+		{[]string{"config", "metadata"}, 5}, {[]string{"config", "metadata", "google-key"}, 1}, {[]string{"config", "metadata", "sources"}, 1}, {[]string{"config", "metadata", "results"}, 1}, {[]string{"config", "metadata", "filename"}, 1}, {[]string{"config", "metadata", "weread-key"}, 1},
 		{[]string{"config", "network", "domain"}, 1}, {[]string{"config", "network", "proxy"}, 1},
 		{[]string{"config", "download"}, 2}, {[]string{"config", "download", "directory"}, 1},
 		{[]string{"config", "download", "retries"}, 1},

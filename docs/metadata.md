@@ -291,6 +291,11 @@ ZLIB_WEREAD_API_KEY=<your key>
 ZLIB_METADATA_SOURCES=openlibrary,google,weread
 ```
 
+Or set the key in Settings: `zlib config metadata weread-key` (or the Metadata
+page of `zlib config`) takes it in a hidden box, saves it to the global `.env`
+and shows it only as `Configured (hidden)`; Ctrl+R then Enter removes it, and
+the sources checklist lets you tick WeRead once a key is set.
+
 Keep both lines in `.env`; the key is never printed, logged or put in a URL.
 The key belongs to your WeRead account, so each title a lookup sends reaches
 Tencent under your identity. If `weread` is listed without a key, the lookup
