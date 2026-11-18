@@ -51,7 +51,7 @@ func defaultMetaSourceChoices() []metaSourceChoice {
 	listed := configuredMetaSources()
 	on := func(name string) bool { return slices.Contains(listed, name) }
 	googleNote := "shared quota"
-	if strings.TrimSpace(os.Getenv(googleBooksKeyEnv)) != "" {
+	if googleBooksKey() != "" {
 		googleNote = "key set"
 	}
 	wereadKey := strings.TrimSpace(os.Getenv(wereadAPIKeyEnv))

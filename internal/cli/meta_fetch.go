@@ -27,6 +27,22 @@ var errNoMetadataMatch = errors.New("no matching metadata found")
 // the sources are built, never logged, and shown masked everywhere.
 const googleBooksKeyEnv = "ZLIB_GOOGLE_BOOKS_KEY"
 
+// googleBooksKeyAliasEnv is the plain name a Google Books key often has in an
+// existing .env. It is read only when googleBooksKeyEnv holds nothing; config
+// shows where it came from but saves and removes googleBooksKeyEnv.
+const googleBooksKeyAliasEnv = "GOOGLE_BOOKS_API_KEY"
+
+// googleBooksKey returns the configured Google Books key: googleBooksKeyEnv,
+// else googleBooksKeyAliasEnv, else "".
+func googleBooksKey() string {
+	for _, name := range []string{googleBooksKeyEnv, googleBooksKeyAliasEnv} {
+		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // wereadAPIKeyEnv names the WeRead API key the weread metadata source sends.
 // It is the key Tencent issues for its agent gateway, not the WeRead login
 // that imports books, and it is bound to the user's account. It is read when
@@ -88,7 +104,7 @@ func metaSourceConfig(rt http.RoundTripper) metasource.SourceConfig {
 	return metasource.SourceConfig{
 		Transport:       rt,
 		WeReadTransport: wereadTransport(os.Getenv(wereadProxyEnv)),
-		GoogleKey:       strings.TrimSpace(os.Getenv(googleBooksKeyEnv)),
+		GoogleKey:       googleBooksKey(),
 		WeReadKey:       strings.TrimSpace(os.Getenv(wereadAPIKeyEnv)),
 	}
 }

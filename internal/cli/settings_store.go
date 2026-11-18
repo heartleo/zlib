@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,9 +28,13 @@ const googleKeyNotSet = "Not set (shared quota)"
 
 var settingsEnvironment map[string]string
 
+// settingEnvNames is every name the settings read: the keys plus the
+// Google Books key alias, which has no row of its own.
+func settingEnvNames() []string { return append(slices.Clone(settingKeys), googleBooksKeyAliasEnv) }
+
 func captureSettingsEnvironment() {
 	settingsEnvironment = make(map[string]string)
-	for _, key := range settingKeys {
+	for _, key := range settingEnvNames() {
 		if value, ok := os.LookupEnv(key); ok {
 			settingsEnvironment[key] = value
 		}
@@ -42,6 +47,10 @@ type settingValue struct {
 	Source   string `json:"source"`
 	Saved    string `json:"saved"`
 	Override string `json:"override,omitempty"`
+
+	// alias is set when the value came from googleBooksKeyAliasEnv, so there
+	// is nothing under Key to remove.
+	alias bool
 }
 
 type settingsStore struct {
@@ -62,7 +71,7 @@ func newSettingsStore() (settingsStore, error) {
 	env := settingsEnvironment
 	if env == nil {
 		env = make(map[string]string)
-		for _, k := range settingKeys {
+		for _, k := range settingEnvNames() {
 			if v, ok := os.LookupEnv(k); ok {
 				env[k] = v
 			}
@@ -110,6 +119,19 @@ func (s settingsStore) values() ([]settingValue, error) {
 			if n, e := strconv.Atoi(strings.TrimSpace(v.Value)); e != nil || n < 0 {
 				v.Value = "3"
 				v.Source = "Default (invalid retry setting)"
+			}
+		}
+		if key == googleBooksKeyEnv && strings.TrimSpace(v.Value) == "" {
+			// A key saved or exported under the plain name counts when
+			// nothing holds the ZLIB_ one; the same order as the lookups use.
+			for _, a := range []struct {
+				from map[string]string
+				name string
+			}{{s.env, "Process environment"}, {l, "Working-directory .env"}, {g, "Global configuration"}} {
+				if x := a.from[googleBooksKeyAliasEnv]; strings.TrimSpace(x) != "" {
+					v.Value, v.Source, v.alias = x, a.name+" ("+googleBooksKeyAliasEnv+")", true
+					break
+				}
 			}
 		}
 		if strings.TrimSpace(v.Value) == "" {

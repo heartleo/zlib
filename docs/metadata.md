@@ -346,7 +346,8 @@ search with opens the search editor, so you can type a title, author or ISBN
 (leaving without searching exits `0`).
 
 Google Books answers from a quota shared with other users unless you set an
-API key (`zlib config metadata google-key`, or `ZLIB_GOOGLE_BOOKS_KEY`; see
+API key (`zlib config metadata google-key`, or `ZLIB_GOOGLE_BOOKS_KEY`, or
+`GOOGLE_BOOKS_API_KEY` when that is empty; see
 [Configuration](configuration.md)). Without one it often reports `rate limited`
 and the results come from Open Library. A rejected key is reported as such.
 

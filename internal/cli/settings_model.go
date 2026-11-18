@@ -431,7 +431,8 @@ func (m *settingsModel) save(value string) {
 		// Explicit process and working-directory settings keep precedence.
 	} else if v.Source == "Global configuration" {
 		_ = os.Setenv(m.key, v.Value)
-	} else if v.Source == "Default" || v.Source == "Saved session" {
+	} else if v.Source == "Default" || v.Source == "Saved session" || v.alias {
+		// An alias value means nothing is left under this key.
 		_ = os.Unsetenv(m.key)
 	}
 	m.back()
@@ -967,7 +968,11 @@ func (m settingsModel) View() tea.View {
 			lines = append(lines, status,
 				"Optional. A key gives metadata lookups their own Google Books quota.",
 				"Create one for the Books API in the Google Cloud console.",
-				"Saved to the global .env; "+googleBooksKeyEnv+" overrides it.", "")
+				"Saved to the global .env; "+googleBooksKeyEnv+" overrides it.")
+			if v.alias {
+				lines = append(lines, "Now read from "+googleBooksKeyAliasEnv+"; a key saved here wins.")
+			}
+			lines = append(lines, "")
 		}
 		actions := []string{"", "Reset", "Cancel", "Save"}
 		if m.key == downloadDirEnvVar {
