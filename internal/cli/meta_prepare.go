@@ -3,11 +3,11 @@ package cli
 import (
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	keys "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/metasource"
@@ -166,11 +166,216 @@ func prepareFrom(source string) string {
 	return source
 }
 
-// prepareBody is the prepare page: what will be searched and where each part
-// came from, the sources to ask, and what the file name and the file said. The
-// terms and the sources come first, so a short terminal still shows them.
+// prepareBody is the prepare page, top to bottom: the book as the file has it,
+// in a detail card like the search results' (the cover beside the metadata),
+// then what will be searched and where each part came from, then the sources to
+// ask. On a short terminal the card and the terms give up rows before the
+// sources do.
 func (m metaPageModel) prepareBody() string {
 	width := max(20, m.width)
+	lay := m.prepareLayout()
+	var lines []string
+	if lay.rows > 0 {
+		lines = append(m.prepareCard(width, lay), "")
+	}
+	lines = append(lines, m.prepareTerms(width, lay.compactTerms)...)
+	if src := m.prepareSources(width); len(src) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, src...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// prepareCardLayout says how the page is divided: how many text rows the card
+// has, whether it shows a cover and whether the terms are in their short form.
+type prepareCardLayout struct {
+	rows         int
+	cover        bool
+	compactTerms bool
+}
+
+// prepareLayout divides the body. The cover (and so the card's full height)
+// needs a terminal that draws images and rows for it; without them the card is
+// a few text lines.
+func (m metaPageModel) prepareLayout() prepareCardLayout {
+	width := max(20, m.width)
+	budget := max(0, m.height-6)
+	sources := len(m.prepareSources(width))
+	blanks := 1 // between the card and the terms
+	if sources > 0 {
+		blanks++
+	}
+	full := len(m.prepareTerms(width, false)) + sources + blanks
+	short := len(m.prepareTerms(width, true)) + sources + blanks
+	canCover := coverFits(m.width, m.height)
+	if canCover && budget-full >= coverRows+2 {
+		return prepareCardLayout{rows: coverRows, cover: true}
+	}
+	if canCover && budget-short >= coverRows+2 {
+		return prepareCardLayout{rows: coverRows, cover: true, compactTerms: true}
+	}
+	if rows := budget - full - 2; rows >= 3 {
+		return prepareCardLayout{rows: min(rows, 7)}
+	}
+	// Too short for a card of three lines: a title line, or no card at all, so the
+	// terms and the sources are never what is cut.
+	if rows := budget - short - 2; rows >= 1 {
+		return prepareCardLayout{rows: min(rows, 7), compactTerms: true}
+	}
+	return prepareCardLayout{compactTerms: true}
+}
+
+// prepareCard is the book detail card: a rounded accent border, the cover
+// slot on the left when there is one and the book's metadata beside it.
+func (m metaPageModel) prepareCard(width int, lay prepareCardLayout) []string {
+	inner := max(1, width-6)
+	if lay.cover {
+		inner -= coverWidth + 2
+	}
+	body := strings.Join(m.prepareCardLines(max(1, inner), lay.rows), "\n")
+	if lay.cover {
+		slot := lipgloss.NewStyle().Width(coverWidth).Height(coverRows)
+		var cover string
+		if m.fileCover != nil && m.fileCover.img != nil {
+			cover = slot.Render(renderBookCover(m.fileCover.img)) // blank: the image is drawn over it
+		} else {
+			label := "no cover"
+			if m.fileCover != nil {
+				label = "cover unavailable"
+			}
+			cover = slot.Foreground(currentTheme.Muted).Align(lipgloss.Center, lipgloss.Center).
+				Border(lipgloss.RoundedBorder()).BorderForeground(currentTheme.Muted).Render(label)
+		}
+		body = lipgloss.JoinHorizontal(lipgloss.Top, cover, "  ", lipgloss.NewStyle().Width(max(1, inner)).Render(body))
+	}
+	card := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(currentTheme.Accent).
+		Padding(0, 1).Width(width - 2).Render(body)
+	return strings.Split(card, "\n")
+}
+
+// prepareCardLines are the card's text, cut to at most rows lines, with no blank
+// lines: the title and the authors as in the search results' card, then the
+// details a reader looks for as labelled rows whose values start in one column,
+// then the start of the description. Only fields the file has are shown, so a
+// sparse book gives a short card. Values are what the file holds (a placeholder
+// title is shown as it is, so the user sees what there is to fix); the page
+// below says what will be searched.
+func (m metaPageModel) prepareCardLines(inner, rows int) []string {
+	accent := lipgloss.NewStyle().Foreground(currentTheme.Accent).Bold(true)
+	primary := lipgloss.NewStyle().Foreground(currentTheme.Title)
+	muted := lipgloss.NewStyle().Foreground(currentTheme.Muted)
+	c := m.current
+	// Every value comes from the file, so it is made safe to print here.
+	clean := func(s string) string { return safeText(oneLine(s)) }
+	title := clean(c.Title)
+	if title == "" {
+		title = clean(strings.TrimSuffix(filepath.Base(m.path), bookExt(m.path)))
+	}
+	var lines []string
+	wrapped := strings.Split(ansi.Wrap(title, inner, ""), "\n")
+	for i, l := range wrapped[:min(len(wrapped), 2)] {
+		if i == 1 && len(wrapped) > 2 {
+			l = ansi.Truncate(l, max(1, inner-1), "") + "…"
+		}
+		lines = append(lines, accent.Render(l))
+		if rows < 6 { // a short card has one title line
+			break
+		}
+	}
+	if authors := clean(strings.Join(c.Authors, " & ")); authors != "" {
+		lines = append(lines, primary.Render(ansi.Truncate(authors, inner, "…")))
+	}
+
+	// The labelled rows, in reading order.
+	ids := ""
+	if isbn := c.Identifier("isbn"); isbn != "" {
+		ids = isbn
+	}
+	var details [][2]string
+	add := func(label, value string) {
+		if value = clean(value); value != "" {
+			details = append(details, [2]string{label, value})
+		}
+	}
+	add("Publisher", c.Publisher)
+	add("Published", c.Published)
+	add("Language", strings.Join(c.Languages, ", "))
+	add("Series", seriesLine(c))
+	add("Tags", strings.Join(c.Tags, ", "))
+	add("ISBN", ids)
+	add("Z-Library ID", c.Identifier(metasource.SchemeZlibID))
+	add("Format", strings.ToUpper(string(m.format)))
+	desc := clean(metasource.PlainText(c.Description))
+
+	room := max(0, rows-len(lines))
+	descRows := 0
+	if desc != "" && room >= 2 {
+		descRows = 1
+	}
+	detailRoom := room - descRows
+	labelled := len(details) <= detailRoom
+	if labelled {
+		labelW := 0
+		for _, d := range details {
+			labelW = max(labelW, ansi.StringWidth(d[0]))
+		}
+		labelW = min(max(labelW, ansi.StringWidth("About")), 12)
+		valueW := max(1, inner-labelW-2)
+		for _, d := range details {
+			lines = append(lines, muted.Render(padCell(d[0], labelW))+"  "+ansi.Truncate(d[1], valueW, "…"))
+		}
+		if desc != "" && rows-len(lines) >= 1 {
+			wrappedDesc := strings.Split(ansi.Wrap(desc, valueW, ""), "\n")
+			n := min(len(wrappedDesc), min(3, rows-len(lines)))
+			for i := range n {
+				l := wrappedDesc[i]
+				if i == n-1 && len(wrappedDesc) > n {
+					l = ansi.Truncate(l, max(1, valueW-1), "") + "…"
+				}
+				label := ""
+				if i == 0 {
+					label = "About"
+				}
+				lines = append(lines, muted.Render(padCell(label, labelW))+"  "+l)
+			}
+		}
+	} else if detailRoom > 0 || descRows == 0 {
+		// Too many fields for the rows: pack them as values separated by dots,
+		// most useful first, instead of dropping whole fields.
+		var items []string
+		for _, d := range details {
+			v := d[1]
+			if d[0] == "ISBN" || d[0] == "Z-Library ID" {
+				v = d[0] + " " + v
+			}
+			items = append(items, v)
+		}
+		for len(items) > 0 && detailRoom > 0 {
+			line := items[0]
+			items = items[1:]
+			for len(items) > 0 && ansi.StringWidth(line+" · "+items[0]) <= inner {
+				line += " · " + items[0]
+				items = items[1:]
+			}
+			lines = append(lines, muted.Render(ansi.Truncate(line, inner, "…")))
+			detailRoom--
+		}
+		if desc != "" && rows-len(lines) >= 1 {
+			lines = append(lines, muted.Render(ansi.Truncate(desc, inner, "…")))
+		}
+	}
+	if desc == "" && len(metadataRows(m.format, c)) <= 1 { // only the format row
+		lines = append(lines, muted.Render("The file has no metadata of its own."))
+	}
+	return lines[:min(len(lines), rows)]
+}
+
+// seriesLine is the series and its position, or "".
+func seriesLine(c *ebookmeta.Metadata) string { return metasource.FileValue(c, metasource.FieldSeries) }
+
+// prepareTerms are the search terms and where each part came from, or in short
+// form two lines: the terms on one, nothing else.
+func (m metaPageModel) prepareTerms(width int, compact bool) []string {
 	x, q := m.extraction, m.query
 	// row is one labelled value with a note after it. A long value is cut so
 	// that the note, which says where it came from or what to press, stays.
@@ -186,62 +391,60 @@ func (m metaPageModel) prepareBody() string {
 		}
 		return ansi.Truncate(prefix+value, width, "…")
 	}
-	lines := []string{"  " + colorBold("Search for")}
+	lines := []string{sectionHeader("Search for", "m edit file · i details", width)}
 	if q.Empty() {
-		lines = append(lines, "    "+colorFaint("Nothing to search with yet: press e to enter a title, an author or an ISBN."))
-	} else {
-		title, note := q.Title, prepareFrom(x.TitleFrom)
-		if title == "" {
-			title, note = "(none)", ""
-		} else if q.TitleGuessed {
-			note += ", a guess"
-		}
-		lines = append(lines, row("Title", title, note))
-		if x.AltTitle != "" {
-			lines = append(lines, row("Other", x.AltTitle, "press t to use it"))
-		}
-		authors := strings.Join(q.Authors, " & ")
-		if authors == "" {
-			authors = "(none)"
-		}
-		lines = append(lines, row("Authors", authors, prepareFrom(x.AuthorsFrom)))
-		lines = append(lines, row("ISBN", isbnLine(q, x.ISBNFrom), ""))
+		return append(lines, "    "+colorFaint(ansi.Truncate("Nothing to search with yet: press e to enter a title, an author or an ISBN.", max(1, width-4), "…")))
 	}
-	if len(m.draft) > 0 {
-		lines = append(lines, "", "  "+colorBold("Sources"))
-		for i, c := range m.draft {
-			box := "[ ]"
-			if c.enabled {
-				box = "[x]"
-			}
-			label := box + " " + c.label
-			if c.note != "" {
-				label += "  " + c.note
-			}
-			lines = append(lines, styledListRow(label, i == m.sourceCursor, width, currentTheme))
+	title, note := q.Title, prepareFrom(x.TitleFrom)
+	if title == "" {
+		title, note = "(none)", ""
+	} else if q.TitleGuessed {
+		note += ", a guess"
+	}
+	authors := strings.Join(q.Authors, " & ")
+	if authors == "" {
+		authors = "(none)"
+	}
+	if compact {
+		short := safeText(oneLine(title)) + " · " + safeText(oneLine(authors))
+		if len(q.ISBNs) > 0 {
+			short += " · ISBN " + safeText(q.ISBNs[0])
 		}
-		if m.wereadOn() {
-			lines = append(lines, "  "+colorFaint(ansi.Truncate("WeRead sends each title to Tencent under your account.", max(1, width-4), "…")))
+		return append(lines, "    "+ansi.Truncate(short, max(1, width-4), "…"))
+	}
+	lines = append(lines, row("Title", title, note))
+	if x.AltTitle != "" {
+		lines = append(lines, row("Other", x.AltTitle, "press t to use it"))
+	}
+	lines = append(lines, row("Authors", authors, prepareFrom(x.AuthorsFrom)))
+	return append(lines, row("ISBN", isbnLine(q, x.ISBNFrom), ""))
+}
+
+// prepareSources are the source rows to turn on or off, and what the choice
+// sends where.
+func (m metaPageModel) prepareSources(width int) []string {
+	if len(m.draft) == 0 {
+		return nil
+	}
+	lines := []string{sectionHeader("Sources", "", width)}
+	for i, c := range m.draft {
+		box := "[ ]"
+		if c.enabled {
+			box = "[x]"
 		}
-		if note := m.titleNote(); note != "" {
-			lines = append(lines, "  "+colorFaint(ansi.Truncate(note, max(1, width-4), "…")))
+		label := box + " " + c.label
+		if c.note != "" {
+			label += "  " + c.note
 		}
+		lines = append(lines, styledListRow(label, i == m.sourceCursor, width, currentTheme))
 	}
-	lines = append(lines, "", "  "+colorBold("In the file")+"  "+colorFaint("m edit without a search · i everything"))
-	// The block comes last, so it is what a short terminal cuts. Rather than
-	// lose rows silently, it says how many are left out and where to see them.
-	fileLines := formatDetailRows(m.fileRows(true), "    ", colorFaint)
-	if room := max(0, m.height-6) - len(lines); room < len(fileLines) && room >= 1 {
-		hidden := len(fileLines) - (room - 1)
-		fileLines = append(fileLines[:room-1], "    "+colorFaint(strconv.Itoa(hidden)+" more: press i to see everything in the file"))
+	if m.wereadOn() {
+		lines = append(lines, "  "+colorFaint(ansi.Truncate("WeRead sends each title to Tencent under your account.", max(1, width-4), "…")))
 	}
-	for _, l := range fileLines {
-		lines = append(lines, ansi.Truncate(l, width, "…"))
+	if note := m.titleNote(); note != "" {
+		lines = append(lines, "  "+colorFaint(ansi.Truncate(note, max(1, width-4), "…")))
 	}
-	if len(metadataRows(m.format, m.current)) <= 1 && strings.TrimSpace(m.current.Description) == "" { // only the format row
-		lines = append(lines, "    "+colorFaint("The file has no metadata of its own."))
-	}
-	return strings.Join(lines, "\n")
+	return lines
 }
 
 // isbnLine lists the query's ISBNs, each with where it came from, and says

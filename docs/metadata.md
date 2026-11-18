@@ -283,9 +283,10 @@ A guessed ISBN would later be read as an exact ISBN match, so keep one only
 after checking the edition.
 
 The page opens on a prepare step and sends nothing until you press Enter. It
-shows what the file already holds (every value in its own metadata, in full on
-`i`), what the file name and the file said, the search built from them and
-where each part came from, and the sources to ask with `[x]` or `[ ]`. Space
+shows the book as the file has it in a detail card at the top (its cover beside
+its metadata; everything in full on `i`), then the search built from the file
+name and the file and where each part came from, and below them the sources to
+ask with `[x]` or `[ ]`. Space
 toggles a source, `e` edits the search, `t` uses the other title and Ctrl+D saves
 the sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
 `.env`); nothing is saved unless you press it. The page starts from, in this

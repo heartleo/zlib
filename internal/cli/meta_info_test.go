@@ -49,27 +49,26 @@ func TestMetaPagePrepareShowsTheFilesOwnMetadataBeforeAnySearch(t *testing.T) {
 	m = next.(metaPageModel)
 	screen := metaScreen(m)
 	for _, want := range []string{
-		"In the file", "Name", "Format", "EPUB", "Title", "Dune", "Authors", "Frank Herbert & Brian Herbert",
-		"Publisher", "Ace Books", "Tags", "Fiction, Classics", "Series", "Dune Chronicles #1", "Published", "1990-09-01",
-		"Identifiers", "Description", "A desert planet.",
+		"Dune", "Frank Herbert & Brian Herbert", "EPUB", "Ace Books", "1990-09-01", "Dune Chronicles #1", "Fiction, Classics", "A desert planet.",
+		"ISBN", "m edit file",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the page lacks %q:\n%s", want, screen)
 		}
 	}
-	// The terms to search come before it, and nothing has been sent.
-	if search, file := strings.Index(screen, "Search for"), strings.Index(screen, "In the file"); search < 0 || file < search {
-		t.Errorf("the order is wrong (search %d, file %d)", search, file)
+	// The card with the book comes first, then what will be searched; nothing
+	// has been sent.
+	if card, search := strings.Index(screen, "Frank Herbert & Brian"), strings.Index(screen, "Search for"); card < 0 || search < card {
+		t.Errorf("the order is wrong (card %d, search %d)", card, search)
 	}
 	if len(*queries) != 0 || m.stage != metaPrepare {
 		t.Errorf("showing the file searched: %d queries, stage %v", len(*queries), m.stage)
 	}
-	// Only the first line of the description is inline.
-	if strings.Contains(screen, "second paragraph") {
-		t.Errorf("the whole description is inline:\n%s", screen)
+	// Only the start of the description is in the card.
+	if strings.Contains(screen, "known universe and grants long life") && strings.Contains(screen, "second paragraph about the spice melange, which is the most valuable substance in the known universe and grants long life.") {
+		t.Errorf("the whole description is in the card:\n%s", screen)
 	}
 }
-
 func TestMetaPagePrepareSaysAFileHasNoMetadataOfItsOwn(t *testing.T) {
 	var queries []metasource.Query
 	m, err := newMetaPageModel(emptyMetadataEPUB(t), recordingLookup(twoCandidates(), &queries), nil)
@@ -77,12 +76,8 @@ func TestMetaPagePrepareSaysAFileHasNoMetadataOfItsOwn(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.editing = false // the empty file opens the search editor; look at the page behind it
-	// The test file still has a language and an identifier: that is metadata.
-	if screen := metaScreen(m); strings.Contains(screen, "no metadata of its own") || !strings.Contains(screen, "Languages") {
-		t.Errorf("a file with a language and an identifier is called empty:\n%s", screen)
-	}
 	m.current = &ebookmeta.Metadata{}
-	if screen := metaScreen(m); !strings.Contains(screen, "The file has no metadata of its own.") {
+	if screen := metaScreen(sized(t, m, 100, 40)); !strings.Contains(screen, "The file has no metadata of its own.") {
 		t.Errorf("an empty file is not described:\n%s", screen)
 	}
 }

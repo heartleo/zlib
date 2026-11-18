@@ -64,7 +64,7 @@ func TestMetaPageOpensOnThePrepareStepAndSearchesNothingYet(t *testing.T) {
 	for _, want := range []string{
 		"Search for", "Title", "Before", "from the file", // the embedded title of the test file
 		"[x] Open Library", "[x] Google Books", "[ ] Douban", "[ ] WeRead", "shared quota", "needs ZLIB_WEREAD_API_KEY (not set)",
-		"In the file", "Name", "book", "Format", "EPUB", "Identifiers",
+		"Before", "EPUB",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the prepare page lacks %q:\n%s", want, screen)
@@ -107,11 +107,11 @@ func TestMetaPagePrepareShowsTheFileNameBeforeTheEmbeddedMetadata(t *testing.T) 
 			t.Errorf("the prepare page lacks %q:\n%s", want, screen)
 		}
 	}
-	// The file name's reading comes before what the file embeds, and the terms
-	// before both.
-	search, name, embedded := strings.Index(screen, "Search for"), strings.Index(screen, "Name"), strings.Index(screen, "Format")
-	if search < 0 || name < 0 || embedded < 0 || search >= name || name >= embedded {
-		t.Errorf("the order is wrong (search %d, name %d, embedded %d):\n%s", search, name, embedded, screen)
+	// The book as the file has it is in the card on top, then the terms read
+	// from the file name, then the sources.
+	card, search := strings.Index(screen, "温乎"), strings.Index(screen, "Search for")
+	if card < 0 || search < 0 || card >= search {
+		t.Errorf("the order is wrong (card %d, search %d):\n%s", card, search, screen)
 	}
 	// t switches to the file's own title, and again back.
 	m, _ = metaStep(t, m, key("t"))
@@ -391,7 +391,7 @@ func TestMetaPagePrepareShowsTheTermsAndSourcesOnShortTerminals(t *testing.T) {
 	for _, size := range [][2]int{{80, 24}, {80, 23}, {60, 16}} {
 		next, _ := m.Update(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 		screen := ansi.Strip(next.(metaPageModel).View().Content)
-		for _, want := range []string{"Search for", "Title", "Before", "[x] Open Library", "[ ] WeRead"} {
+		for _, want := range []string{"Search for", "Before", "[x] Open Library", "[ ] WeRead"} {
 			if !strings.Contains(screen, want) {
 				t.Errorf("%dx%d: %q is not on screen:\n%s", size[0], size[1], want, screen)
 			}

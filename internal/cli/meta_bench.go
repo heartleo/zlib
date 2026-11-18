@@ -106,7 +106,10 @@ func coverLabel(c *metaCoverImage, mediaType string) string {
 		}
 		return mediaType
 	}
-	kind := strings.ToUpper(strings.TrimPrefix(ebookmeta.SniffImage(c.cover.Data), "image/"))
+	kind := ""
+	if c.cover != nil {
+		kind = strings.ToUpper(strings.TrimPrefix(ebookmeta.SniffImage(c.cover.Data), "image/"))
+	}
 	if kind == "" {
 		kind = mediaType
 	}
@@ -532,6 +535,95 @@ func hasExtra(extra map[metasource.Field]metasource.Change, f metasource.Field) 
 	return ok
 }
 
+// coverState says what a cover place shows.
+type coverState int
+
+const (
+	coverNone        coverState = iota // the book has no cover
+	coverLoading                       // being downloaded
+	coverUnavailable                   // the image could not be fetched or read
+	coverLoaded                        // an image, drawn over a blank block
+)
+
+func (s coverState) label() string {
+	switch s {
+	case coverLoading:
+		return "loading…"
+	case coverUnavailable:
+		return "cover unavailable"
+	}
+	return "no cover"
+}
+
+// leftCoverState is the state of the file's cover place: the cover the file
+// will have, which is the user's or the match's once taken.
+func (m metaPageModel) leftCoverState() coverState {
+	switch {
+	case m.benchLeftCover() != nil:
+		return coverLoaded
+	case m.fileCover != nil:
+		return coverUnavailable
+	}
+	return coverNone
+}
+
+// matchCoverState is the state of the match's cover place.
+func (m metaPageModel) matchCoverState() coverState {
+	url := m.cand.CoverURL
+	if url == "" {
+		return coverNone
+	}
+	got := m.coverCache[url]
+	switch {
+	case got != nil && got.img != nil:
+		return coverLoaded
+	case got != nil && (got.err != nil || got.cover != nil): // fetched, but not readable
+		return coverUnavailable
+	case got == nil && m.cover == nil:
+		return coverNone // nothing can fetch it
+	}
+	return coverLoading
+}
+
+// coverBlock is the cover place as benchCoverRows lines of benchCoverCols
+// cells: blank where the image is drawn over it, else a bordered label.
+func (m metaPageModel) coverBlock(state coverState) []string {
+	var block string
+	slot := lipgloss.NewStyle().Width(benchCoverCols).Height(benchCoverRows)
+	if state == coverLoaded {
+		block = slot.Render("")
+	} else {
+		block = slot.Foreground(currentTheme.Muted).Align(lipgloss.Center, lipgloss.Center).
+			Border(lipgloss.RoundedBorder()).BorderForeground(currentTheme.Muted).Render(state.label())
+	}
+	lines := strings.Split(block, "\n")
+	// A bordered slot is two cells larger than asked; keep the place's size.
+	if len(lines) > benchCoverRows {
+		lines = lines[:benchCoverRows]
+	}
+	for i, l := range lines {
+		lines[i] = ansi.Truncate(l, benchCoverCols, "") + strings.Repeat(" ", max(0, benchCoverCols-ansi.StringWidth(l)))
+	}
+	return lines
+}
+
+// coverNeededCmd asks for the cover of the match on show, when the page is
+// where it is drawn and has not asked yet: after a resize, when the terminal
+// has just proved it can draw images.
+func (m metaPageModel) coverNeededCmd() tea.Cmd {
+	switch m.stage {
+	case metaCandidates:
+		if m.compareFits() && m.cursor < len(m.res.Candidates) {
+			return m.matchCoverCmd(m.res.Candidates[m.cursor].CoverURL)
+		}
+	case metaFields:
+		if !m.manual {
+			return m.matchCoverCmd(m.cand.CoverURL)
+		}
+	}
+	return nil
+}
+
 // matchCoverCmd downloads the match's cover for the preview, once per address,
 // when the terminal can draw it. The bytes are reused if the cover is written.
 func (m metaPageModel) matchCoverCmd(url string) tea.Cmd {
@@ -629,7 +721,16 @@ func (m metaPageModel) benchPanels(rows []benchRow) []string {
 // as well as the workbench.
 func (m metaPageModel) benchPanelsWith(rows []benchRow, covers bool) []string {
 	width := max(20, m.width)
-	left, right := covers && m.benchLeftCover() != nil, covers && m.benchRightCover() != nil
+	// Both panels reserve their cover place whenever covers are drawn, with a
+	// placeholder in it until there is an image, so the match's cover is always
+	// where the user looks for it and nothing shifts when it arrives.
+	var left, right []string
+	if covers {
+		left = m.coverBlock(m.leftCoverState())
+		if !m.manual {
+			right = m.coverBlock(m.matchCoverState())
+		}
+	}
 	if m.manual {
 		return benchBox("This file", m.panelLines(rows, true, width-4, left), width, true)
 	}
@@ -659,8 +760,9 @@ func (m metaPageModel) benchPanelsWith(rows []benchRow, covers bool) []string {
 // panelLines are the rows of one panel, inner width w: the file's side shows
 // what will be written, the match's side what it says. With covers, the first
 // rows leave room for the image on the left.
-func (m metaPageModel) panelLines(rows []benchRow, file bool, w int, covers bool) []string {
+func (m metaPageModel) panelLines(rows []benchRow, file bool, w int, block []string) []string {
 	n := len(rows)
+	covers := len(block) > 0
 	if covers {
 		n = max(n, benchCoverRows)
 	}
@@ -671,6 +773,9 @@ func (m metaPageModel) panelLines(rows []benchRow, file bool, w int, covers bool
 	}
 	for i := range n {
 		cell := strings.Repeat(" ", indent)
+		if covers && i < len(block) {
+			cell = block[i] + "  "
+		}
 		if i >= len(rows) {
 			out[i] = cell + strings.Repeat(" ", max(0, w-indent))
 			continue
@@ -950,7 +1055,7 @@ func (m metaPageModel) sideCoverImage() image.Image {
 		return nil
 	}
 	switch m.stage {
-	case metaPrepare, metaInfo:
+	case metaInfo:
 		if m.fileCover != nil {
 			return m.fileCover.img
 		}
@@ -1002,6 +1107,14 @@ func (m metaPageModel) coverSlots() []coverSource {
 		}
 		return out
 	}
+	if m.stage == metaPrepare {
+		// The book card's cover: top left of the body, inside the card's border.
+		if lay := m.prepareLayout(); lay.cover && m.fileCover != nil && m.fileCover.img != nil {
+			return []coverSource{{url: "card:" + m.path, img: m.fileCover.img, width: m.width, height: m.height,
+				area: image.Rect(2, 4, 2+coverWidth, 4+coverRows)}}
+		}
+		return nil
+	}
 	if m.stage == metaCandidates && m.compareFits() {
 		top := m.compareTop() + 1
 		var out []coverSource
@@ -1047,13 +1160,13 @@ func (m metaPageModel) benchLeftCover() image.Image {
 			continue
 		}
 		if _, origin := m.pending(r); origin == originMatch {
-			if got := m.coverCache[m.cand.CoverURL]; got != nil {
-				return got.img
+			if got := m.coverCache[m.cand.CoverURL]; got != nil && got.img != nil {
+				return got.img // the match's cover, once it is here
 			}
 		}
 	}
 	if m.fileCover != nil {
-		return m.fileCover.img
+		return m.fileCover.img // until then, the one the file has
 	}
 	return nil
 }
@@ -1064,7 +1177,9 @@ func (m metaPageModel) benchCoverKey() string {
 	}
 	for i, ch := range m.plan {
 		if ch.Field == metasource.FieldCover && m.selected[i] {
-			return "match"
+			if got := m.coverCache[m.cand.CoverURL]; got != nil && got.img != nil {
+				return "match"
+			}
 		}
 	}
 	return "own"

@@ -283,7 +283,8 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.editor.area.SetHeight(max(3, m.height-12))
 			}
 		}
-		return m.resizeInfo(), nil
+		m = m.resizeInfo()
+		return m, m.coverNeededCmd()
 	case spinner.TickMsg:
 		if m.stage != metaLooking && m.stage != metaWriting {
 			return m, nil

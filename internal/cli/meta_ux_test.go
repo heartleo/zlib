@@ -289,10 +289,10 @@ func TestMetaResultsYearIsNotCutByBytes(t *testing.T) {
 	}
 }
 
-// On the first page the file's metadata comes last, so a 24-row terminal (23
-// in the shell) cuts it: the page says how many rows are left out and that i
-// shows them, instead of dropping them silently.
-func TestMetaPreparePageSaysWhenTheFilesMetadataIsCut(t *testing.T) {
+// The prepare page, top to bottom: the book's detail card, then what is searched,
+// then the sources; and on short terminals the card gives way before the terms
+// and the sources do.
+func TestMetaPrepareStacksCardTermsAndSources(t *testing.T) {
 	var asked [][]string
 	var queries []metasource.Query
 	m, err := newMetaPageModel(richEPUB(t), recordingLookup(twoCandidates(), &queries), nil,
@@ -303,24 +303,36 @@ func TestMetaPreparePageSaysWhenTheFilesMetadataIsCut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, h := range []int{24, 23, 20} {
-		screen := screenOf(sized(t, m, 80, h))
-		if len(strings.Split(screen, "\n")) > h {
-			t.Fatalf("80x%d: too many lines", h)
+	for _, size := range [][2]int{{120, 40}, {100, 30}, {80, 24}, {80, 23}, {60, 16}, {40, 12}} {
+		screen := screenOf(sized(t, m, size[0], size[1]))
+		if n := len(strings.Split(screen, "\n")); n > size[1] {
+			t.Fatalf("%dx%d: %d lines", size[0], size[1], n)
 		}
-		if !strings.Contains(screen, "more: press i to see everything in the file") {
-			t.Errorf("80x%d: the cut is not said:\n%s", h, screen)
+		search, sources := strings.Index(screen, "Search for"), strings.Index(screen, "Sources")
+		if search < 0 || sources < search {
+			t.Errorf("%dx%d: terms and sources are out of order or cut (search %d, sources %d):\n%s", size[0], size[1], search, sources, screen)
 		}
-		if !strings.Contains(screen, "In the file") || !strings.Contains(screen, "[x] Open Library") {
-			t.Errorf("80x%d: the page lost its terms or sources:\n%s", h, screen)
+		if size[1] >= 16 && !strings.Contains(screen, "[ ] WeRead") {
+			t.Errorf("%dx%d: the last source is cut:\n%s", size[0], size[1], screen)
+		}
+		if size[1] >= 23 {
+			if card := strings.Index(screen, "Dune"); card < 0 || card > search {
+				t.Errorf("%dx%d: the card is not on top:\n%s", size[0], size[1], screen)
+			}
 		}
 	}
-	// Tall enough, nothing is cut and nothing is said.
-	if screen := screenOf(sized(t, m, 100, 60)); strings.Contains(screen, "press i to see") || !strings.Contains(screen, "Description") {
-		t.Errorf("a tall terminal:\n%s", screen)
+	// With room for a cover the card puts it beside the text, inside one border.
+	screen := screenOf(sized(t, m, 120, 40))
+	var row string
+	for _, l := range strings.Split(screen, "\n") {
+		if strings.Contains(l, "Frank Herbert & Brian Herbert") {
+			row = l
+		}
+	}
+	if !strings.HasPrefix(row, "│ ") || !strings.Contains(row, "│  Frank") && !strings.Contains(row, "  Frank") || !strings.Contains(screen, "no cover") {
+		t.Errorf("the cover and the metadata are not side by side:\n%s", screen)
 	}
 }
-
 func TestMetaFileDetailsScroll(t *testing.T) {
 	m, _ := richPage(t)
 	m = sized(t, m, 50, 14)
@@ -343,3 +355,15 @@ func TestMetaFileDetailsScroll(t *testing.T) {
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
+
+// Values in the card come from the file: control characters in an identifier
+// never reach the screen.
+func TestMetaPrepareCardCleansWhatTheFileHolds(t *testing.T) {
+	m, _ := richPage(t)
+	m.current.SetIdentifier("isbn", "9780441013593\x1b[31m\x07")
+	m.current.SetIdentifier(metasource.SchemeZlibID, "12\x1b]0;x\x07:ab")
+	screen := sized(t, m, 100, 40).View().Content
+	if strings.Contains(screen, "\x1b[31m") || strings.Contains(screen, "\x1b]0;") || strings.Contains(screen, "\x07") {
+		t.Errorf("a control sequence from the file reached the screen: %q", screen)
+	}
+}
