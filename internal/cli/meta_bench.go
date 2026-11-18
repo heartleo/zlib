@@ -671,10 +671,17 @@ func (m metaPageModel) benchCovers() bool {
 
 func (m metaPageModel) fieldsHeaderLines() []string {
 	width := max(20, m.width)
+	// The file's name, with the name the title and authors above would give it.
+	var file []string
+	if m.height >= 16 {
+		title, authors := m.pendingFileNameParts()
+		file = []string{m.fileNameLine("  ", width, title, authors)}
+	}
 	if m.manual {
-		return []string{ansi.Truncate("  "+colorFaint("Editing the file's own metadata. Nothing is looked up."), width, "…")}
+		return append([]string{ansi.Truncate("  "+colorFaint("Editing the file's own metadata. Nothing is looked up."), width, "…")}, file...)
 	}
 	lines := []string{ansi.Truncate("  "+colorFaint("Match: ")+safeText(m.cand.Title)+colorFaint(" · "+safeText(strings.Join(m.cand.Sources, ", "))+" · "+metaMatchLabel(m.cand)), width, "…")}
+	lines = append(lines, file...)
 	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
 	switch {
 	case m.cand.Match == metasource.MatchISBN && m.cand.Score < 1:

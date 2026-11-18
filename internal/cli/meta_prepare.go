@@ -176,7 +176,13 @@ func (m metaPageModel) prepareBody() string {
 	lay := m.prepareLayout()
 	var lines []string
 	if lay.rows > 0 {
-		lines = append(m.prepareCard(width, lay), "")
+		lines = m.prepareCard(width, lay)
+	}
+	if m.showsFileLine() {
+		lines = append(lines, m.fileNameLine("  ", width, m.query.Title, m.query.Authors))
+	}
+	if len(lines) > 0 {
+		lines = append(lines, "")
 	}
 	lines = append(lines, m.prepareTerms(width, lay.compactTerms)...)
 	if src := m.prepareSources(width); len(src) > 0 {
@@ -185,6 +191,10 @@ func (m metaPageModel) prepareBody() string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// showsFileLine reports whether the page has room for the line with the file's
+// name, which short terminals give up first.
+func (m metaPageModel) showsFileLine() bool { return m.height >= 16 }
 
 // prepareCardLayout says how the page is divided: how many text rows the card
 // has, whether it shows a cover and whether the terms are in their short form.
@@ -204,6 +214,9 @@ func (m metaPageModel) prepareLayout() prepareCardLayout {
 	blanks := 1 // between the card and the terms
 	if sources > 0 {
 		blanks++
+	}
+	if m.showsFileLine() {
+		blanks++ // the file's name, under the card
 	}
 	full := len(m.prepareTerms(width, false)) + sources + blanks
 	short := len(m.prepareTerms(width, true)) + sources + blanks

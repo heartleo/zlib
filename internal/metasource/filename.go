@@ -25,6 +25,10 @@ type FileGuess struct {
 	// own metadata agrees with it.
 	DashAuthors []string
 	DashTitle   string
+	// RevAuthors and RevTitle are the other reading of a dashed name, "Title -
+	// Author", the layout FileNameFor builds by default.
+	RevAuthors []string
+	RevTitle   string
 	// Structured is true when the name has a trailing "(...)" group, which is
 	// what makes its title worth trusting over a bare name.
 	Structured bool
@@ -103,6 +107,7 @@ func GuessFromFileName(name string) FileGuess {
 		}
 	}
 	g.DashAuthors, g.DashTitle = dashedName(s)
+	g.RevAuthors, g.RevTitle = reverseDashedName(s)
 	g.Title = cleanFileTitle(title)
 	if numberLike(g.Title) && !shortNumber(g.Title) {
 		g.Title, g.Structured = "", false
@@ -125,6 +130,24 @@ func dashedName(s string) (authors []string, title string) {
 		return nil, ""
 	}
 	authors = parseFileAuthors(left)
+	if len(authors) == 0 || len(authors) > maxNameAuthors {
+		return nil, ""
+	}
+	return authors, title
+}
+
+// reverseDashedName reads "Title - Author": exactly one spaced dash, with
+// something that is not a number on the left and names on the right.
+func reverseDashedName(s string) (authors []string, title string) {
+	if strings.Count(s, " - ") != 1 {
+		return nil, ""
+	}
+	left, right, _ := strings.Cut(s, " - ")
+	title = cleanFileTitle(left)
+	if title == "" || numberLike(right) || (numberLike(title) && !shortNumber(title)) {
+		return nil, ""
+	}
+	authors = parseFileAuthors(right)
 	if len(authors) == 0 || len(authors) > maxNameAuthors {
 		return nil, ""
 	}

@@ -43,8 +43,8 @@ func TestFileNameFor(t *testing.T) {
 		{"spaces are tidied", "  Dune   Messiah ", []string{" Frank   Herbert "}, ".azw3", "Frank Herbert - Dune Messiah.azw3"},
 		{"an author with a dash", "T", []string{"Jean - Paul"}, ".epub", "Jean Paul - T.epub"},
 	} {
-		if got := FileNameFor(tc.title, tc.authors, tc.ext); got != tc.want {
-			t.Errorf("%s: FileNameFor(%q, %q, %q) = %q, want %q", tc.name, tc.title, tc.authors, tc.ext, got, tc.want)
+		if got := nameAuthorTitle(tc.title, tc.authors, tc.ext); got != tc.want {
+			t.Errorf("%s: nameAuthorTitle(%q, %q, %q) = %q, want %q", tc.name, tc.title, tc.authors, tc.ext, got, tc.want)
 		}
 	}
 }
@@ -56,7 +56,7 @@ func TestFileNameForStaysWithinTheLimit(t *testing.T) {
 		"an author":    {"刘慈欣"},
 		"huge authors": {strings.Repeat("Longname ", 60), "Second Author"},
 	} {
-		got := FileNameFor(long, authors, ".epub")
+		got := nameAuthorTitle(long, authors, ".epub")
 		if len(got) > 255 || !utf8.ValidString(got) || !strings.HasSuffix(got, ".epub") || strings.HasPrefix(got, " - ") {
 			t.Errorf("%s: %d bytes, valid=%v: %q", name, len(got), utf8.ValidString(got), got)
 		}
@@ -65,11 +65,11 @@ func TestFileNameForStaysWithinTheLimit(t *testing.T) {
 		}
 	}
 	// A title that fits is never cut.
-	if got := FileNameFor("Dune", []string{"Frank Herbert"}, ".epub"); got != "Frank Herbert - Dune.epub" {
+	if got := nameAuthorTitle("Dune", []string{"Frank Herbert"}, ".epub"); got != "Frank Herbert - Dune.epub" {
 		t.Errorf("a short name changed: %q", got)
 	}
 	// The authors survive a long title.
-	if got := FileNameFor(long, []string{"刘慈欣"}, ".epub"); !strings.HasPrefix(got, "刘慈欣 - ") {
+	if got := nameAuthorTitle(long, []string{"刘慈欣"}, ".epub"); !strings.HasPrefix(got, "刘慈欣 - ") {
 		t.Errorf("the author was cut: %q", got)
 	}
 }

@@ -32,7 +32,8 @@ var (
 )
 
 // FileNameFor builds the name an e-book file is given from its title and
-// authors: "Authors - Title.ext", or "Title.ext" when no author is known. It
+// authors: "Title - Authors.ext" (see NameLayout for the other orders), or
+// "Title.ext" when no author is known. It
 // returns "" when there is no title, because a name of authors alone says
 // nothing about the book.
 //
@@ -45,6 +46,12 @@ var (
 // and not a colon, which Windows rejects; GuessFromFileName reads it back as a
 // colon, so the name finds the same book again.
 func FileNameFor(title string, authors []string, ext string) string {
+	return FileNameWith(DefaultNameLayout, title, authors, ext)
+}
+
+// FileNameWith is FileNameFor in the given layout. The title is cut to what is
+// left of the length limit after the authors, whatever the layout.
+func FileNameWith(layout NameLayout, title string, authors []string, ext string) string {
 	t := endingGroupAsBrackets(nameText(title, true))
 	if t == "" || placeholderTitle(strings.TrimSpace(title)) || placeholderWord(t) {
 		return ""
@@ -52,12 +59,12 @@ func FileNameFor(title string, authors []string, ext string) string {
 	prefix := authorsPart(authors)
 	budget := maxStemBytes - len(prefix)
 	if prefix != "" {
-		budget -= len(" - ")
+		budget -= layout.glueBytes()
 	}
 	t = cutAtBoundary(t, budget)
 	stem := t
 	if prefix != "" {
-		stem = prefix + " - " + t
+		stem = layout.join(t, prefix)
 	}
 	name := strings.TrimRight(stem, " .") + cleanExt(ext)
 	name = strings.TrimLeft(name, ". ")
@@ -83,8 +90,8 @@ func placeholderWord(t string) bool {
 var endingGroupRe = regexp.MustCompile(`^(.*\S)\s*[(（]([^()（）]*)[)）]$`)
 
 // endingGroupAsBrackets writes a "(...)" group at the end of a title with square
-// brackets. In "Authors - Title (Series, Book 1)" the group would be read as the
-// authors, as it is in a Z-Library name.
+// brackets. In "Authors - Title (Series, Book 1)", or a name with no authors, the group
+// would be read as the authors, as it is in a Z-Library name.
 func endingGroupAsBrackets(t string) string {
 	if m := endingGroupRe.FindStringSubmatch(t); m != nil {
 		return m[1] + " [" + m[2] + "]"

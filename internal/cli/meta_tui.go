@@ -152,6 +152,11 @@ type metaPageModel struct {
 	renameCursor int
 	renameBack   metaStage
 	renamedFrom  string
+	// nameLayout is the order names are built in on the rename page: the saved
+	// default, until the user picks another there. saveLayout writes it as the
+	// default, when the user asks.
+	nameLayout metasource.NameLayout
+	saveLayout func(metasource.NameLayout) (overriddenBy string, err error)
 
 	// The fields workbench. extra holds the values the user typed or cleared,
 	// which win over the match's; manual is set when the workbench edits the
@@ -219,6 +224,8 @@ func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, o
 	for _, opt := range opts {
 		opt(&m)
 	}
+	m.nameLayout = metaNameLayout()
+	m.hint.NameLayout = m.nameLayout
 	m.extraction = metasource.Extract(filepath.Base(path), cur, scannedISBNs(path, cur), m.hint)
 	m.query = m.extraction.Query
 	m.draft = append([]metaSourceChoice(nil), m.sources...)
@@ -335,6 +342,9 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.editKey(msg)
 	}
 	k := msg.String()
+	if k == "f2" && m.stage != metaRename { // F2 renames a file in every file manager
+		k = "n"
+	}
 	if k == "?" && m.stage != metaLooking && m.stage != metaWriting {
 		return m.openHelp(), nil
 	}
@@ -484,7 +494,7 @@ func (m metaPageModel) View() tea.View {
 				[][2]string{{"enter", ""}, {"tab", ""}, {"esc", ""}})...)
 	}
 	if m.editing && m.editKind == editName {
-		return screenView(m.width, m.height, "Fix metadata", subtitle, m.editor.view(max(20, m.width)), "",
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.nameEditView(), "",
 			m.keysFor(
 				[][2]string{{"enter", "rename"}, {"esc", "cancel"}},
 				[][2]string{{"enter", ""}, {"esc", ""}})...)

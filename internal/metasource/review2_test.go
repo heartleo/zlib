@@ -54,32 +54,34 @@ func TestADashedNameAgreeingOnlyOnTheTitleDoesNotReplaceTheFilesAuthors(t *testi
 }
 
 // A name this package built is read back, and built again, as the same name even
-// when the file has no metadata to agree with it: a second --rename changes
-// nothing.
+// when the file has no metadata to agree with it, in every layout: a second
+// --rename changes nothing. A dashed name is read the way the user's layout says.
 func TestABuiltNameSurvivesAFileWithNoMetadata(t *testing.T) {
-	for _, tc := range []struct {
-		title   string
-		authors []string
-	}{
-		{"Dune", []string{"Frank Herbert"}},
-		{"Dune: Messiah", []string{"Frank Herbert"}},
-		{"Architecture as Code", []string{"Neal Ford", "Mark Richards"}},
-		{"三体", []string{"刘慈欣"}},
-		{"Dune (Dune Chronicles, Book 1)", []string{"Frank Herbert"}},
-	} {
-		name := FileNameFor(tc.title, tc.authors, ".epub")
-		x := Extract(name, &ebookmeta.Metadata{}, nil, Hint{})
-		again := FileNameFor(x.Query.Title, x.Query.Authors, ".epub")
-		if again != name {
-			t.Errorf("%q -> read as %q %q -> %q", name, x.Query.Title, x.Query.Authors, again)
-		}
-		if !reflect.DeepEqual(x.Query.Authors, tc.authors) {
-			t.Errorf("%q: authors read back as %q, want %q", name, x.Query.Authors, tc.authors)
+	for _, layout := range NameLayouts {
+		for _, tc := range []struct {
+			title   string
+			authors []string
+		}{
+			{"Dune", []string{"Frank Herbert"}},
+			{"Dune: Messiah", []string{"Frank Herbert"}},
+			{"Architecture as Code", []string{"Neal Ford", "Mark Richards"}},
+			{"三体", []string{"刘慈欣"}},
+			{"Dune (Dune Chronicles, Book 1)", []string{"Frank Herbert"}},
+		} {
+			name := FileNameWith(layout, tc.title, tc.authors, ".epub")
+			x := Extract(name, &ebookmeta.Metadata{}, nil, Hint{NameLayout: layout})
+			again := FileNameWith(layout, x.Query.Title, x.Query.Authors, ".epub")
+			if again != name {
+				t.Errorf("%s: %q -> read as %q %q -> %q", layout, name, x.Query.Title, x.Query.Authors, again)
+			}
+			if !reflect.DeepEqual(x.Query.Authors, tc.authors) {
+				t.Errorf("%s: %q: authors read back as %q, want %q", layout, name, x.Query.Authors, tc.authors)
+			}
 		}
 	}
 	// A title that ends in a group would be read as the authors, so it is
 	// written with square brackets.
-	if got := FileNameFor("Dune (Dune Chronicles, Book 1)", []string{"Frank Herbert"}, ".epub"); got != "Frank Herbert - Dune [Dune Chronicles, Book 1].epub" {
+	if got := nameAuthorTitle("Dune (Dune Chronicles, Book 1)", []string{"Frank Herbert"}, ".epub"); got != "Frank Herbert - Dune [Dune Chronicles, Book 1].epub" {
 		t.Errorf("a title ending in a group: %q", got)
 	}
 }
@@ -98,7 +100,7 @@ func TestATypedSubtitleKeepsItsTwoSpaces(t *testing.T) {
 		t.Errorf("SanitizeFileName = %q", got)
 	}
 	// What FileNameFor builds is a fixed point of SanitizeFileName.
-	name := FileNameFor("Dune: Messiah", []string{"Frank Herbert"}, ".epub")
+	name := nameAuthorTitle("Dune: Messiah", []string{"Frank Herbert"}, ".epub")
 	if got := SanitizeFileName(name, ".epub"); got != name {
 		t.Errorf("%q became %q", name, got)
 	}
@@ -121,8 +123,8 @@ func TestFileNameForEdgeCases(t *testing.T) {
 		{"a placeholder title gives no name", "Unknown", nil, ""},
 		{"a number alone gives no name", "9780441013593", nil, ""},
 	} {
-		if got := FileNameFor(tc.title, tc.authors, ".epub"); got != tc.want {
-			t.Errorf("%s: FileNameFor(%q, %q) = %q, want %q", tc.name, tc.title, tc.authors, got, tc.want)
+		if got := nameAuthorTitle(tc.title, tc.authors, ".epub"); got != tc.want {
+			t.Errorf("%s: nameAuthorTitle(%q, %q) = %q, want %q", tc.name, tc.title, tc.authors, got, tc.want)
 		}
 	}
 }

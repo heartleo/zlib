@@ -48,7 +48,7 @@ var settingsSections = []settingsSection{
 	{"SEARCH", "search", []string{searchExtensionsEnv}},
 	{"KINDLE", "kindle", kindleSettingKeys},
 	{"WEREAD", "weread", []string{wereadAccountKey, wereadProxyEnv}},
-	{"METADATA", "metadata", []string{metaSourcesEnv, metaResultsEnv, googleBooksKeyEnv}},
+	{"METADATA", "metadata", []string{metaSourcesEnv, metaResultsEnv, nameLayoutEnv, googleBooksKeyEnv}},
 }
 
 var settingLabels = map[string]string{
@@ -67,6 +67,7 @@ var settingLabels = map[string]string{
 	googleBooksKeyEnv:   "Google Books key",
 	metaSourcesEnv:      "Lookup sources",
 	metaResultsEnv:      "Lookup results",
+	nameLayoutEnv:       "File name format",
 }
 
 // settingsPageKeys lists the setting rows of a list page in display order.
@@ -941,7 +942,7 @@ func (m settingsModel) View() tea.View {
 		return m.settingsListView(w, h, titles[m.page])
 	} else if m.page == "edit" {
 		v := m.value(m.key)
-		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", metaSourcesEnv: "Lookup sources", metaResultsEnv: "Lookup results"}
+		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", metaSourcesEnv: "Lookup sources", metaResultsEnv: "Lookup results", nameLayoutEnv: "File name format"}
 		if v.Override != "" {
 			subtitle = "Using " + v.Override
 		}
@@ -961,6 +962,14 @@ func (m settingsModel) View() tea.View {
 				"and Google Books too when a Google Books key is set.",
 				"douban sends the title to Douban; weread sends it to Tencent",
 				"Saved to the global .env; "+metaSourcesEnv+" overrides it.", "")
+		}
+		if m.key == nameLayoutEnv {
+			lines = append(lines, "title-author   Title - Author   (the default)",
+				"author-title   Author - Title",
+				"title-paren   Title (Author)   (as Z-Library names files)",
+				"Empty: title-author",
+				"Applies to --rename and the rename page, which can also save its choice.",
+				"Saved to the global .env; "+nameLayoutEnv+" overrides it.", "")
 		}
 		if m.key == metaResultsEnv {
 			lines = append(lines, "A whole number from 1 to 50",

@@ -34,8 +34,8 @@ The format is detected from the file contents:
 
 Fields a format cannot store are reported on stderr and skipped.
 
---rename names the file Authors - Title.ext from the title and authors a lookup
-would search for (the file name first, then the file; the file's own when the
+--rename names the file Title - Authors.ext (the order is set by zlib config
+metadata filename) from the title and authors a lookup would search for (the file name first, then the file; the file's own when the
 same command sets -t, -a or an OPF), after any change above. --rename-to NAME
 gives it the name you type. The file stays in its directory and no other file
 is ever replaced.
@@ -111,7 +111,7 @@ func addMetaFlags(cmd *cobra.Command) {
 	f.String("from-opf", "", "Apply the metadata in this OPF file")
 	f.Bool("fetch", false, "Look the book up in online catalogues; on a terminal pick a match and apply it, otherwise list matches (-t, -a and --isbn set what to search for and list matches)")
 	f.StringSlice("source", nil, "With --fetch, the catalogues to ask: openlibrary, google, douban, weread (comma-separated or repeated); overrides "+metaSourcesEnv)
-	f.Bool("rename", false, "Rename the file to \"Authors - Title.ext\" from the title and authors a lookup would search for, after any change above")
+	f.Bool("rename", false, "Rename the file to \"Title - Authors.ext\" (or the format in ZLIB_FILENAME_FORMAT) from the title and authors a lookup would search for, after any change above")
 	f.String("rename-to", "", "Rename the file to this name; the extension is kept and characters a file system rejects are replaced")
 	f.Bool("json", false, "Print the metadata as JSON")
 }

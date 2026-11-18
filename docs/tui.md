@@ -348,12 +348,21 @@ nothing while a search or a write runs:
   is saved only by Ctrl+D; the page says that WeRead sends each title to Tencent
   under your account. WeRead cannot search by ISBN, so when it is on and the
   search has no title the page says so.
-- **Rename** (`n` on the prepare, results, no-match and fields pages) shows the
-  file's name and the names on offer, each `Authors - Title.ext`: from the
-  search terms (the default: read from the file name and the file, or as you
-  edited them), from the file's own embedded title, which often carries a
-  marketing line, and from the selected match (on the results and fields
-  pages). A name that is already the file's is marked and refused. `Type a
+- **Rename** (`n` or `F2` on the prepare, results, no-match and fields pages)
+  shows the file's name now, the name it would get, whether that can be done
+  (`✓ ready`, `● this is the file's name now`, or `✗` with the reason, such as
+  a file with that name already existing), the format switch and where the name
+  comes from. The prepare and fields pages carry a `File` line with the same
+  before and after, so a name that does not say the book is visible before `n`
+  is pressed. `←`/`→` (or `h`/`l`, or `1` `2` `3`) switch the format between
+  `Title - Author`, `Author - Title` and `Title (Author)`; every row is
+  recomputed, and Ctrl+D saves the format as the default
+  (`ZLIB_FILENAME_FORMAT`). The names come from the search terms (the default:
+  read from the file name and the file, or as you edited them), from the file's
+  own embedded title, which often carries a marketing line, and from the
+  selected match (on the results and fields pages). The page starts on the
+  first name that would change something. A name that is already the file's, or
+  taken by another file, is marked and refused. `Type a
   name…`, or `e` on any row, opens an editor on the name without its extension;
   characters a file system rejects are replaced. Enter renames at once, never
   over another file, and goes back to the page `n` was pressed on, with the

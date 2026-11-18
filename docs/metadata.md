@@ -68,6 +68,7 @@ zlib meta book.epub --rename-to "Frank Herbert - Dune"
 
 `--rename` names the file from the title and authors a lookup would search for:
 the file name first, then the file, as [described below](#what-the-search-is-built-from).
+The order of the name is the file name format ([below](#file-name-format)).
 When the same command sets the title, the authors or an OPF file, the file's own
 metadata is what you just chose and is used instead. `--rename-to` takes the name as you
 type it; the extension is kept. Both stay in the file's directory, keep the
@@ -75,7 +76,8 @@ extension, never replace another file (a clash is an error and nothing moves)
 and print the new path with `--json` (`file`, and `renamed_from`). `--fetch`
 only reads, so it cannot be combined with either.
 
-A name is `Authors - Title.ext`, or `Title.ext` when no author is known:
+A name is `Title - Authors.ext` by default, or `Title.ext` when no author is
+known:
 
 - Up to three authors, separated by commas. `Last, First` is written
   `First Last`, since a comma would split it into two people.
@@ -94,12 +96,33 @@ A name is `Authors - Title.ext`, or `Title.ext` when no author is known:
 - The extension is kept, in lower case, when it is an e-book's. A file with no
   extension, or a dot that is part of its name, keeps its name without one.
 
-A name is read back as `Authors - Title` (see
+A name is read back in the same order (see
 [what the search is built from](#what-the-search-is-built-from)), so a second
 `--rename` of a renamed file changes nothing. The checks that can be made before
 anything is written are: using both options, an empty name, a name that is
 taken, a file with no title to name it by. They run before the other options of
 the same command write the file, so a refused rename leaves it untouched.
+
+### File name format
+
+The order of the title and the authors in a name is one of three formats:
+
+| Format | Name | Good for |
+| --- | --- | --- |
+| `title-author` (default) | `Dune - Frank Herbert.epub` | a folder that sorts by title |
+| `author-title` | `Frank Herbert - Dune.epub` | a folder that sorts by author |
+| `title-paren` | `Dune (Frank Herbert).epub` | names as Z-Library gives them |
+
+Set it with `zlib config metadata filename` (or `ZLIB_FILENAME_FORMAT`; empty
+restores `title-author`). It applies to `--rename`, to the `suggested_file_name`
+of `--fetch --json` and to the rename page, which can also switch format for one
+rename and save the choice as the default.
+
+A dashed name has no marker that says which side is the title, so it is read
+as the file says: the side that holds the file's (or the download's) authors is
+the authors, and the side that holds its title is the title. When the file gives
+nothing to compare, the configured format decides; `title-paren` has no such
+doubt, because the authors are in brackets.
 
 A plain `--fetch` prints what the file already holds, under `In the file`,
 before the matches, and before any catalogue is asked; `--fetch --json` carries
@@ -189,8 +212,8 @@ metadata, the same way in the terminal page and in `--fetch`:
   name's authors when they do not.
 - **Edition hints.** The file's publisher and year rank editions of one title a
   little; they never exclude one.
-- **A dashed name.** `Authors - Title`, the name [`--rename`](#rename-a-file)
-  writes, is read that way when the file's or the download's authors are the
+- **A dashed name.** `Title - Authors` or `Authors - Title`, the names
+  [`--rename`](#rename-a-file) writes, is read that way when the file's or the download's authors are the
   words before the dash, or when the file has no title or authors of its own to
   contradict it. When only the title agrees, the file's authors stand. A
   Z-Library name that ends in a `(...)` group keeps that group as its authors,

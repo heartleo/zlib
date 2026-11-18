@@ -50,7 +50,7 @@ func (m *shellModel) openMeta(arg string) tea.Cmd {
 func (m *shellModel) openMetaFile(path string) tea.Cmd {
 	names := metaSourcesForFile(path, metaHint{})
 	page, err := newMetaPageModel(path, newMetaLookupFor(names), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()),
-		withMetaSources(metaSourceChoices(names), newMetaLookupFor), withMetaSourceSaver(saveMetaSources))
+		withMetaSources(metaSourceChoices(names), newMetaLookupFor), withMetaSourceSaver(saveMetaSources), withMetaLayoutSaver(saveNameLayout))
 	if err != nil {
 		m.setError(safeText(err.Error()))
 		return nil
@@ -66,7 +66,7 @@ func (m *shellModel) openMetaForDownload(dl downloadModel) tea.Cmd {
 	hint := metaHint{Title: dl.book.Name, Authors: dl.book.Authors, ISBNs: []string{dl.book.ISBN13, dl.book.ISBN10, dl.book.ISBN}}
 	names := metaSourcesForFile(dl.savedPath, hint)
 	page, err := newMetaPageModel(dl.savedPath, newMetaLookupFor(names), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()), withMetaHint(hint),
-		withMetaSources(metaSourceChoices(names), newMetaLookupFor), withMetaSourceSaver(saveMetaSources))
+		withMetaSources(metaSourceChoices(names), newMetaLookupFor), withMetaSourceSaver(saveMetaSources), withMetaLayoutSaver(saveNameLayout))
 	if err != nil {
 		return m.returnToDownloadCompletion(noticeError, safeText(err.Error()))
 	}

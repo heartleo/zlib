@@ -13,6 +13,9 @@ type Hint struct {
 	Title   string
 	Authors []string
 	ISBNs   []string // any form; an invalid one is ignored
+	// NameLayout is how the user names their files. A dashed name that the file
+	// does not explain is read that way round; empty reads it "Author - Title".
+	NameLayout NameLayout
 }
 
 // Embedded is the useful part of what a file carries: its own title, authors
@@ -66,8 +69,8 @@ func Extract(fileName string, m *ebookmeta.Metadata, scanned []string, hint Hint
 	x.Embedded = embeddedOf(m)
 	x.ZlibID = strings.TrimSpace(m.Identifier(SchemeZlibID))
 	fg, emb := x.FileName, x.Embedded
-	if authors, ok := dashReading(fg, emb, hint); ok {
-		fg.Title, fg.Authors, fg.Structured = fg.DashTitle, authors, true
+	if title, authors, ok := dashReading(fg, emb, hint); ok {
+		fg.Title, fg.Authors, fg.Structured = title, authors, true
 		x.FileName = fg
 	}
 	fileTitle := ""
@@ -154,31 +157,66 @@ func Extract(fileName string, m *ebookmeta.Metadata, scanned []string, hint Hint
 //     back as it was built, whatever the file holds).
 //   - When only the title agrees, those words are not known to be authors, and
 //     the authors the file has stand.
-func dashReading(fg FileGuess, emb Embedded, hint Hint) (authors []string, ok bool) {
-	if fg.DashTitle == "" || len(fg.DashAuthors) == 0 {
-		return nil, false
-	}
-	hintAuthors := cleanList(hint.Authors)
-	authorsAgree := sharePerson(fg.DashAuthors, emb.Authors) || sharePerson(fg.DashAuthors, hintAuthors)
-	if fg.Structured { // the name ends in a group
-		return fg.DashAuthors, authorsAgree && !sharePerson(fg.Authors, fg.DashAuthors)
-	}
-	if authorsAgree {
-		return fg.DashAuthors, true
-	}
-	hintTitle := clean(hint.Title)
-	for _, t := range []string{emb.Title, hintTitle} {
-		if t != "" && (sameFolded(fg.DashTitle, t) || titleSimilarity(fg.DashTitle, t) >= hintTitleSimilarity) {
-			if len(emb.Authors) > 0 || len(hintAuthors) > 0 {
-				return nil, true // the title agrees; the authors come from elsewhere
-			}
-			return fg.DashAuthors, true
+//
+// A name can as well say "Title - Author", the layout a name is built with by
+// default, so the same rules are tried the other way round (never for a name
+// that ends in a group). When the file says nothing that decides between the
+// two, Hint.NameLayout, the layout the user names their files with, does.
+func dashReading(fg FileGuess, emb Embedded, hint Hint) (title string, authors []string, ok bool) {
+	hintAuthors, hintTitle := cleanList(hint.Authors), clean(hint.Title)
+	known := emb.Title != "" || hintTitle != "" || len(emb.Authors) > 0 || len(hintAuthors) > 0
+
+	// dashRead applies the rules to one reading: words is the part that would be
+	// the authors, name the part that would be the title.
+	dashRead := func(words []string, name string) (authors []string, ok, corroborated bool) {
+		if name == "" || len(words) == 0 {
+			return nil, false, false
 		}
+		for _, t := range []string{emb.Title, hintTitle} {
+			if t != "" && sameFolded(fg.Stem, t) {
+				return nil, false, false // the whole name is the title, dash and all
+			}
+		}
+		if sharePerson(words, emb.Authors) || sharePerson(words, hintAuthors) {
+			return words, true, true
+		}
+		for _, t := range []string{emb.Title, hintTitle} {
+			if t != "" && (sameFolded(name, t) || titleSimilarity(name, t) >= hintTitleSimilarity) {
+				if len(emb.Authors) > 0 || len(hintAuthors) > 0 {
+					return nil, true, true // the title agrees; the authors come from elsewhere
+				}
+				return words, true, true
+			}
+		}
+		return words, !known, false
 	}
-	if emb.Title == "" && hintTitle == "" && len(emb.Authors) == 0 && len(hintAuthors) == 0 {
-		return fg.DashAuthors, true
+
+	if fg.Structured { // the name ends in a group
+		if fg.DashTitle == "" || len(fg.DashAuthors) == 0 {
+			return "", nil, false
+		}
+		agree := sharePerson(fg.DashAuthors, emb.Authors) || sharePerson(fg.DashAuthors, hintAuthors)
+		return fg.DashTitle, fg.DashAuthors, agree && !sharePerson(fg.Authors, fg.DashAuthors)
 	}
-	return nil, false
+	fa, fok, fcorr := dashRead(fg.DashAuthors, fg.DashTitle)
+	ra, rok, rcorr := dashRead(fg.RevAuthors, fg.RevTitle)
+	switch {
+	case fok && rok:
+		// Both readings stand. What the file corroborates wins; else the user's layout.
+		if fcorr != rcorr {
+			rok = rcorr
+		} else {
+			rok = hint.NameLayout == LayoutTitleAuthor
+		}
+		fok = !rok
+	}
+	switch {
+	case rok:
+		return fg.RevTitle, ra, true
+	case fok:
+		return fg.DashTitle, fa, true
+	}
+	return "", nil, false
 }
 
 // UseOtherTitle returns x with the query using AltTitle, the title it did not

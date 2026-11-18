@@ -235,25 +235,30 @@ func (m metaPageModel) metaHelpRows() [][2]string {
 		rows = [][2]string{{"↑/↓", "move between sources"}, {"space", "turn the highlighted source on or off"},
 			{"e", "edit the title, authors and ISBN to search for"}, {"t", "use the other title"},
 			{"ctrl+d", "save the sources that are on as the default"}, {"i", "show everything in the file"}, {"m", "edit the file's metadata without a search"},
-			{"n", "rename the file"}, {"enter", "search"}}
+			{"n / f2", "rename the file"}, {"enter", "search"}}
 	case metaCandidates:
 		rows = [][2]string{{"↑/↓", "choose a match"}, {"pgup/pgdown", "move a page"}, {"enter", "review its fields"},
-			{"e", "edit the search"}, {"s", "change the sources"}, {"n", "rename the file"}}
+			{"e", "edit the search"}, {"s", "change the sources"}, {"n / f2", "rename the file"}}
 	case metaFailed:
-		rows = [][2]string{{"e", "edit the search"}, {"s", "change the sources"}, {"r", "search again"}, {"n", "rename the file"}}
+		rows = [][2]string{{"e", "edit the search"}, {"s", "change the sources"}, {"r", "search again"}, {"n / f2", "rename the file"}}
 	case metaFields:
 		rows = [][2]string{{"↑/↓", "move between fields"}, {"→ / l", "use the match's value for this field"},
 			{"space", "switch between the match's value and the file's"}, {"← / h", "keep the file's value (undo this field)"},
 			{"e / enter", "type a value; the description opens a text area"}, {"x", "clear this field"},
 			{"a", "use the match for every field it proposes, or for none"}, {"u", "undo every change"},
-			{"ctrl+s", "write the changed fields"}, {"n", "rename the file"}}
+			{"ctrl+s", "write the changed fields"}, {"n / f2", "rename the file"}}
 		if m.manual {
 			rows = [][2]string{{"↑/↓", "move between fields"}, {"e / enter", "type a value; the description opens a text area"},
 				{"x", "clear this field"}, {"← / h", "undo this field"}, {"u", "undo every change"},
-				{"ctrl+s", "write the changed fields"}, {"n", "rename the file"}}
+				{"ctrl+s", "write the changed fields"}, {"n / f2", "rename the file"}}
 		}
 	case metaRename:
-		rows = [][2]string{{"↑/↓", "choose a name"}, {"enter", "rename to it"}, {"e", "edit the name first"}}
+		rows = [][2]string{{"↑/↓", "choose where the name comes from"}, {"← / →", "change the format: Title - Author, Author - Title, Title (Author)"},
+			{"1 2 3", "pick a format directly"}, {"enter", "rename to the new name"}, {"e", "edit the name first"},
+			{"ctrl+d", "save the format as the default"}}
+		if m.saveLayout == nil {
+			skip["ctrl+d"] = true
+		}
 	case metaInfo:
 		rows = [][2]string{{"↑/↓", "scroll"}, {"pgup/pgdown", "scroll a page"}}
 	}

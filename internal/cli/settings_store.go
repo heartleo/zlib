@@ -20,7 +20,7 @@ import (
 // settingKeys lists the settings backed by .env files and the environment, in
 // the order store.values returns them. New keys go at the end: a few pages
 // still index values by position.
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv, metaResultsEnv}
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv, metaResultsEnv, nameLayoutEnv}
 
 // metaSourcesByLanguage is what the sources row shows when no list is set: the
 // sources follow the book's language.
@@ -158,6 +158,8 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Value, v.Source = metaSourcesByLanguage, "Default"
 			case metaResultsEnv:
 				v.Value, v.Source = strconv.Itoa(metasource.DefaultMaxResults), "Default"
+			case nameLayoutEnv:
+				v.Value, v.Source = string(metasource.DefaultNameLayout), "Default"
 			}
 		}
 		values = append(values, v)
@@ -221,6 +223,12 @@ func validateSetting(key, value string) (string, error) {
 		}
 	case metaSourcesEnv:
 		return metasource.NormalizeSourceList(value)
+	case nameLayoutEnv:
+		l, err := metasource.ParseNameLayout(value)
+		if err != nil {
+			return "", err
+		}
+		return string(l), nil
 	case metaResultsEnv:
 		n, err := metasource.ParseMaxResults(value)
 		if err != nil {

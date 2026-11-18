@@ -27,8 +27,8 @@ func TestRenameBookMovesOnlyWithinTheDirectoryAndNeverReplaces(t *testing.T) {
 	src := writeNamed(t, dir, "a.epub", "one")
 	other := writeNamed(t, dir, "taken.epub", "two")
 
-	got, err := renameBook(src, "Frank Herbert - Dune.epub")
-	if err != nil || got != filepath.Join(dir, "Frank Herbert - Dune.epub") {
+	got, err := renameBook(src, "Dune - Frank Herbert.epub")
+	if err != nil || got != filepath.Join(dir, "Dune - Frank Herbert.epub") {
 		t.Fatalf("renamed to %q, %v", got, err)
 	}
 	if _, err := os.Stat(src); !os.IsNotExist(err) {
@@ -133,23 +133,23 @@ func TestMetaPageRenamesFromTheFilesTitleBeforeAnySearch(t *testing.T) {
 		t.Fatalf("n did not open the rename page: stage %v", m.stage)
 	}
 	screen := metaScreen(m)
-	for _, want := range []string{"Rename the file", "Whatever (Nobody).epub", "From the search terms", "Nobody - Whatever.epub", "From the file's own title", "Frank Herbert - Dune.epub", "Type a name"} {
+	for _, want := range []string{"Rename the file", "Whatever (Nobody).epub", "Search terms", "Whatever - Nobody.epub", "The file's own title", "Dune - Frank Herbert.epub", "Type a name"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the rename page lacks %q:\n%s", want, screen)
 		}
 	}
-	if strings.Contains(screen, "From the selected match") {
+	if strings.Contains(screen, "Selected match") {
 		t.Errorf("a match is offered before any search:\n%s", screen)
 	}
 	// The search terms, which start from the file name, come first and are
 	// the default: an embedded title often carries a marketing line.
-	if m.renameOpts[m.renameCursor].label != "From the search terms" {
+	if m.renameOpts[m.renameCursor].label != "Search terms" {
 		t.Errorf("the page starts on %q", m.renameOpts[m.renameCursor].label)
 	}
-	m = chooseRename(t, m, "From the file's own title")
+	m = chooseRename(t, m, "The file's own title")
 	m, _ = metaStep(t, m, key("enter"))
-	want := filepath.Join(filepath.Dir(p), "Frank Herbert - Dune.epub")
-	if m.path != want || m.stage != metaPrepare || !strings.Contains(m.message, "Renamed to Frank Herbert - Dune.epub") {
+	want := filepath.Join(filepath.Dir(p), "Dune - Frank Herbert.epub")
+	if m.path != want || m.stage != metaPrepare || !strings.Contains(m.message, "Renamed to Dune - Frank Herbert.epub") {
 		t.Fatalf("path %q stage %v message %q", m.path, m.stage, m.message)
 	}
 	if _, err := os.Stat(want); err != nil {
@@ -158,10 +158,10 @@ func TestMetaPageRenamesFromTheFilesTitleBeforeAnySearch(t *testing.T) {
 	if _, err := os.Stat(p); !os.IsNotExist(err) {
 		t.Errorf("the old file is still there: %v", err)
 	}
-	if !strings.Contains(metaScreen(m), "Frank Herbert - Dune.epub") {
+	if !strings.Contains(metaScreen(m), "Dune - Frank Herbert.epub") {
 		t.Errorf("the page still shows the old name:\n%s", metaScreen(m))
 	}
-	if got := m.summary(); got != "Renamed to Frank Herbert - Dune.epub" {
+	if got := m.summary(); got != "Renamed to Dune - Frank Herbert.epub" {
 		t.Errorf("summary = %q", got)
 	}
 }
@@ -172,13 +172,13 @@ func TestMetaPageOffersTheSelectedMatchAndWritesToTheNewPath(t *testing.T) {
 	m, _ = metaStep(t, m, key("n"))
 	screen := metaScreen(m)
 	cand := m.res.Candidates[m.cursor]
-	wantName := metasource.FileNameFor(cand.Title, cand.Authors, ".epub")
-	if wantName == "" || !strings.Contains(screen, "From the selected match") {
+	wantName := metasource.FileNameWith(m.nameLayout, cand.Title, cand.Authors, ".epub")
+	if wantName == "" || !strings.Contains(screen, "Selected match") {
 		t.Fatalf("no match option (%q):\n%s", wantName, screen)
 	}
 	// Move to the match row and rename.
 	for i, o := range m.renameOpts {
-		if o.label == "From the selected match" {
+		if o.label == "Selected match" {
 			for m.renameCursor != i {
 				m, _ = metaStep(t, m, metaKey("down"))
 			}
@@ -201,8 +201,13 @@ func TestMetaPageOffersTheSelectedMatchAndWritesToTheNewPath(t *testing.T) {
 
 func TestMetaPageRenameRefusesAClashAndKeepsTheFile(t *testing.T) {
 	m, _, p := renameFixture(t)
-	taken := writeNamed(t, filepath.Dir(p), "Nobody - Whatever.epub", "other")
+	taken := writeNamed(t, filepath.Dir(p), "Whatever - Nobody.epub", "other")
 	m, _ = metaStep(t, m, key("n"))
+	// The name that is taken says so on its row, and the page starts past it.
+	if !strings.Contains(metaScreen(m), "already exists") || m.renameOpts[m.renameCursor].label == "Search terms" {
+		t.Errorf("the clash is not shown, or the page starts on it:\n%s", metaScreen(m))
+	}
+	m = chooseRename(t, m, "Search terms")
 	m, _ = metaStep(t, m, key("enter"))
 	if m.stage != metaRename || m.path != p || !strings.Contains(m.message, "already exists") {
 		t.Fatalf("stage %v path %q message %q", m.stage, m.path, m.message)
@@ -220,7 +225,7 @@ func TestMetaPageRenameRefusesAClashAndKeepsTheFile(t *testing.T) {
 
 func TestMetaPageRenameMarksTheCurrentNameAndEscGoesBack(t *testing.T) {
 	m, _, p := renameFixture(t)
-	good := filepath.Join(filepath.Dir(p), "Frank Herbert - Dune.epub")
+	good := filepath.Join(filepath.Dir(p), "Dune - Frank Herbert.epub")
 	if err := os.Rename(p, good); err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +236,7 @@ func TestMetaPageRenameMarksTheCurrentNameAndEscGoesBack(t *testing.T) {
 	}
 	// The page starts on the first name that would change something; go back to
 	// the marked one.
-	for m.renameOpts[m.renameCursor].note == "" {
+	for m.renameChoiceFor(m.renameOpts[m.renameCursor]).note == "" {
 		m, _ = metaStep(t, m, metaKey("up"))
 	}
 	m, _ = metaStep(t, m, key("enter"))
@@ -251,11 +256,11 @@ func TestMetaPageRenamesToATypedName(t *testing.T) {
 	if !m.editing || m.editKind != editName {
 		t.Fatalf("e did not open the name editor: editing=%v kind=%v", m.editing, m.editKind)
 	}
-	if got := m.editor.values()[0]; got != "Nobody - Whatever" {
+	if got := m.editor.values()[0]; got != "Whatever - Nobody" {
 		t.Errorf("the editor holds %q, want the proposal without its extension", got)
 	}
 	// An unusable name is refused in place.
-	for range len("Nobody - Whatever") {
+	for range len("Whatever - Nobody") {
 		m, _ = metaStep(t, m, key("backspace"))
 	}
 	m, _ = metaStep(t, m, key("enter"))
@@ -278,7 +283,7 @@ func TestMetaPageTypedNameIsRefusedWhenTaken(t *testing.T) {
 	writeNamed(t, filepath.Dir(p), "Taken.epub", "other")
 	m, _ = metaStep(t, m, key("n"))
 	m, _ = metaStep(t, m, key("e"))
-	for range len("Nobody - Whatever") {
+	for range len("Whatever - Nobody") {
 		m, _ = metaStep(t, m, key("backspace"))
 	}
 	m = typeIntoEditor(t, m, "Taken")
@@ -305,7 +310,7 @@ func TestShellMetaDoneGivesTheDownloadPageTheNewPath(t *testing.T) {
 	if !ok || page.savedPath != m.path || page.savedPath == p {
 		t.Fatalf("page = %T %+v, want the renamed path %q", shell.page, shell.page, m.path)
 	}
-	if !strings.Contains(page.completeMessage, "Renamed to Nobody - Whatever.epub") {
+	if !strings.Contains(page.completeMessage, "Renamed to Whatever - Nobody.epub") {
 		t.Errorf("message = %q", page.completeMessage)
 	}
 }
@@ -331,7 +336,7 @@ func TestMetaPageRenameFitsCompactTerminals(t *testing.T) {
 		}
 		// The highlighted name can be read in full, wrapped if need be.
 		squashed := strings.Join(strings.Fields(ansi.Strip(view)), "")
-		if size[1] >= 12 && !strings.Contains(squashed, "Nobody-Whatever.epub") {
+		if size[1] >= 12 && !strings.Contains(squashed, "Whatever-Nobody.epub") {
 			t.Errorf("%dx%d: the highlighted name is not on screen:\n%s", size[0], size[1], ansi.Strip(view))
 		}
 	}
@@ -341,7 +346,7 @@ func TestMetaPageRenameFitsCompactTerminals(t *testing.T) {
 // after a long name.
 func TestMetaPageRenameKeepsTheCurrentNameNoteOnNarrowTerminals(t *testing.T) {
 	m, _, p := renameFixture(t)
-	good := filepath.Join(filepath.Dir(p), "Frank Herbert - Dune.epub")
+	good := filepath.Join(filepath.Dir(p), "Dune - Frank Herbert.epub")
 	if err := os.Rename(p, good); err != nil {
 		t.Fatal(err)
 	}
@@ -361,7 +366,7 @@ func TestMetaCommandRenameNamesTheFileFromItsTitleAndAuthors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(filepath.Dir(p), "Frank Herbert - Dune  Messiah.epub")
+	want := filepath.Join(filepath.Dir(p), "Dune  Messiah - Frank Herbert.epub")
 	var doc struct {
 		File        string `json:"file"`
 		RenamedFrom string `json:"renamed_from"`
@@ -373,7 +378,7 @@ func TestMetaCommandRenameNamesTheFileFromItsTitleAndAuthors(t *testing.T) {
 	if doc.File != want || doc.RenamedFrom != p || doc.Title != "Dune: Messiah" {
 		t.Errorf("doc = %+v, want file %q", doc, want)
 	}
-	if !strings.Contains(errOut, "Renamed to Frank Herbert - Dune  Messiah.epub") {
+	if !strings.Contains(errOut, "Renamed to Dune  Messiah - Frank Herbert.epub") {
 		t.Errorf("stderr = %q", errOut)
 	}
 	if _, err := os.Stat(want); err != nil {
@@ -426,7 +431,7 @@ func TestMetaCommandRenameIgnoresAMarketingLineInTheEmbeddedTitle(t *testing.T) 
 	if _, _, err := runMetaWithStderr(t, p, "--rename"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(filepath.Dir(p), "Frank Herbert - Dune.epub")); err != nil {
+	if _, err := os.Stat(filepath.Join(filepath.Dir(p), "Dune - Frank Herbert.epub")); err != nil {
 		entries, _ := os.ReadDir(filepath.Dir(p))
 		t.Errorf("the name was not built from the clean title: %v", entries)
 	}
@@ -478,7 +483,7 @@ func TestMetaFetchJSONSuggestsAFileNamePerCandidate(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil || len(doc.Candidates) != 1 {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if got := doc.Candidates[0].SuggestedFileName; got != "Frank Herbert - Before.epub" {
+	if got := doc.Candidates[0].SuggestedFileName; got != "Before - Frank Herbert.epub" {
 		t.Errorf("suggested name = %q", got)
 	}
 	if _, err := os.Stat(p); err != nil {
@@ -531,5 +536,96 @@ func TestMetaCommandRenamesAFileWithNoExtension(t *testing.T) {
 	}
 	if bookExt("J.R.R. Tolkien - The Hobbit") != "" || bookExt("A.EPUB") != ".epub" {
 		t.Errorf("bookExt = %q, %q", bookExt("J.R.R. Tolkien - The Hobbit"), bookExt("A.EPUB"))
+	}
+}
+
+// The format switch recomputes every name, F2 opens the page like n, and the
+// chosen format is what the rename uses.
+func TestMetaPageRenameSwitchesTheFormat(t *testing.T) {
+	m, _, p := renameFixture(t)
+	m, _ = metaStep(t, m, key("f2"))
+	if m.stage != metaRename {
+		t.Fatalf("F2 did not open the rename page: stage %v", m.stage)
+	}
+	m = chooseRename(t, m, "The file's own title")
+	for _, tc := range []struct{ press, want string }{
+		{"right", "Frank Herbert - Dune.epub"},
+		{"3", "Dune (Frank Herbert).epub"},
+		{"left", "Frank Herbert - Dune.epub"},
+		{"1", "Dune - Frank Herbert.epub"},
+	} {
+		m, _ = metaStep(t, m, key(tc.press))
+		if screen := metaScreen(m); !strings.Contains(screen, "New  "+tc.want) || !strings.Contains(screen, "ready") {
+			t.Fatalf("after %s the new name is not %q:\n%s", tc.press, tc.want, screen)
+		}
+	}
+	m, _ = metaStep(t, m, key("3"))
+	m, _ = metaStep(t, m, key("enter"))
+	if want := filepath.Join(filepath.Dir(p), "Dune (Frank Herbert).epub"); m.path != want {
+		t.Errorf("path %q, want %q", m.path, want)
+	}
+}
+
+// Ctrl+D saves the format as the default through the page's saver, and says
+// when it cannot.
+func TestMetaPageRenameSavesTheFormat(t *testing.T) {
+	m, _, p := renameFixture(t)
+	m, _ = metaStep(t, m, key("n"))
+	m, _ = metaStep(t, m, key("ctrl+d"))
+	if !strings.Contains(m.message, "cannot be saved") {
+		t.Errorf("no saver: %q", m.message)
+	}
+	var saved metasource.NameLayout
+	m, err := newMetaPageModel(p, recordingLookup(twoCandidates(), new([]metasource.Query)), nil,
+		withMetaLayoutSaver(func(l metasource.NameLayout) (string, error) { saved = l; return "", nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, _ = metaStep(t, m, key("n"))
+	m, _ = metaStep(t, m, key("2"))
+	m, _ = metaStep(t, m, key("ctrl+d"))
+	if saved != metasource.LayoutAuthorTitle || !strings.Contains(m.message, "Author - Title") {
+		t.Errorf("saved %q, message %q", saved, m.message)
+	}
+}
+
+// The saved format reaches the settings file and this process, and a real
+// environment variable keeps its precedence.
+func TestSaveNameLayoutWritesTheSetting(t *testing.T) {
+	isolateConfigHome(t)
+	t.Setenv(nameLayoutEnv, "")
+	store := testSettingsStore(t)
+	if overridden, err := saveNameLayoutTo(store, metasource.LayoutTitleParen); err != nil || overridden != "" {
+		t.Fatalf("overridden %q, err %v", overridden, err)
+	}
+	if saved, _ := readSettingsEnv(store.global); saved[nameLayoutEnv] != "title-paren" || metaNameLayout() != metasource.LayoutTitleParen {
+		t.Errorf("saved %v, layout %q", saved, metaNameLayout())
+	}
+	store.env = map[string]string{nameLayoutEnv: "author-title"}
+	if overridden, err := saveNameLayoutTo(store, metasource.LayoutTitleAuthor); err != nil || overridden == "" {
+		t.Errorf("an environment value is not reported as overriding: %q, %v", overridden, err)
+	}
+	// A hand-edited bad value falls back to the default.
+	t.Setenv(nameLayoutEnv, "sideways")
+	if metaNameLayout() != metasource.DefaultNameLayout {
+		t.Errorf("a bad value gave %q", metaNameLayout())
+	}
+}
+
+// The prepare and fields pages say what the file is called and what its title
+// and authors would call it, and that n renames.
+func TestMetaPagesShowTheFileNameAndTheNameItWouldGet(t *testing.T) {
+	m, _, _ := renameFixture(t)
+	m = sized(t, m, 100, 30)
+	if screen := metaScreen(m); !strings.Contains(screen, "File  Whatever (Nobody).epub → Whatever - Nobody.epub  n renames") {
+		t.Errorf("the prepare page lacks the file line:\n%s", screen)
+	}
+	m, _ = metaStep(t, m, key("m")) // edit the file's own metadata
+	if screen := metaScreen(m); !strings.Contains(screen, "File  Whatever (Nobody).epub → Dune - Frank Herbert.epub") {
+		t.Errorf("the fields page names the file from the title and authors it holds:\n%s", screen)
+	}
+	// A short terminal gives the line up rather than a source.
+	if screen := metaScreen(sized(t, m, 60, 12)); strings.Contains(screen, "File  ") {
+		t.Errorf("the file line is on a short terminal:\n%s", screen)
 	}
 }

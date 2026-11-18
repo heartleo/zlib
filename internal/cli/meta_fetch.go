@@ -225,7 +225,7 @@ func metaFetchQuery(cmd *cobra.Command, path string, m *ebookmeta.Metadata) (met
 	if err := metaFetchCheckFlags(cmd); err != nil {
 		return metasource.Extraction{}, err
 	}
-	x := metasource.Extract(filepath.Base(path), m, scannedISBNs(path, m), metasource.Hint{})
+	x := metasource.Extract(filepath.Base(path), m, scannedISBNs(path, m), metasource.Hint{NameLayout: metaNameLayout()})
 	q := &x.Query
 	if flags.Changed("title") {
 		q.Title, _ = flags.GetString("title")
@@ -289,8 +289,8 @@ func printCurrentMetadata(out io.Writer, path string, format ebookmeta.Format, m
 }
 
 // metaCandidateJSON is a candidate with the file name it would give the book:
-// "Authors - Title.ext" from the candidate's own title and authors, with the
-// extension of the file that was looked up. Nothing is renamed by --fetch.
+// "Title - Authors.ext" (in the configured format) from the candidate's own
+// title and authors, with the extension of the file that was looked up. Nothing is renamed by --fetch.
 type metaCandidateJSON struct {
 	metasource.Candidate
 	SuggestedFileName string `json:"suggested_file_name,omitempty"`
@@ -363,7 +363,7 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 			FileName: x.FileName, Embedded: x.Embedded, TitleFrom: x.TitleFrom, AuthorsFrom: x.AuthorsFrom, AltTitle: x.AltTitle, ISBNFrom: x.ISBNFrom, ZlibID: x.ZlibID,
 		}}
 		for _, c := range res.Candidates {
-			doc.Candidates = append(doc.Candidates, metaCandidateJSON{Candidate: c, SuggestedFileName: metasource.FileNameFor(c.Title, c.Authors, bookExt(path))})
+			doc.Candidates = append(doc.Candidates, metaCandidateJSON{Candidate: c, SuggestedFileName: metasource.FileNameWith(metaNameLayout(), c.Title, c.Authors, bookExt(path))})
 		}
 		for _, e := range res.Errors {
 			doc.Errors = append(doc.Errors, metaFetchErrorJSON{Source: e.Source, Error: e.Err.Error()})

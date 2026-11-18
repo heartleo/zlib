@@ -11,6 +11,7 @@ import (
 
 	keys "charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/metasource"
@@ -19,6 +20,20 @@ import (
 
 // errRenameTaken means another file already has the wanted name.
 var errRenameTaken = errors.New("a file with that name already exists")
+
+// nameLayoutEnv is the order a file name gives the title and the authors:
+// title-author, author-title or title-paren. Unset means title-author.
+const nameLayoutEnv = "ZLIB_FILENAME_FORMAT"
+
+// metaNameLayout is the configured layout. A value that cannot be one (a
+// hand-edited .env) counts as unset rather than failing a rename.
+func metaNameLayout() metasource.NameLayout {
+	l, err := metasource.ParseNameLayout(os.Getenv(nameLayoutEnv))
+	if err != nil {
+		return metasource.DefaultNameLayout
+	}
+	return l
+}
 
 // bookExt is the extension of a book's path when zlib knows it as an e-book's,
 // in lower case with its dot, and "" otherwise: the format is detected from the
@@ -80,72 +95,100 @@ func renameBook(path, name string) (string, error) {
 	return target, nil
 }
 
-// renameOption is one name the user can give the file.
+// renameOption is one place a name can come from: a title and authors the file
+// can be named by, or the row that asks for a typed name.
 type renameOption struct {
-	label string
-	name  string // "" for the row that asks for a typed name
-	note  string // why the name cannot be used, or that it is the current one
+	label   string
+	title   string
+	authors []string
+	typed   bool // the row that asks for a typed name
 }
 
-func (o renameOption) usable() bool { return o.name != "" && o.note == "" }
+// renameChoice is what a renameOption names the file now, in the page's layout.
+type renameChoice struct {
+	name string // "" for the typed row
+	note string // "current", or why the name cannot be used
+	ok   bool   // renaming to it would change the name
+}
 
-// renameOptions lists the names on offer for the file at path, built from what
-// is known now: the search terms (the title and authors read from the file name
-// and the file, as the prepare page shows them, or as the user edited them), the
-// file's own embedded title and authors (read again, since the page may have
-// written them), and the match the user has selected. Each is
-// "Authors - Title.ext". The search terms come first: an embedded title often
-// carries a marketing line, which would make a poor name. A name that equals the
-// current one, or one already offered, is marked or left out.
+// renameOptions lists where a name can come from for the file at path, from
+// what is known now: the search terms (the title and authors read from the file
+// name and the file, as the prepare page shows them, or as the user edited
+// them), the file's own embedded title and authors (read again, since the page
+// may have written them), and the match the user has selected. The search terms
+// come first: an embedded title often carries a marketing line, which would
+// make a poor name. A source that gives no title, or the same title and authors
+// as one already offered, is left out.
 func (m metaPageModel) renameOptions() []renameOption {
-	ext := bookExt(m.path)
-	current := filepath.Base(m.path)
 	var opts []renameOption
 	add := func(label, title string, authors []string) {
-		name := metasource.FileNameFor(title, authors, ext)
-		if name == "" {
+		if metasource.FileNameWith(metasource.DefaultNameLayout, title, authors, ".x") == "" {
 			return
 		}
+		key := strings.ToLower(title + "\x00" + strings.Join(authors, "\x00"))
 		for _, o := range opts {
-			if o.name == name {
+			if strings.ToLower(o.title+"\x00"+strings.Join(o.authors, "\x00")) == key {
 				return
 			}
 		}
-		o := renameOption{label: label, name: name}
-		if name == current {
-			o.note = "current"
-		}
-		opts = append(opts, o)
+		opts = append(opts, renameOption{label: label, title: title, authors: authors})
 	}
-	add("From the search terms", m.query.Title, m.query.Authors)
+	add("Search terms", m.query.Title, m.query.Authors)
 	if cur, _, err := ebookmeta.ReadFile(m.path); err == nil {
 		e := metasource.EmbeddedOf(cur)
-		add("From the file's own title", e.Title, e.Authors)
+		add("The file's own title", e.Title, e.Authors)
 	}
 	switch m.stage {
 	case metaCandidates:
 		if m.cursor < len(m.res.Candidates) {
 			c := m.res.Candidates[m.cursor]
-			add("From the selected match", c.Title, c.Authors)
+			add("Selected match", c.Title, c.Authors)
 		}
 	case metaFields:
-		add("From the selected match", m.cand.Title, m.cand.Authors)
+		add("Selected match", m.cand.Title, m.cand.Authors)
 	}
-	return append(opts, renameOption{label: "Type a name…"})
+	return append(opts, renameOption{label: "Type a name…", typed: true})
+}
+
+// renameChoiceFor says what o would name the file, and whether that can be done.
+func (m metaPageModel) renameChoiceFor(o renameOption) renameChoice {
+	if o.typed {
+		return renameChoice{ok: true}
+	}
+	name := metasource.FileNameWith(m.nameLayout, o.title, o.authors, bookExt(m.path))
+	switch _, err := checkRename(m.path, name); {
+	case name == filepath.Base(m.path):
+		return renameChoice{name: name, note: "current"}
+	case err != nil:
+		return renameChoice{name: name, note: strings.ToLower(renameErrorText(err))}
+	}
+	return renameChoice{name: name, ok: true}
 }
 
 // openRename shows the names on offer. It is a page of its own so the file can
 // be renamed from any stage, with or without a search; Esc returns to it.
 func (m metaPageModel) openRename() (tea.Model, tea.Cmd) {
+	if !m.nameLayout.Valid() {
+		m.nameLayout = metaNameLayout()
+	}
 	m.renameBack, m.renameOpts, m.renameCursor, m.message = m.stage, m.renameOptions(), 0, ""
 	for i, o := range m.renameOpts {
-		if o.usable() { // start on the first name that would change something
+		if !o.typed && m.renameChoiceFor(o).ok { // start on the first name that would change something
 			m.renameCursor = i
 			break
 		}
 	}
 	m.stage = metaRename
 	return m, nil
+}
+
+// stepLayout moves the layout by delta, wrapping around.
+func (m metaPageModel) stepLayout(delta int) metaPageModel {
+	n := len(metasource.NameLayouts)
+	i := slices.Index(metasource.NameLayouts, m.nameLayout)
+	m.nameLayout = metasource.NameLayouts[(max(i, 0)+delta+n)%n]
+	m.message = ""
+	return m
 }
 
 func (m metaPageModel) renameKey(k string) (tea.Model, tea.Cmd) {
@@ -159,33 +202,105 @@ func (m metaPageModel) renameKey(k string) (tea.Model, tea.Cmd) {
 	case "down", "tab", "j":
 		m.renameCursor = (m.renameCursor + 1) % n
 		m.message = ""
+	case "left", "h":
+		return m.stepLayout(-1), nil
+	case "right", "l":
+		return m.stepLayout(1), nil
+	case "1", "2", "3":
+		m.nameLayout = metasource.NameLayouts[int(k[0]-'1')]
+		m.message = ""
+	case "ctrl+d":
+		return m.rememberLayout()
 	case "e":
 		return m, m.beginNameEdit()
 	case "enter", "ctrl+s":
 		o := m.renameOpts[m.renameCursor]
-		switch {
-		case o.name == "":
+		if o.typed {
 			return m, m.beginNameEdit()
-		case o.note != "":
+		}
+		c := m.renameChoiceFor(o)
+		switch {
+		case c.ok:
+			return m.renameTo(c.name)
+		case c.note == "current":
 			m.message = "That is already the file's name"
 		default:
-			return m.renameTo(o.name)
+			m.message = "Cannot use that name: " + safeText(c.note)
 		}
 	}
 	return m, nil
 }
 
+// rememberLayout saves the layout on the page as the default, when the user
+// asks for it.
+func (m metaPageModel) rememberLayout() (tea.Model, tea.Cmd) {
+	if m.saveLayout == nil {
+		m.message = "The format cannot be saved here"
+		return m, nil
+	}
+	switch overriddenBy, err := m.saveLayout(m.nameLayout); {
+	case err != nil:
+		m.message = "Could not save the format: " + safeText(err.Error())
+	case overriddenBy != "":
+		m.message = "Saved, but " + safeText(overriddenBy) + " takes precedence"
+	default:
+		m.message = "Saved " + m.nameLayout.Label() + " as the default format"
+	}
+	return m, nil
+}
+
+// saveNameLayout writes the layout as the default in the global .env.
+func saveNameLayout(l metasource.NameLayout) (string, error) {
+	store, err := newSettingsStore()
+	if err != nil {
+		return "", err
+	}
+	return saveNameLayoutTo(store, l)
+}
+
+// saveNameLayoutTo saves through store and returns the name of the setting that
+// overrides the saved layout, or "" when it takes effect. A saved layout that
+// takes effect is also applied to this process, so the next page opened in the
+// same session starts from it.
+func saveNameLayoutTo(store settingsStore, l metasource.NameLayout) (string, error) {
+	if err := store.save(nameLayoutEnv, string(l)); err != nil {
+		return "", err
+	}
+	values, err := store.values()
+	if err != nil {
+		return "", err
+	}
+	for _, v := range values {
+		if v.Key != nameLayoutEnv {
+			continue
+		}
+		if v.Override != "" {
+			return v.Override, nil
+		}
+		return "", os.Setenv(nameLayoutEnv, v.Value)
+	}
+	return "", nil
+}
+
+// withMetaLayoutSaver lets the rename page save its format as the default.
+func withMetaLayoutSaver(save func(metasource.NameLayout) (string, error)) metaOption {
+	return func(m *metaPageModel) { m.saveLayout = save }
+}
+
 // beginNameEdit opens the editor on the highlighted name, without its
 // extension, or on the current name when the row asks for one.
 func (m *metaPageModel) beginNameEdit() tea.Cmd {
-	stem := strings.TrimSuffix(filepath.Base(m.path), bookExt(m.path))
-	if o := m.renameOpts[m.renameCursor]; o.name != "" {
-		stem = strings.TrimSuffix(o.name, bookExt(m.path))
+	ext := bookExt(m.path)
+	stem := strings.TrimSuffix(filepath.Base(m.path), ext)
+	if o := m.renameOpts[m.renameCursor]; !o.typed {
+		if name := m.renameChoiceFor(o).name; name != "" {
+			stem = strings.TrimSuffix(name, ext)
+		}
 	}
 	var cmd tea.Cmd
 	m.editor, cmd = newMetaEditor("Rename the file", []string{"File name"}, []string{stem}, m.width)
-	m.editor.help = "The extension is kept. Characters a file system rejects are replaced."
-	if ext := bookExt(m.path); ext != "" {
+	m.editor.help = "Characters a file system rejects are replaced."
+	if ext != "" {
 		m.editor.help = "The extension " + ext + " is kept. Characters a file system rejects are replaced."
 	}
 	m.editing, m.editKind, m.message = true, editName, ""
@@ -244,52 +359,212 @@ func renameErrorText(err error) string {
 	return err.Error()
 }
 
-// renameBody is the rename page: the current name, the names on offer, and the
-// highlighted name in full. A row gives its name only as far as it fits, with
-// its note first so that is never cut; the lines under the list wrap the
-// highlighted name, so it can be read whatever the width.
+// nameVerdict is the line under a name: whether renaming to it would work.
+func (m metaPageModel) nameVerdict(c renameChoice) string {
+	switch {
+	case c.ok:
+		return colorGreen(symbolSuccess) + " " + colorFaint("ready: Enter renames the file")
+	case c.note == "current":
+		return colorFaint("● this is the file's name now")
+	}
+	return colorRed(symbolError) + " " + safeText(c.note)
+}
+
+// fileNameLine is the line the lookup pages show for the file's name: the name
+// now and, when the title and authors would give it another, that name too, so
+// the user sees at a glance whether the file is named by its book and that n
+// (or F2) renames it. It gives up the arrow, then the hint, before it cuts a
+// name.
+func (m metaPageModel) fileNameLine(indent string, width int, title string, authors []string) string {
+	current := safeText(filepath.Base(m.path))
+	proposal := metasource.FileNameWith(m.nameLayout, title, authors, bookExt(m.path))
+	label := colorFaint("File  ")
+	type variant struct{ plain, styled string }
+	var variants []variant
+	if proposal != "" && proposal != filepath.Base(m.path) {
+		p := safeText(proposal)
+		variants = []variant{
+			{current + " → " + p + "  n renames", current + " " + colorFaint("→") + " " + colorBold(p) + "  " + colorFaint("n renames")},
+			{current + " → " + p, current + " " + colorFaint("→") + " " + colorBold(p)},
+		}
+	} else {
+		variants = []variant{{current + "  n renames", current + "  " + colorFaint("n renames")}}
+	}
+	variants = append(variants, variant{current, current})
+	for _, v := range variants {
+		if ansi.StringWidth(indent)+ansi.StringWidth("File  ")+ansi.StringWidth(v.plain) <= width {
+			return indent + label + v.styled
+		}
+	}
+	return ansi.Truncate(indent+label+current, width, "…")
+}
+
+// pendingFileNameParts are the title and authors the workbench would write, or
+// the file's own where nothing changes them: what the file's name should say.
+func (m metaPageModel) pendingFileNameParts() (string, []string) {
+	title, authors := m.current.Title, m.current.Authors
+	for _, r := range m.benchRows() {
+		value, _ := m.pending(r)
+		switch r.field {
+		case metasource.FieldTitle:
+			title = value
+		case metasource.FieldAuthors:
+			authors = nil
+			for _, a := range strings.Split(value, " & ") {
+				if a = strings.TrimSpace(a); a != "" {
+					authors = append(authors, a)
+				}
+			}
+		}
+	}
+	return title, authors
+}
+
+// layoutRow is the format switch: every layout with the active one marked, or
+// only the active one when they do not fit.
+func (m metaPageModel) layoutRow(width int) string {
+	const label = "Format  "
+	// A radio mark says which is chosen where colour cannot be told.
+	var chips []string
+	plain := 0
+	for _, l := range metasource.NameLayouts {
+		text := l.Label()
+		plain += ansi.StringWidth(text) + 4
+		if l == m.nameLayout {
+			chips = append(chips, lipgloss.NewStyle().Bold(true).Foreground(currentTheme.Title).Background(currentTheme.Surface).Render(" ● "+text+" "))
+		} else {
+			chips = append(chips, colorFaint(" ○ "+text+" "))
+		}
+	}
+	plain += 2 * len(metasource.NameLayouts)
+	if 2+len(label)+plain > width {
+		i := slices.Index(metasource.NameLayouts, m.nameLayout) + 1
+		return "  " + colorFaint(label) + "‹ " + colorBold(m.nameLayout.Label()) + " › " + colorFaint(fmt.Sprintf("%d/%d", i, len(metasource.NameLayouts)))
+	}
+	return "  " + colorFaint(label) + strings.Join(chips, " ")
+}
+
+// renameBody is the rename page: the file's name now, the name it would get,
+// the format switch, and where the name can come from. The new name is given in
+// full, wrapped, whatever the width; each row gives its name only as far as it
+// fits, with its note first so that is never cut. A short terminal drops the
+// spacing and the headings first, then rows around the highlighted one.
 func (m metaPageModel) renameBody() string {
 	width := max(20, m.width)
-	lines := []string{"  " + colorBold("Rename the file")}
-	if m.height >= 16 { // the subtitle already names the file; short terminals need the room
-		lines = append(lines, ansi.Truncate("    "+"Now       "+safeText(filepath.Base(m.path)), width, "…"), "")
-	}
-	for i, o := range m.renameOpts {
-		label := o.label
-		if o.note != "" {
-			label += " (" + o.note + ")"
+	avail := max(1, m.height-6)
+	o := m.renameOpts[m.renameCursor]
+	c := m.renameChoiceFor(o)
+
+	// The new name, wrapped in full up to three lines (one when space is short).
+	newLines := []string{"  " + colorFaint("New  ") + colorFaint("press Enter to type a name")}
+	if !o.typed {
+		maxLines := 3
+		if avail < 14 {
+			maxLines = 1
 		}
-		if room := width - ansi.StringWidth(label) - 8; o.name != "" && room >= 8 {
-			label += "  " + ansi.Truncate(safeText(o.name), room, "…")
+		style := colorGreen
+		if !c.ok {
+			style = colorFaint
 		}
-		lines = append(lines, styledListRow(label, i == m.renameCursor, width, currentTheme))
+		wrapped := strings.Split(ansi.Hardwrap(safeText(c.name), max(10, width-7), true), "\n")
+		if len(wrapped) > maxLines {
+			wrapped = append(wrapped[:maxLines-1], ansi.Truncate(wrapped[maxLines-1], max(1, width-8), "…"))
+		}
+		newLines = nil
+		for i, l := range wrapped {
+			prefix := "       "
+			if i == 0 {
+				prefix = "  " + colorFaint("New  ")
+			}
+			newLines = append(newLines, prefix+style(l))
+		}
 	}
-	if o := m.renameOpts[m.renameCursor]; o.name != "" {
+	verdict := "       " + m.nameVerdict(c)
+	if o.typed {
+		verdict = ""
+	}
+
+	rowLines := make([]string, len(m.renameOpts))
+	for i, opt := range m.renameOpts {
+		rc := m.renameChoiceFor(opt)
+		label := opt.label
+		if rc.note != "" {
+			label += " (" + rc.note + ")"
+		}
+		if room := width - ansi.StringWidth(label) - 8; rc.name != "" && room >= 8 {
+			label += "  " + ansi.Truncate(safeText(rc.name), room, "…")
+		}
+		rowLines[i] = styledListRow(label, i == m.renameCursor, width, currentTheme)
+	}
+
+	full := m.renameLayoutLines(width, true, newLines, verdict, rowLines)
+	if len(full) > avail {
+		full = m.renameLayoutLines(width, false, newLines, verdict, rowLines)
+	}
+	if len(full) > avail { // rows around the highlighted one, then what is left
+		extra := len(full) - avail
+		drop := min(extra, len(rowLines)-1)
+		first := min(max(0, m.renameCursor-(len(rowLines)-drop)/2), drop)
+		full = m.renameLayoutLines(width, false, newLines, verdict, rowLines[first:first+len(rowLines)-drop])
+	}
+	return strings.Join(full, "\n")
+}
+
+// renameLayoutLines puts the parts of the rename page in order, with the
+// spacing and headings (roomy) or without.
+func (m metaPageModel) renameLayoutLines(width int, roomy bool, newLines []string, verdict string, rows []string) []string {
+	var lines []string
+	if roomy {
+		lines = append(lines, ansi.Truncate("  "+colorFaint("Now  ")+safeText(filepath.Base(m.path)), width, "…"))
+	}
+	lines = append(lines, newLines...)
+	if verdict != "" {
+		lines = append(lines, verdict)
+	}
+	if roomy {
 		lines = append(lines, "")
-		wrapped := strings.Split(ansi.Hardwrap(safeText(o.name), max(10, width-6), true), "\n")
-		if len(wrapped) > 3 {
-			wrapped = append(wrapped[:2], ansi.Truncate(wrapped[2], max(1, width-7), "…"))
-		}
-		for _, l := range wrapped {
-			lines = append(lines, "    "+l)
-		}
 	}
-	return strings.Join(lines, "\n")
+	lines = append(lines, m.layoutRow(width))
+	if roomy {
+		lines = append(lines, "", "  "+colorFaint("Name from"))
+	}
+	return append(lines, rows...)
 }
 
 // renameKeys are the key hints of the rename page.
 func (m metaPageModel) renameKeys() []keys.Binding {
 	return m.keysFor(withHelpKey(
-		[][2]string{{"↑/↓", "choose"}, {"enter", "rename"}, {"e", "edit name"}, {"?", "keys"}, {"esc", "back"}},
-		[][2]string{{"↑/↓", "choose"}, {"enter", "rename"}, {"e", "edit name"}, {"esc", "back"}},
-		[][2]string{{"↑/↓", ""}, {"enter", "rename"}, {"e", "edit"}, {"esc", "back"}},
-		[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"esc", ""}},
+		[][2]string{{"↑/↓", "name"}, {"←/→", "format"}, {"enter", "rename"}, {"e", "edit"}, {"ctrl+d", "save format"}, {"?", "keys"}, {"esc", "back"}},
+		[][2]string{{"↑/↓", "name"}, {"←/→", "format"}, {"enter", "rename"}, {"e", "edit"}, {"esc", "back"}},
+		[][2]string{{"↑/↓", ""}, {"←/→", ""}, {"enter", "rename"}, {"e", "edit"}, {"esc", "back"}},
+		[][2]string{{"↑/↓", ""}, {"←/→", ""}, {"enter", ""}, {"e", ""}, {"esc", ""}},
 		[][2]string{{"enter", ""}, {"esc", ""}})...)
 }
 
-// renameSummary words a rename for the notice shown when the page ends.
-func (m metaPageModel) renameSummary() string {
-	return "renamed to " + filepath.Base(m.path)
+// nameEditView is the editor for a typed name with what it will be saved as:
+// the typed text made safe, and whether that name can be used.
+func (m metaPageModel) nameEditView() string {
+	width := max(20, m.width)
+	body := m.editor.view(width)
+	name := metasource.SanitizeFileName(m.editor.values()[0], bookExt(m.path))
+	var verdict string
+	switch {
+	case name == "":
+		verdict = colorFaint("Type a name")
+	case name == filepath.Base(m.path):
+		verdict = colorFaint("● this is the file's name now")
+	default:
+		if _, err := checkRename(m.path, name); err != nil {
+			verdict = colorRed(symbolError) + " " + safeText(strings.ToLower(renameErrorText(err)))
+		} else {
+			verdict = colorGreen(symbolSuccess) + " " + colorFaint("ready: Enter renames the file")
+		}
+	}
+	lines := []string{body, "", "  " + colorFaint("Saves as  ") + safeText(name)}
+	if name != "" {
+		lines[2] = ansi.Truncate(lines[2], width, "…")
+	}
+	return strings.Join(append(lines, "  "+verdict), "\n")
 }
 
 // renameWanted reads --rename and --rename-to. Both is a usage error.
@@ -327,10 +602,10 @@ func renameName(cmd *cobra.Command, path string, m *ebookmeta.Metadata) (string,
 	e := metasource.EmbeddedOf(m)
 	title, authors := e.Title, e.Authors
 	if !flags.Changed("title") && !flags.Changed("authors") && !flags.Changed("from-opf") {
-		q := metasource.Extract(filepath.Base(path), m, nil, metasource.Hint{}).Query
+		q := metasource.Extract(filepath.Base(path), m, nil, metasource.Hint{NameLayout: metaNameLayout()}).Query
 		title, authors = q.Title, q.Authors
 	}
-	name := metasource.FileNameFor(title, authors, ext)
+	name := metasource.FileNameWith(metaNameLayout(), title, authors, ext)
 	if name == "" {
 		return "", errors.New("the file has no title to name it by: set one with -t, or use --rename-to")
 	}
