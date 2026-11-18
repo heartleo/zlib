@@ -114,7 +114,16 @@ The order of the title and the authors in a name is one of three formats:
 | `title-paren` | `Dune (Frank Herbert).epub` | names as Z-Library gives them |
 
 Set it with `zlib config metadata filename` (or `ZLIB_FILENAME_FORMAT`; empty
-restores `title-author`). It applies to `--rename`, to the `suggested_file_name`
+restores `title-author`). In Settings it is a list of the three formats with a
+`Custom pattern…` row, which opens a text box that shows what the pattern does to
+a sample book as you type.
+
+A custom pattern writes `{title}` once and `{authors}` at most once, with any
+other text kept as written, for example `{title} [{authors}]` or
+`{authors}, {title}`. The text around the fields is at most 40 characters and
+cannot contain `/ \ : " < > | ? *`. A pattern that names the authors gives the
+bare title when none is known, and a pattern with no `{authors}` never names
+them. The rename page offers a configured pattern as a fourth format, key `4`. It applies to `--rename`, to the `suggested_file_name`
 of `--fetch --json` and to the rename page, which can also switch format for one
 rename and save the choice as the default.
 

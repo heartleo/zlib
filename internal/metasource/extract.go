@@ -206,7 +206,7 @@ func dashReading(fg FileGuess, emb Embedded, hint Hint) (title string, authors [
 		if fcorr != rcorr {
 			rok = rcorr
 		} else {
-			rok = hint.NameLayout == LayoutTitleAuthor
+			rok = hint.NameLayout.dashTitleFirst()
 		}
 		fok = !rok
 	}

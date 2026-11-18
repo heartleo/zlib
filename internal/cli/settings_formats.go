@@ -80,6 +80,8 @@ type checklist struct {
 	items                 []checkItem
 	cursor                int
 	fallbackPage          string // the list page shown dimmed behind the panel when the opener is unknown
+	radio                 bool   // one row is chosen: (•) marks it, and Enter chooses
+	wide                  bool   // rows with notes: the panel may be wider
 }
 
 // checklistView draws a checklist as a panel over the dimmed list page, or full
@@ -92,7 +94,7 @@ func (m settingsModel) checklistView(w, h int, c checklist) tea.View {
 	overlay := w >= 36 && h >= 14
 	inner := w
 	if overlay {
-		inner = min(54, w-6)
+		inner = min(map[bool]int{false: 54, true: 66}[c.wide], w-6)
 	}
 	surface := lipgloss.NewStyle()
 	if overlay {
@@ -123,7 +125,12 @@ func (m settingsModel) checklistView(w, h int, c checklist) tea.View {
 	}
 	for i := start; i < start+visible; i++ {
 		mark := "[ ] "
-		if c.items[i].checked {
+		switch {
+		case c.radio && c.items[i].checked:
+			mark = "(•) "
+		case c.radio:
+			mark = "( ) "
+		case c.items[i].checked:
 			mark = "[✓] "
 		}
 		row := mark + c.items[i].label
@@ -142,6 +149,12 @@ func (m settingsModel) checklistView(w, h int, c checklist) tea.View {
 		toggle, finish = "Space · Ctrl+A", "↵ save · Esc cancel"
 	case inner < 40:
 		toggle = "Space toggle · Ctrl+A all"
+	}
+	if c.radio {
+		toggle, finish = "↑↓ move · Enter choose", "Esc cancel"
+		if inner < 26 {
+			toggle = "↑↓ · ↵ choose"
+		}
 	}
 	rows = append(rows, paint(toggle, currentTheme.Muted), paint(finish, currentTheme.Muted))
 	if !overlay {

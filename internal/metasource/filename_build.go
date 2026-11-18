@@ -56,14 +56,20 @@ func FileNameWith(layout NameLayout, title string, authors []string, ext string)
 	if t == "" || placeholderTitle(strings.TrimSpace(title)) || placeholderWord(t) {
 		return ""
 	}
-	prefix := authorsPart(authors)
+	// A layout that names the authors gives the bare title when none is known;
+	// a custom pattern with no {authors} in it never names them.
+	prefix := ""
+	if layout.usesAuthors() {
+		prefix = authorsPart(authors)
+	}
+	dressed := prefix != "" || !layout.usesAuthors()
 	budget := maxStemBytes - len(prefix)
-	if prefix != "" {
+	if dressed {
 		budget -= layout.glueBytes()
 	}
 	t = cutAtBoundary(t, budget)
 	stem := t
-	if prefix != "" {
+	if dressed {
 		stem = layout.join(t, prefix)
 	}
 	name := strings.TrimRight(stem, " .") + cleanExt(ext)

@@ -155,8 +155,9 @@ type metaPageModel struct {
 	// nameLayout is the order names are built in on the rename page: the saved
 	// default, until the user picks another there. saveLayout writes it as the
 	// default, when the user asks.
-	nameLayout metasource.NameLayout
-	saveLayout func(metasource.NameLayout) (overriddenBy string, err error)
+	nameLayout   metasource.NameLayout
+	customLayout metasource.NameLayout // the configured custom pattern, offered next to the presets
+	saveLayout   func(metasource.NameLayout) (overriddenBy string, err error)
 
 	// The fields workbench. extra holds the values the user typed or cleared,
 	// which win over the match's; manual is set when the workbench edits the
@@ -225,6 +226,9 @@ func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, o
 		opt(&m)
 	}
 	m.nameLayout = metaNameLayout()
+	if !m.nameLayout.IsPreset() {
+		m.customLayout = m.nameLayout
+	}
 	m.hint.NameLayout = m.nameLayout
 	m.extraction = metasource.Extract(filepath.Base(path), cur, scannedISBNs(path, cur), m.hint)
 	m.query = m.extraction.Query

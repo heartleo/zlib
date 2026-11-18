@@ -629,3 +629,24 @@ func TestMetaPagesShowTheFileNameAndTheNameItWouldGet(t *testing.T) {
 		t.Errorf("the file line is on a short terminal:\n%s", screen)
 	}
 }
+
+// A configured custom pattern is the page's starting format and a fourth choice
+// beside the presets.
+func TestMetaPageRenameOffersTheCustomPattern(t *testing.T) {
+	t.Setenv(nameLayoutEnv, "{title} [{authors}]")
+	m, _, _ := renameFixture(t)
+	m, _ = metaStep(t, m, key("n"))
+	m = chooseRename(t, m, "The file's own title")
+	if screen := metaScreen(m); !strings.Contains(screen, "‹ {title} [{authors}] › 4/4") || !strings.Contains(screen, "New  Dune [Frank Herbert].epub") {
+		t.Fatalf("the custom pattern is not the starting format:\n%s", metaScreen(m))
+	}
+	m, _ = metaStep(t, m, key("1"))
+	m, _ = metaStep(t, m, key("4"))
+	if !strings.Contains(metaScreen(m), "New  Dune [Frank Herbert].epub") {
+		t.Errorf("4 did not pick the custom pattern:\n%s", metaScreen(m))
+	}
+	m, _ = metaStep(t, m, key("right")) // wraps to the first preset
+	if !strings.Contains(metaScreen(m), "New  Dune - Frank Herbert.epub") {
+		t.Errorf("→ did not wrap:\n%s", metaScreen(m))
+	}
+}

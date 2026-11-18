@@ -148,6 +148,16 @@ type settingsModel struct {
 	// The lookup sources page (settings_sources.go).
 	sourceChoices []metaSourceChoice
 	sourceCursor  int
+	// The choice page of a setting with a short list of values
+	// (settings_choice.go). choiceCustom: the value is none of the rows and is
+	// held by the custom row. choiceEditing and fromChoice: the text box of the
+	// custom row is being opened, or is open over the choice page.
+	choice        choiceSpec
+	choiceCursor  int
+	choiceCustom  bool
+	choiceValue   string
+	choiceEditing bool
+	fromChoice    bool
 	original      string
 	returnPage    string
 	returnCursor  int
@@ -301,6 +311,10 @@ func (m *settingsModel) edit(key string) tea.Cmd {
 		m.resetSecret = false
 	}
 	m.original = value
+	if spec, ok := choiceSpecFor(key); ok && !m.choiceEditing {
+		m.openChoicePage(spec, v)
+		return nil
+	}
 	if key == metaSourcesEnv {
 		m.openSourcesPage(value)
 		return nil
@@ -339,6 +353,12 @@ func (m *settingsModel) back() {
 	m.busy = false
 	m.cursor = 0
 	m.message = ""
+	if m.page == "edit" && m.fromChoice {
+		// The box of a choice page's custom row: back to the choices.
+		m.fromChoice, m.page = false, "choice"
+		m.input.Blur()
+		return
+	}
 	switch m.page {
 	case "domain":
 		m.page = m.returnPage
@@ -346,7 +366,7 @@ func (m *settingsModel) back() {
 			m.page = "network"
 		}
 		m.cursor = m.returnCursor
-	case "edit", "formats", "sources":
+	case "edit", "formats", "sources", "choice":
 		m.page = m.returnPage
 		if m.page == "" {
 			m.page = "home"
@@ -445,6 +465,7 @@ func (m *settingsModel) save(value string) {
 		// An alias value means nothing is left under this key.
 		_ = os.Unsetenv(m.key)
 	}
+	m.fromChoice = false // a saved value leaves the choice page too
 	m.back()
 	m.message = "Saved"
 	if v.Override != "" {
@@ -502,6 +523,7 @@ func (m *settingsModel) saveKindle(value string) {
 		m.message = "Saved; could not reload settings: " + err.Error()
 		return
 	}
+	m.fromChoice = false // a saved value leaves the choice page too
 	m.back()
 	m.message = "Saved"
 }
@@ -610,6 +632,9 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.page == "sources" {
 			return m.updateSources(k)
+		}
+		if m.page == "choice" {
+			return m.updateChoice(k)
 		}
 		if k == "ctrl+c" {
 			if m.cancel != nil {
@@ -935,6 +960,9 @@ func (m settingsModel) View() tea.View {
 	if m.page == "sources" {
 		return m.sourcesView(w, h)
 	}
+	if m.page == "choice" {
+		return m.choiceView(w, h)
+	}
 	if m.page == "domain" || m.page == "mirror" {
 		return m.domainView(w, h)
 	}
@@ -961,28 +989,19 @@ func (m settingsModel) View() tea.View {
 			subtitle = "Using " + v.Override
 		}
 		lines = append(lines, labels[m.key], m.input.View(), "")
-		if m.key == kindleSecurityKey {
-			lines = append(lines, "tls: SSL/TLS on connect (port 465)", "starttls: upgrade after connect (port 587)", "Empty: follow the port", "")
+		if m.fromChoice {
+			// The box of a choice page's custom row: what it takes, and what it would do.
+			lines = append(lines, m.choice.help...)
+			if m.choice.preview != nil && strings.TrimSpace(m.input.Value()) != "" {
+				lines = append(lines, "", ansi.Truncate("Preview: "+safeText(m.choice.preview(m.input.Value())), max(1, w-2), "…"))
+			}
+			lines = append(lines, "")
 		}
 		if isKindleSetting(m.key) {
 			lines = append(lines, "SMTP password: ZLIB_SMTP_PWD", "")
 		}
 		if m.key == wereadProxyEnv {
 			lines = append(lines, "Empty: system proxy (HTTPS_PROXY)", "direct: connect without any proxy", "Proxy URL: http, https, socks5 or socks5h", "The Z-Library proxy (ZLIB_PROXY) never applies", "")
-		}
-		if m.key == nameLayoutEnv {
-			lines = append(lines, "title-author   Title - Author   (the default)",
-				"author-title   Author - Title",
-				"title-paren   Title (Author)   (as Z-Library names files)",
-				"Empty: title-author",
-				"Applies to --rename and the rename page, which can also save its choice.",
-				"Saved to the global .env; "+nameLayoutEnv+" overrides it.", "")
-		}
-		if m.key == metaResultsEnv {
-			lines = append(lines, "A whole number from 1 to 50",
-				"Empty: 10",
-				"Each source is asked for enough hits to fill the list; Douban and WeRead read one page per hit, at most 10.",
-				"Saved to the global .env; "+metaResultsEnv+" overrides it.", "")
 		}
 		if m.key == wereadAPIKeyEnv {
 			status := "No key is set: the WeRead source cannot run"

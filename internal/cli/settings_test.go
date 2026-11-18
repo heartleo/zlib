@@ -57,7 +57,7 @@ func TestSettingsSaveValidationAndLiveReload(t *testing.T) {
 	s := testSettingsStore(t)
 	t.Setenv(zlib.EnvRetries, "")
 	m, _ := newSettingsModel(t.Context(), s, "download")
-	m.edit(zlib.EnvRetries)
+	m.editText(zlib.EnvRetries)
 	m.input.SetValue("-1")
 	next, _ := m.Update(key("enter"))
 	m = next.(settingsModel)
@@ -70,7 +70,7 @@ func TestSettingsSaveValidationAndLiveReload(t *testing.T) {
 	if m.value(zlib.EnvRetries).Value != "5" || os.Getenv(zlib.EnvRetries) != "5" {
 		t.Fatal("saved setting not active")
 	}
-	m.edit(zlib.EnvRetries)
+	m.editText(zlib.EnvRetries)
 	m.input.SetValue("")
 	next, _ = m.Update(key("enter"))
 	m = next.(settingsModel)
@@ -88,7 +88,7 @@ func TestSettingsSaveValidationAndLiveReload(t *testing.T) {
 func TestSettingsSaveFailureKeepsDraft(t *testing.T) {
 	s := testSettingsStore(t)
 	m, _ := newSettingsModel(t.Context(), s, "download")
-	m.edit(zlib.EnvRetries)
+	m.editText(zlib.EnvRetries)
 	m.input.SetValue("8")
 	if err := os.Mkdir(s.global, 0700); err != nil {
 		t.Fatal(err)
@@ -213,7 +213,7 @@ func TestSettingsNavigationCancelAndViewport(t *testing.T) {
 	}
 	s := testSettingsStore(t)
 	m, _ := newSettingsModel(t.Context(), s, "download")
-	m.edit(zlib.EnvRetries)
+	m.editText(zlib.EnvRetries)
 	m.input.SetValue("7")
 	next, _ := m.Update(key("esc"))
 	m = next.(settingsModel)
@@ -305,7 +305,7 @@ func TestSettingsKindleSaveAndNavigation(t *testing.T) {
 	if err != nil || !strings.Contains(string(data), "reader@kindle.com") || strings.Contains(string(data), "ZLIB_SMTP_PWD") {
 		t.Fatalf("Kindle config was not saved safely: %v", err)
 	}
-	m.edit(kindlePortKey)
+	m.editText(kindlePortKey)
 	m.input.SetValue("70000")
 	next, _ = m.Update(key("enter"))
 	m = next.(settingsModel)
@@ -323,11 +323,11 @@ func TestSettingsKindleSaveAndNavigation(t *testing.T) {
 	}
 	// smtp.163.com documents 994 as an SSL/TLS port; IANA does not, so the
 	// mode has to be set explicitly.
-	m.edit(kindlePortKey)
+	m.editText(kindlePortKey)
 	m.input.SetValue("994")
 	next, _ = m.Update(key("enter"))
 	m = next.(settingsModel)
-	m.edit(kindleSecurityKey)
+	m.editText(kindleSecurityKey)
 	m.input.SetValue("ssl")
 	next, _ = m.Update(key("enter"))
 	m = next.(settingsModel)
@@ -390,7 +390,7 @@ func TestSettingsEditorsFitAndButtonsSave(t *testing.T) {
 	}
 	t.Setenv(zlib.EnvRetries, "")
 	m, _ := newSettingsModel(t.Context(), testSettingsStore(t), "download")
-	m.edit(zlib.EnvRetries)
+	m.editText(zlib.EnvRetries)
 	m.input.SetValue("2")
 	for range 3 {
 		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})

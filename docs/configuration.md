@@ -73,8 +73,16 @@ For Kindle, Reset clears an address or restores the default SMTP host or port.
   Enter opens a directory and Space selects the current directory. Selection
   fills the editor; Save persists it. Directories must exist; relative paths
   are saved as absolute paths. Enter a drive path to switch Windows drives.
-- **Retries:** enter a non-negative integer. Zero disables retries; the default
-  is three.
+- **Settings with a short list of values** open a list instead of a text box:
+  Retries, Lookup results, File name format, SMTP port and SMTP security. ↑/↓
+  move, the current value is marked `(•)`, Enter chooses a row and Esc cancels.
+  Where another value makes sense, the last row (`Other number…`, `Other port…`,
+  `Custom pattern…`) opens the text box, with what it accepts and, for a file
+  name pattern, a preview; Esc there returns to the list. Choosing the default
+  row removes the saved value. SMTP security has no such row, since only
+  `starttls`, `tls` or following the port are valid.
+- **Retries:** choose 0, 1, 3 (the default), 5 or 10, or enter a non-negative
+  integer. Zero disables retries.
 - **Search formats:** choose formats from a checklist. Arrow keys move; Space
   toggles a format; Ctrl+A checks every format, or clears them all when every
   format is already checked. Enter saves (Ctrl+S too) and Esc cancels. Save with
@@ -127,7 +135,7 @@ zlib config network proxy --json
 | `ZLIB_GOOGLE_BOOKS_KEY` | Google Books API key for metadata lookups (20 to 128 letters, digits, `-` and `_`). Keep it private. `GOOGLE_BOOKS_API_KEY` is read as well when this one is empty; `zlib config metadata google-key` shows which name supplied the key but only saves and removes this one | Unset (shared quota) |
 | `ZLIB_METADATA_SOURCES` | Metadata lookup sources, separated by commas: `openlibrary`, `google`, `douban`, `weread`. `zlib config metadata sources` shows, sets and clears it, `zlib meta --fetch --source` overrides it for one run, and Ctrl+D on the `/meta` prepare page saves it. See [Douban](metadata.md#douban) and [WeRead](metadata.md#weread) | By book language: `douban` for a Chinese book, else `openlibrary`, plus `google` when a Google Books key is set. See [Default sources](metadata.md#default-sources) |
 | `ZLIB_METADATA_RESULTS` | How many matches a metadata lookup lists, a whole number from 1 to 50. `zlib config metadata results` shows, sets and clears it. See [Metadata](metadata.md) | `10` |
-| `ZLIB_FILENAME_FORMAT` | The order of the title and the authors in a file name `zlib meta --rename` and the rename page give: `title-author` (`Dune - Frank Herbert.epub`), `author-title` or `title-paren` (`Dune (Frank Herbert).epub`). `zlib config metadata filename` shows, sets and clears it; the rename page saves its choice with Ctrl+D. See [File name format](metadata.md#file-name-format) | `title-author` |
+| `ZLIB_FILENAME_FORMAT` | The order of the title and the authors in a file name `zlib meta --rename` and the rename page give: `title-author` (`Dune - Frank Herbert.epub`), `author-title`, `title-paren` (`Dune (Frank Herbert).epub`), or a custom pattern such as `{title} [{authors}]`. `zlib config metadata filename` shows, sets and clears it; the rename page saves its choice with Ctrl+D. See [File name format](metadata.md#file-name-format) | `title-author` |
 | `ZLIB_WEREAD_API_KEY` | WeRead agent gateway API key (the WeRead skill key) for the `weread` metadata source, 8 to 128 letters, digits, `-` and `_`. Not the WeRead login. `zlib config metadata weread-key` sets and removes it, hidden. Keep it private | Unset |
 
 See [env.example](env.example) for sample values.

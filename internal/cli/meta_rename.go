@@ -182,11 +182,21 @@ func (m metaPageModel) openRename() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// layoutChoices are the formats the page switches between: the presets, then
+// the user's custom pattern when one is configured.
+func (m metaPageModel) layoutChoices() []metasource.NameLayout {
+	out := slices.Clone(metasource.NameLayouts)
+	if m.customLayout != "" && !slices.Contains(out, m.customLayout) {
+		out = append(out, m.customLayout)
+	}
+	return out
+}
+
 // stepLayout moves the layout by delta, wrapping around.
 func (m metaPageModel) stepLayout(delta int) metaPageModel {
-	n := len(metasource.NameLayouts)
-	i := slices.Index(metasource.NameLayouts, m.nameLayout)
-	m.nameLayout = metasource.NameLayouts[(max(i, 0)+delta+n)%n]
+	choices := m.layoutChoices()
+	i := slices.Index(choices, m.nameLayout)
+	m.nameLayout = choices[(max(i, 0)+delta+len(choices))%len(choices)]
 	m.message = ""
 	return m
 }
@@ -206,9 +216,11 @@ func (m metaPageModel) renameKey(k string) (tea.Model, tea.Cmd) {
 		return m.stepLayout(-1), nil
 	case "right", "l":
 		return m.stepLayout(1), nil
-	case "1", "2", "3":
-		m.nameLayout = metasource.NameLayouts[int(k[0]-'1')]
-		m.message = ""
+	case "1", "2", "3", "4":
+		if choices := m.layoutChoices(); int(k[0]-'1') < len(choices) {
+			m.nameLayout = choices[int(k[0]-'1')]
+			m.message = ""
+		}
 	case "ctrl+d":
 		return m.rememberLayout()
 	case "e":
@@ -427,8 +439,9 @@ func (m metaPageModel) layoutRow(width int) string {
 	// A radio mark says which is chosen where colour cannot be told.
 	var chips []string
 	plain := 0
-	for _, l := range metasource.NameLayouts {
-		text := l.Label()
+	choices := m.layoutChoices()
+	for _, l := range choices {
+		text := safeText(l.Label())
 		plain += ansi.StringWidth(text) + 4
 		if l == m.nameLayout {
 			chips = append(chips, lipgloss.NewStyle().Bold(true).Foreground(currentTheme.Title).Background(currentTheme.Surface).Render(" ● "+text+" "))
@@ -436,10 +449,10 @@ func (m metaPageModel) layoutRow(width int) string {
 			chips = append(chips, colorFaint(" ○ "+text+" "))
 		}
 	}
-	plain += 2 * len(metasource.NameLayouts)
+	plain += 2 * len(choices)
 	if 2+len(label)+plain > width {
-		i := slices.Index(metasource.NameLayouts, m.nameLayout) + 1
-		return "  " + colorFaint(label) + "‹ " + colorBold(m.nameLayout.Label()) + " › " + colorFaint(fmt.Sprintf("%d/%d", i, len(metasource.NameLayouts)))
+		i := slices.Index(choices, m.nameLayout) + 1
+		return "  " + colorFaint(label) + "‹ " + colorBold(safeText(m.nameLayout.Label())) + " › " + colorFaint(fmt.Sprintf("%d/%d", i, len(choices)))
 	}
 	return "  " + colorFaint(label) + strings.Join(chips, " ")
 }
