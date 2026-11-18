@@ -957,7 +957,8 @@ func (m settingsModel) View() tea.View {
 		}
 		if m.key == metaSourcesEnv {
 			lines = append(lines, "Comma-separated: openlibrary, google, douban, weread",
-				"Empty: Open Library and Google Books",
+				"Empty: by book language. Douban for a Chinese book; Open Library for any other,",
+				"and Google Books too when a Google Books key is set.",
 				"douban sends the title to Douban; weread sends it to Tencent",
 				"Saved to the global .env; "+metaSourcesEnv+" overrides it.", "")
 		}

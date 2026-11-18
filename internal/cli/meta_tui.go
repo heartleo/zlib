@@ -228,22 +228,11 @@ func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, o
 	return m, nil
 }
 
-// newDefaultMetaCover resolves the proxy now, like newDefaultMetaLookup.
+// newDefaultMetaCover resolves the proxy now, like newMetaLookupFor.
 func newDefaultMetaCover() metaCoverFunc {
 	rt := metaTransport()
 	return func(ctx context.Context, url string) (*ebookmeta.Cover, error) {
 		return metasource.FetchCover(ctx, rt, url)
-	}
-}
-
-// newDefaultMetaLookup resolves the built-in sources, and the proxy they use,
-// now. The lookup itself runs on another goroutine and must not read
-// package state then.
-func newDefaultMetaLookup() metaLookupFunc {
-	sources := newMetaSources(metaTransport())
-	limit := metaResultLimit()
-	return func(ctx context.Context, q metasource.Query) (metasource.Result, error) {
-		return metasource.Lookup(ctx, sources, q, metasource.Options{MaxResults: limit})
 	}
 }
 

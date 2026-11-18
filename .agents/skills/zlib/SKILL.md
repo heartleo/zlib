@@ -140,8 +140,9 @@ without changing the file. It returns ranked `candidates`, each with `match`
 per-source `errors`, the file's own metadata as `current`, and an `extraction` object saying what the file name
 and the file offered and where the query came from. `-t`, `-a` and `--isbn`
 set what to search for. `--source openlibrary,google,douban,weread` picks the
-catalogues for that run; `douban` and `weread` send the title to a third
-party, so add them only when the user asked. An
+catalogues for that run. Without it a Chinese book is asked of Douban and any
+other book of Open Library (plus Google Books when a key is set); `weread`
+sends the title to Tencent, so add it only when the user asked. An
 `isbn` match with a score below 1 is not confirmed: the ISBN belongs to a book
 with a different title, or it is only a hint with nothing independent to
 vouch for it. A match found from a title alone is a guess about the

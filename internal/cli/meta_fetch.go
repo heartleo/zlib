@@ -79,13 +79,47 @@ var newMetaSources = func(rt http.RoundTripper) []metasource.Source {
 // environment is loaded from the .env files before the command runs).
 var metaSourcesFlag string
 
-// configuredMetaSources is the list of sources a lookup asks now: the --source
-// flag, else ZLIB_METADATA_SOURCES, else the default.
-func configuredMetaSources() []string {
+// explicitMetaSources is the list the user chose: the --source flag, else
+// ZLIB_METADATA_SOURCES. It is nil when neither names a source.
+func explicitMetaSources() []string {
 	if metaSourcesFlag != "" {
-		return metasource.ParseSourceNames(metaSourcesFlag)
+		return metasource.ExplicitSourceNames(metaSourcesFlag)
 	}
-	return metasource.ParseSourceNames(os.Getenv(metaSourcesEnv))
+	return metasource.ExplicitSourceNames(os.Getenv(metaSourcesEnv))
+}
+
+// metaSourceNamesFor is the list of sources a lookup of one book asks now: the
+// user's choice, else the default for the book's language (Douban for a Chinese
+// book, Open Library for another, plus Google Books when a key is set).
+func metaSourceNamesFor(chinese bool) []string {
+	if names := explicitMetaSources(); len(names) > 0 {
+		return names
+	}
+	return metasource.DefaultSourceNamesFor(chinese, googleBooksKey() != "")
+}
+
+// configuredMetaSources is metaSourceNamesFor for a book that is not Chinese,
+// which is what a lookup with no book to look at uses.
+func configuredMetaSources() []string { return metaSourceNamesFor(false) }
+
+// metaBookIsChinese reports whether the book a lookup is about is Chinese: by
+// the language the file declares, or by the Han characters of the title or
+// first author that will be searched.
+func metaBookIsChinese(m *ebookmeta.Metadata, title string, authors []string) bool {
+	var languages []string
+	if m != nil {
+		languages = m.Languages
+	}
+	return metasource.ChineseBook(languages, title, authors)
+}
+
+// newMetaSourcesForBook builds the sources for one book. A list the user chose
+// is used as it is; otherwise the default for the book's language.
+func newMetaSourcesForBook(rt http.RoundTripper, chinese bool) []metasource.Source {
+	if len(explicitMetaSources()) > 0 {
+		return newMetaSources(rt)
+	}
+	return newMetaSourcesFor(metaSourceNamesFor(chinese))
 }
 
 // applyMetaSourceFlag reads --source: it needs --fetch, and every name must be
@@ -305,7 +339,8 @@ func runMetaFetch(cmd *cobra.Command, path string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	res, err := metasource.Lookup(ctx, newMetaSources(metaTransport()), q, metasource.Options{MaxResults: metaResultLimit()})
+	sources := newMetaSourcesForBook(metaTransport(), metaBookIsChinese(m, q.Title, q.Authors))
+	res, err := metasource.Lookup(ctx, sources, q, metasource.Options{MaxResults: metaResultLimit()})
 	if errors.Is(err, metasource.ErrNoQuery) {
 		return &usageError{fmt.Errorf("%s has no title, author or ISBN to look up; pass -t, -a or --isbn", path)}
 	}

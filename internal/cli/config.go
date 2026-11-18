@@ -87,7 +87,7 @@ func init() {
 	wereadSettings := settingsCommand("weread", "weread", "", "Show the WeRead login and set its proxy")
 	wereadSettings.AddCommand(settingsCommand("account", "weread", wereadAccountKey, "Log in to or out of WeRead"), settingsCommand("proxy", "weread", wereadProxyEnv, "Set the WeRead proxy: a URL, direct, or empty for the system proxy"))
 	metadata := settingsCommand("metadata", "metadata", "", "Set the metadata lookup sources and the Google Books API key")
-	metadata.AddCommand(settingsCommand("sources", "metadata", metaSourcesEnv, "Set the metadata lookup sources; empty restores Open Library and Google Books"), settingsCommand("results", "metadata", metaResultsEnv, "Set how many matches a lookup lists (1 to 50); empty restores 10"), settingsCommand("google-key", "metadata", googleBooksKeyEnv, "Set or remove the Google Books API key"))
+	metadata.AddCommand(settingsCommand("sources", "metadata", metaSourcesEnv, "Set the metadata lookup sources; empty picks them by book language"), settingsCommand("results", "metadata", metaResultsEnv, "Set how many matches a lookup lists (1 to 50); empty restores 10"), settingsCommand("google-key", "metadata", googleBooksKeyEnv, "Set or remove the Google Books API key"))
 	root.AddCommand(network, download, search, kindle, wereadSettings, metadata)
 	rootCmd.AddCommand(root)
 }

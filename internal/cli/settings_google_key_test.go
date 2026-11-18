@@ -194,6 +194,7 @@ func (c *captureRT) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func googleSource(t *testing.T, rt http.RoundTripper) metasource.Source {
 	t.Helper()
+	t.Setenv(metaSourcesEnv, "google") // Google is not a default without a key
 	for _, s := range newMetaSources(rt) {
 		if s.Name() == "Google Books" {
 			return s

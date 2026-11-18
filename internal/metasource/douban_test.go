@@ -233,7 +233,7 @@ func TestSourceNames(t *testing.T) {
 	for _, s := range DefaultSources(nil, "") {
 		names = append(names, s.Name())
 	}
-	if !reflect.DeepEqual(names, []string{"Open Library", "Google Books"}) {
+	if !reflect.DeepEqual(names, []string{"Open Library"}) {
 		t.Errorf("default sources = %v", names)
 	}
 	srcs := NewSources([]string{"douban", "doubann"}, SourceConfig{})

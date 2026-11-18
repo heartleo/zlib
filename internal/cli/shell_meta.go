@@ -48,8 +48,9 @@ func (m *shellModel) openMeta(arg string) tea.Cmd {
 
 // openMetaFile opens the lookup page for path, or reports why it cannot.
 func (m *shellModel) openMetaFile(path string) tea.Cmd {
-	page, err := newMetaPageModel(path, newDefaultMetaLookup(), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()),
-		withMetaSources(defaultMetaSourceChoices(), newMetaLookupFor), withMetaSourceSaver(saveMetaSources))
+	names := metaSourcesForFile(path, metaHint{})
+	page, err := newMetaPageModel(path, newMetaLookupFor(names), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()),
+		withMetaSources(metaSourceChoices(names), newMetaLookupFor), withMetaSourceSaver(saveMetaSources))
 	if err != nil {
 		m.setError(safeText(err.Error()))
 		return nil
@@ -63,8 +64,9 @@ func (m *shellModel) openMetaFile(path string) tea.Cmd {
 // to the saved-file page.
 func (m *shellModel) openMetaForDownload(dl downloadModel) tea.Cmd {
 	hint := metaHint{Title: dl.book.Name, Authors: dl.book.Authors, ISBNs: []string{dl.book.ISBN13, dl.book.ISBN10, dl.book.ISBN}}
-	page, err := newMetaPageModel(dl.savedPath, newDefaultMetaLookup(), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()), withMetaHint(hint),
-		withMetaSources(defaultMetaSourceChoices(), newMetaLookupFor), withMetaSourceSaver(saveMetaSources))
+	names := metaSourcesForFile(dl.savedPath, hint)
+	page, err := newMetaPageModel(dl.savedPath, newMetaLookupFor(names), ebookmeta.WriteFile, withMetaCover(newDefaultMetaCover()), withMetaHint(hint),
+		withMetaSources(metaSourceChoices(names), newMetaLookupFor), withMetaSourceSaver(saveMetaSources))
 	if err != nil {
 		return m.returnToDownloadCompletion(noticeError, safeText(err.Error()))
 	}

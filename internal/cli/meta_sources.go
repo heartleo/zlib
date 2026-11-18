@@ -3,9 +3,11 @@ package cli
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/metasource"
 )
 
@@ -35,9 +37,9 @@ var newMetaSourcesFor = func(names []string) []metasource.Source {
 	return metasource.NewSources(names, metaSourceConfig(metaTransport()))
 }
 
-// newMetaLookupFor is newDefaultMetaLookup for a chosen list of sources. The
-// sources and the proxy they use are resolved now, as there: the lookup runs
-// on another goroutine and must not read package state then.
+// newMetaLookupFor builds the lookup for a list of sources. The sources, the
+// proxy they use and the result limit are resolved now: the lookup runs on
+// another goroutine and must not read package state then.
 func newMetaLookupFor(names []string) metaLookupFunc {
 	sources := newMetaSourcesFor(names)
 	limit := metaResultLimit()
@@ -47,9 +49,36 @@ func newMetaLookupFor(names []string) metaLookupFunc {
 }
 
 // defaultMetaSourceChoices lists the built-in sources with what the
-// environment enables. It says whether a key is set and never shows one.
+// environment enables for a book that is not Chinese.
 func defaultMetaSourceChoices() []metaSourceChoice {
-	listed := configuredMetaSources()
+	return metaSourceChoices(configuredMetaSources())
+}
+
+// metaSourcesForFile is the list of sources to ask for the book at path: the
+// user's choice, else the default for its language. The language is the one
+// the file declares, or that of its title, authors and file name (and the
+// hint's, for a download). A file that cannot be read counts as not Chinese;
+// the page reports the error itself.
+func metaSourcesForFile(path string, hint metaHint) []string {
+	m, _, err := ebookmeta.ReadFile(path)
+	if err != nil {
+		m = nil
+	}
+	stem := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	titles, authors := []string{hint.Title, stem}, hint.Authors
+	if m != nil {
+		titles, authors = append(titles, m.Title), append(slices.Clone(m.Authors), authors...)
+	}
+	chinese := false
+	for _, t := range titles {
+		chinese = chinese || metaBookIsChinese(m, t, authors)
+	}
+	return metaSourceNamesFor(chinese)
+}
+
+// metaSourceChoices lists the built-in sources, those in listed on. It says
+// whether a key is set and never shows one.
+func metaSourceChoices(listed []string) []metaSourceChoice {
 	on := func(name string) bool { return slices.Contains(listed, name) }
 	googleNote := "shared quota"
 	if googleBooksKey() != "" {

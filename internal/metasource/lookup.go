@@ -120,11 +120,42 @@ const (
 	NameWeRead      = "weread"
 )
 
-// DefaultSourceNames are the sources used when none are chosen. Douban and
-// WeRead are not among them: Douban sends the title to a third party that
-// needs a Referer, and WeRead sends it to Tencent under the user's own API
-// key, so each is enabled on purpose.
-var DefaultSourceNames = []string{NameOpenLibrary, NameGoogle}
+// DefaultSourceNames are the sources used for a book that is not Chinese when
+// none are chosen and no Google Books key is set. See DefaultSourceNamesFor.
+var DefaultSourceNames = []string{NameOpenLibrary}
+
+// DefaultSourceNamesFor returns the sources used when none are chosen, by the
+// language of the book: Douban for a Chinese book, which it covers best, and
+// Open Library for any other, with Google Books added when a Google Books API
+// key is set (without one Google answers from a shared quota that often
+// refuses). WeRead is never a default: it sends the title to Tencent under the
+// user's own API key, so it is enabled on purpose.
+func DefaultSourceNamesFor(chinese, googleKey bool) []string {
+	if chinese {
+		return []string{NameDouban}
+	}
+	names := slices.Clone(DefaultSourceNames)
+	if googleKey {
+		names = append(names, NameGoogle)
+	}
+	return names
+}
+
+// ChineseBook reports whether a book is Chinese: its language is Chinese, or
+// its title or first author is written in Han characters (a Chinese book is
+// often tagged with the wrong language). Kana and hangul rule a title out, so
+// a Japanese or Korean book is not Chinese.
+func ChineseBook(languages []string, title string, authors []string) bool {
+	for _, l := range languages {
+		if normalizeLanguage(l) == "zh" || strings.HasPrefix(normalizeLanguage(l), "zh-") {
+			return true
+		}
+	}
+	if hasHan(title) {
+		return true
+	}
+	return len(authors) > 0 && hasHan(authors[0])
+}
 
 // KnownSourceNames lists the built-in sources in the order they are offered.
 var KnownSourceNames = []string{NameOpenLibrary, NameGoogle, NameDouban, NameWeRead}
@@ -168,25 +199,31 @@ type SourceConfig struct {
 	MaxResults int
 }
 
-// DefaultSources returns the default sources. googleKey is an optional Google
-// Books API key; without one Google's shared quota applies.
+// DefaultSources returns the default sources for a book that is not Chinese.
+// googleKey is an optional Google Books API key, which adds Google Books.
 func DefaultSources(rt http.RoundTripper, googleKey string) []Source {
-	return NewSources(DefaultSourceNames, SourceConfig{Transport: rt, GoogleKey: googleKey})
+	return NewSources(DefaultSourceNamesFor(false, strings.TrimSpace(googleKey) != ""), SourceConfig{Transport: rt, GoogleKey: googleKey})
 }
 
-// ParseSourceNames splits a comma-separated source list such as
-// "douban,openlibrary". An empty list selects DefaultSourceNames.
-func ParseSourceNames(list string) []string {
+// ExplicitSourceNames splits a comma-separated source list such as
+// "douban,openlibrary" into its names, or returns nil when it names none.
+func ExplicitSourceNames(list string) []string {
 	var names []string
 	for part := range strings.SplitSeq(list, ",") {
 		if n := strings.ToLower(strings.TrimSpace(part)); n != "" && !slices.Contains(names, n) {
 			names = append(names, n)
 		}
 	}
-	if len(names) == 0 {
-		return slices.Clone(DefaultSourceNames)
-	}
 	return names
+}
+
+// ParseSourceNames is ExplicitSourceNames, except that a list naming none
+// selects DefaultSourceNames.
+func ParseSourceNames(list string) []string {
+	if names := ExplicitSourceNames(list); len(names) > 0 {
+		return names
+	}
+	return slices.Clone(DefaultSourceNames)
 }
 
 // NewSources builds the named sources in order. An unknown name becomes a

@@ -42,7 +42,9 @@ is ever replaced.
 
 On a terminal, zlib meta with no file (or only --fetch) opens a file picker,
 then a page that reads the file name and the file, lets you choose the sources
-(Open Library, Google Books, Douban, WeRead) and searches when you press Enter,
+(Open Library, Google Books, Douban, WeRead; by default Douban for a Chinese
+book, else Open Library, plus Google Books with a key) and searches when you
+press Enter,
 so you can review, edit and write its metadata. --fetch --source picks the
 sources for one run.`
 

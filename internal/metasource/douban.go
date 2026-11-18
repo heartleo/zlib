@@ -23,7 +23,8 @@ const (
 )
 
 // Douban looks books up on Douban Books, the catalogue that covers Chinese
-// editions best. It is opt-in: DefaultSources leaves it out.
+// editions best. It is the default for a Chinese book (DefaultSourceNamesFor)
+// and is asked about no other unless chosen.
 //
 // An ISBN is resolved through the book.douban.com/isbn/<isbn>/ redirect,
 // which reads the subject ID from the Location header and downloads no page.

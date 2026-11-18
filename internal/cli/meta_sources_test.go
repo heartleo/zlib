@@ -416,7 +416,7 @@ func TestDefaultMetaSourceChoicesReadTheEnvironmentWithoutShowingTheKey(t *testi
 		return out
 	}
 	c := byName()
-	if !c["openlibrary"].enabled || !c["google"].enabled || c["douban"].enabled || c["weread"].enabled {
+	if !c["openlibrary"].enabled || c["google"].enabled || c["douban"].enabled || c["weread"].enabled {
 		t.Errorf("defaults = %+v", c)
 	}
 	if c["weread"].available || !strings.Contains(c["weread"].note, wereadAPIKeyEnv) {

@@ -165,7 +165,7 @@ func TestSettingsPageEditsAndClearsTheLookupSources(t *testing.T) {
 	s := testSettingsStore(t)
 	t.Setenv(metaSourcesEnv, "")
 	m, _ := newSettingsModel(t.Context(), s, "metadata")
-	if v := m.value(metaSourcesEnv); v.Value != "openlibrary,google" || v.Source != "Default" {
+	if v := m.value(metaSourcesEnv); v.Value != metaSourcesByLanguage || v.Source != "Default" {
 		t.Fatalf("default row = %+v", v)
 	}
 	step := func(value string) {
@@ -188,7 +188,7 @@ func TestSettingsPageEditsAndClearsTheLookupSources(t *testing.T) {
 	}
 	m.page = "metadata"
 	step("")
-	if v := m.value(metaSourcesEnv); v.Value != "openlibrary,google" || v.Source != "Default" || os.Getenv(metaSourcesEnv) != "" {
+	if v := m.value(metaSourcesEnv); v.Value != metaSourcesByLanguage || v.Source != "Default" || os.Getenv(metaSourcesEnv) != "" {
 		t.Fatalf("after clearing: %+v, env %q", v, os.Getenv(metaSourcesEnv))
 	}
 	if saved, _ := readSettingsEnv(s.global); saved[metaSourcesEnv] != "" {
@@ -212,7 +212,7 @@ func TestMetaSourcesSettingIsValidatedAndHasADefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, v := range values {
-		if v.Key == metaSourcesEnv && (v.Value != "openlibrary,google" || v.Source != "Default") {
+		if v.Key == metaSourcesEnv && (v.Value != metaSourcesByLanguage || v.Source != "Default") {
 			t.Errorf("default row = %+v", v)
 		}
 	}

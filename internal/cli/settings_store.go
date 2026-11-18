@@ -22,6 +22,10 @@ import (
 // still index values by position.
 var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv, metaResultsEnv}
 
+// metaSourcesByLanguage is what the sources row shows when no list is set: the
+// sources follow the book's language.
+const metaSourcesByLanguage = "By book language"
+
 // googleKeyNotSet is what the key row shows when there is no key. It is not a
 // value: displaySetting leaves it alone and masks everything else.
 const googleKeyNotSet = "Not set (shared quota)"
@@ -151,7 +155,7 @@ func (s settingsStore) values() ([]settingValue, error) {
 			case googleBooksKeyEnv:
 				v.Value, v.Source = googleKeyNotSet, "Default"
 			case metaSourcesEnv:
-				v.Value, v.Source = strings.Join(metasource.DefaultSourceNames, ","), "Default"
+				v.Value, v.Source = metaSourcesByLanguage, "Default"
 			case metaResultsEnv:
 				v.Value, v.Source = strconv.Itoa(metasource.DefaultMaxResults), "Default"
 			}

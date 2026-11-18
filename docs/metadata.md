@@ -120,9 +120,8 @@ zlib meta book.epub --fetch --isbn 9780441013593
 zlib meta book.epub --fetch --source douban,weread
 ```
 
-`--fetch` asks Open Library and Google Books about the book (and Douban or
-WeRead, once you enable them: [Douban](#douban), [WeRead](#weread)) and lists
-the best matches. It only reads: it never changes the file, and it cannot be
+`--fetch` asks the catalogues for the book's language ([see below](#default-sources))
+and lists the best matches. It only reads: it never changes the file, and it cannot be
 combined with the field options. `-t`, `-a` and `--isbn` set what to search
 for instead of what the file says. To use a match, copy the values into the
 field options above; the terminal interface applies a match for you.
@@ -131,7 +130,24 @@ field options above; the terminal interface applies a match for you.
 `douban` and `weread`, comma-separated or repeated. It needs `--fetch`, it
 beats `ZLIB_METADATA_SOURCES`, and an unknown name is a usage error (exit `2`).
 It is never saved. Without it a lookup asks the sources in
-`ZLIB_METADATA_SOURCES`, or Open Library and Google Books when that is unset.
+`ZLIB_METADATA_SOURCES`, or the default sources for the book when that is unset.
+
+#### Default sources
+
+With no list chosen, the sources follow the book's language:
+
+| Book | Sources |
+| --- | --- |
+| Chinese | Douban |
+| Any other | Open Library, and Google Books too when a Google Books API key is set (see below) |
+
+A book is Chinese when its language is Chinese, or when its title, first author
+or file name (or, for a download, the Z-Library record) is written in Han
+characters: a Chinese book is often tagged with the wrong language. Kana and
+hangul rule it out, so a Japanese or Korean book is not Chinese. WeRead is
+never a default. A list in `ZLIB_METADATA_SOURCES` or `--source` replaces the
+defaults for every book; the prepare page shows which sources are on and lets
+you change them, and Ctrl+D saves the choice as that list.
 
 What it does:
 
@@ -215,8 +231,9 @@ download record.
 ### Douban
 
 Douban Books covers Chinese editions that Open Library and Google Books lack,
-and each Douban entry is one edition. It is off by default, because it sends
-the title to a third party. Turn it on with a source list:
+and each Douban entry is one edition. It is the default for a Chinese book and
+is not asked about any other, because it sends the title to a third party. To
+ask it for every book, or together with other sources, use a source list:
 
 ```sh
 ZLIB_METADATA_SOURCES=douban,openlibrary,google zlib meta book.epub --fetch
@@ -353,8 +370,10 @@ search with opens the search editor, so you can type a title, author or ISBN
 Google Books answers from a quota shared with other users unless you set an
 API key (`zlib config metadata google-key`, or `ZLIB_GOOGLE_BOOKS_KEY`, or
 `GOOGLE_BOOKS_API_KEY` when that is empty; see
-[Configuration](configuration.md)). Without one it often reports `rate limited`
-and the results come from Open Library. A rejected key is reported as such.
+[Configuration](configuration.md)). With a key, Google Books is a default source
+for books that are not Chinese. Without one it is not asked unless you choose it,
+and then it often reports `rate limited` and the results come from Open Library.
+A rejected key is reported as such.
 
 Lookups and cover downloads use `ZLIB_PROXY` when it is set, otherwise the
 system proxy; the Z-Library session is never sent. The one exception is the
