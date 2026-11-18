@@ -226,31 +226,53 @@ func metaFetchQuery(cmd *cobra.Command, path string, m *ebookmeta.Metadata) (met
 		return metasource.Extraction{}, err
 	}
 	x := metasource.Extract(filepath.Base(path), m, scannedISBNs(path, m), metasource.Hint{NameLayout: metaNameLayout()})
-	q := &x.Query
+	var title, authors, isbn *string
 	if flags.Changed("title") {
-		q.Title, _ = flags.GetString("title")
-		q.TitleGuessed = false
-		x.TitleFrom = "edited"
+		v, _ := flags.GetString("title")
+		title = &v
 	}
 	if flags.Changed("authors") {
 		v, _ := flags.GetString("authors")
+		authors = &v
+	}
+	if flags.Changed("isbn") {
+		v, _ := flags.GetString("isbn")
+		isbn = &v
+	}
+	if err := overrideExtractionQuery(&x, title, authors, isbn); err != nil {
+		return metasource.Extraction{}, &usageError{err}
+	}
+	return x, nil
+}
+
+// overrideExtractionQuery replaces what was read with what the user (or an
+// agent) said to search for. A title they give is theirs and no guess; authors
+// are separated by &; an ISBN they give is confirmed, like the file's own. A nil
+// argument leaves that part as it was.
+func overrideExtractionQuery(x *metasource.Extraction, title, authors, isbn *string) error {
+	q := &x.Query
+	if title != nil {
+		q.Title = *title
+		q.TitleGuessed = false
+		x.TitleFrom = "edited"
+	}
+	if authors != nil {
 		q.Authors = nil
-		for a := range strings.SplitSeq(v, "&") {
+		for a := range strings.SplitSeq(*authors, "&") {
 			if a = strings.TrimSpace(a); a != "" {
 				q.Authors = append(q.Authors, a)
 			}
 		}
 		x.AuthorsFrom = "edited"
 	}
-	if flags.Changed("isbn") {
-		v, _ := flags.GetString("isbn")
-		isbn := metasource.NormalizeISBN(v)
-		if isbn == "" {
-			return metasource.Extraction{}, &usageError{fmt.Errorf("--isbn %q is not a valid ISBN", v)}
+	if isbn != nil {
+		n := metasource.NormalizeISBN(*isbn)
+		if n == "" {
+			return fmt.Errorf("--isbn %q is not a valid ISBN", *isbn)
 		}
-		q.ISBNs, q.Unconfirmed, x.ISBNFrom = []string{isbn}, nil, []string{"typed"}
+		q.ISBNs, q.Unconfirmed, x.ISBNFrom = []string{n}, nil, []string{"typed"}
 	}
-	return x, nil
+	return nil
 }
 
 // metaFetchHasOverrides reports whether -t, -a or --isbn were given, which

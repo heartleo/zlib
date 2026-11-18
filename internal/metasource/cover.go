@@ -41,6 +41,13 @@ func coverReferer(u *url.URL) string {
 	return ""
 }
 
+// TrustedCoverURL reports whether FetchCover would accept rawURL: https on a
+// known cover host. It downloads nothing.
+func TrustedCoverURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	return err == nil && u.Scheme == "https" && coverHosts.allows(u)
+}
+
 // FetchCover downloads the cover image at rawURL through rt (nil for the
 // default transport). The URL must be https on a known cover host, every
 // redirect is held to the same rule, and the result must be a JPEG, PNG, GIF

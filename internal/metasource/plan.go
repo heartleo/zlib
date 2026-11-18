@@ -28,6 +28,12 @@ const (
 // particular file and is never taken from a catalogue.
 var writableIdentifiers = []string{"isbn", "google", "openlibrary", "douban", "weread"}
 
+// WritableIdentifier reports whether a lookup, or an agent acting on one, may
+// write an identifier of this scheme. A uuid names one file and never can.
+func WritableIdentifier(scheme string) bool {
+	return slices.Contains(writableIdentifiers, strings.ToLower(strings.TrimSpace(scheme)))
+}
+
 // Change is one proposed edit to a file's metadata.
 type Change struct {
 	Field Field

@@ -448,10 +448,7 @@ func (m metaPageModel) openFields() metaPageModel {
 // canOffer reports whether the file's format can take the change. MOBI can
 // only replace a cover it already has.
 func (m metaPageModel) canOffer(ch metasource.Change) bool {
-	if !ebookmeta.CanStore(m.format, string(ch.Field)) {
-		return false
-	}
-	return !(ch.Field == metasource.FieldCover && m.format == ebookmeta.FormatMOBI && m.current.Cover == "")
+	return canOfferChange(m.format, m.current, ch)
 }
 
 func (m metaPageModel) written(msg metaWriteDone) (tea.Model, tea.Cmd) {

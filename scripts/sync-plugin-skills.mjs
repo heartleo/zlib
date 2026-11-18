@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const source = join(root, '.agents', 'skills');
 const target = join(root, 'plugins', 'zlib', 'skills');
-const pluginSkills = ['kindle', 'zlib'];
+const pluginSkills = ['kindle', 'metadata', 'zlib'];
 const args = process.argv.slice(2);
 if (args.some(arg => arg !== '--check')) {
   throw new Error('Usage: node scripts/sync-plugin-skills.mjs [--check]');
