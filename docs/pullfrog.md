@@ -68,7 +68,8 @@ New issues, including those from non-collaborators, receive one short reply:
 a duplicate and related-issue check, a brief diagnosis and a suggested
 direction. Issue replies are written for users: English only, whatever language
 the author wrote in, about 120 words at most, and with no source paths, line
-numbers or internal names. The agent still traces the source and tests before
+numbers or internal names. A maintainer's mention that asks for more depth gets
+a longer answer in the same terms. The agent still traces the source and tests before
 naming a cause; it just does not show that work in a public thread. Replies
 that Pullfrog posts on a security-sensitive report point to the private route in
 [SECURITY.md](../.github/SECURITY.md) and leave the details out. Pull request
