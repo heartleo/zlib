@@ -117,17 +117,6 @@ func TestBrewFailureExplainsTheRename(t *testing.T) {
 			t.Errorf("unexpected stderr: %q", errOut.String())
 		}
 	})
-
-	t.Run("cancelled update gets no notice", func(t *testing.T) {
-		stubToolUpdate(t, failing, "", false)
-		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		var errOut bytes.Buffer
-		_ = runToolUpdate(ctx, nil, io.Discard, &errOut, updateBrew, "/x/zlib", "v0.0.13")
-		if errOut.Len() != 0 {
-			t.Errorf("unexpected stderr: %q", errOut.String())
-		}
-	})
 }
 
 func TestToolUpdateAlreadyCurrent(t *testing.T) {

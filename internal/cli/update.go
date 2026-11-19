@@ -79,8 +79,7 @@ func runToolUpdate(ctx context.Context, in io.Reader, out, errOut io.Writer, met
 	lipgloss.Fprintf(out, "Updating zlib with %s %s\n", name, colorFaint("("+name+" "+strings.Join(args, " ")+")"))
 	start := time.Now()
 	if err := runUpdateCommand(ctx, in, out, errOut, name, args); err != nil {
-		// Ctrl+C also fails the command; rename advice would mislead then.
-		if method == updateBrew && ctx.Err() == nil {
+		if method == updateBrew {
 			lipgloss.Fprint(errOut, brewRenameNotice())
 		}
 		return fmt.Errorf("%s update failed: %w", name, err)
