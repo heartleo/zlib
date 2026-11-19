@@ -23,23 +23,36 @@ func grItem(id, bareTitle, title, author, blurb string, truncated bool) string {
 		`"description":{"html":"` + blurb + `","truncated":` + map[bool]string{true: "true", false: "false"}[truncated] + `}}`
 }
 
-// goodreadsServer answers the two Goodreads endpoints from one host. known
-// maps an ISBN to the book ID its redirect names; auto maps an autocomplete
-// query to the JSON body.
-func goodreadsServer(t *testing.T, known map[string]string, auto map[string]string) (*Goodreads, *[]string) {
+// grFixture is what a fake Goodreads host serves.
+type grFixture struct {
+	known  map[string]string // an ISBN to the book ID its redirect names
+	auto   map[string]string // an autocomplete query to the JSON body
+	pages  map[string]string // a book ID to the body of its page; a missing one is a 404
+	status map[string]int    // a book ID to a status its page is answered with instead
+	wantUA string            // the User-Agent every request must carry; the default when empty
+}
+
+// goodreadsServerWith answers the three Goodreads endpoints from one host, and
+// fails the test for a request that carries cookies or another User-Agent than
+// the one expected.
+func goodreadsServerWith(t *testing.T, fx grFixture, opts ...GoodreadsOption) (*Goodreads, *[]string) {
 	t.Helper()
+	want := fx.wantUA
+	if want == "" {
+		want = goodreadsUserAgent
+	}
 	var reqs []string
 	srv := serve(t, func(w http.ResponseWriter, r *http.Request) {
 		reqs = append(reqs, r.URL.RequestURI())
-		if ua := r.Header.Get("User-Agent"); !strings.HasPrefix(ua, "zlib-metadata-lookup") {
-			t.Errorf("User-Agent = %q", ua)
+		if ua := r.Header.Get("User-Agent"); ua != want {
+			t.Errorf("%s: User-Agent = %q, want %q", r.URL.Path, ua, want)
 		}
 		if r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "" {
 			t.Error("credentials sent")
 		}
 		switch {
 		case strings.HasPrefix(r.URL.Path, "/book/isbn/"):
-			if id, ok := known[strings.TrimPrefix(r.URL.Path, "/book/isbn/")]; ok {
+			if id, ok := fx.known[strings.TrimPrefix(r.URL.Path, "/book/isbn/")]; ok {
 				http.Redirect(w, r, "/book/show/"+id+"-some-title", http.StatusMovedPermanently)
 				return
 			}
@@ -48,17 +61,38 @@ func goodreadsServer(t *testing.T, known map[string]string, auto map[string]stri
 			if r.URL.Query().Get("format") != "json" {
 				t.Errorf("format = %q", r.URL.Query().Get("format"))
 			}
-			if body, ok := auto[r.URL.Query().Get("q")]; ok {
+			if body, ok := fx.auto[r.URL.Query().Get("q")]; ok {
 				w.Header().Set("Content-Type", "application/json")
 				w.Write([]byte(body))
 				return
 			}
 			w.Write([]byte("[]"))
+		case strings.HasPrefix(r.URL.Path, "/book/show/"):
+			id := strings.TrimPrefix(r.URL.Path, "/book/show/")
+			id, _, _ = strings.Cut(id, "-")
+			if st, ok := fx.status[id]; ok {
+				w.WriteHeader(st)
+				w.Write([]byte(`<html><script>window.awsWafCookieDomainList=[]</script><div id="challenge-container"></div></html>`))
+				return
+			}
+			if body, ok := fx.pages[id]; ok {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.Write([]byte(body))
+				return
+			}
+			http.NotFound(w, r)
 		default:
-			t.Errorf("unexpected request %s", r.URL) // a book page is never read
+			t.Errorf("unexpected request %s", r.URL)
 		}
 	})
-	return newGoodreads(srv.URL, nil), &reqs
+	return newGoodreads(srv.URL, nil, opts...), &reqs
+}
+
+// goodreadsServer is goodreadsServerWith for a host that has no book pages: a
+// page is a 404, so a lookup has the suggestions only.
+func goodreadsServer(t *testing.T, known map[string]string, auto map[string]string) (*Goodreads, *[]string) {
+	t.Helper()
+	return goodreadsServerWith(t, grFixture{known: known, auto: auto})
 }
 
 func TestGoodreadsByISBNResolvesRedirectAndPicksThatBook(t *testing.T) {
@@ -92,10 +126,13 @@ func TestGoodreadsByISBNResolvesRedirectAndPicksThatBook(t *testing.T) {
 	if gid != "260994194" {
 		t.Errorf("identifiers = %+v", c.Identifiers)
 	}
+	// The page is asked for first, and with none to read the suggestion stands in.
+	var paths []string
 	for _, r := range *reqs {
-		if strings.HasPrefix(r, "/book/show/") {
-			t.Errorf("a book page was requested: %s", r)
-		}
+		paths = append(paths, strings.SplitN(r, "?", 2)[0])
+	}
+	if want := []string{"/book/isbn/" + isbn, "/book/show/260994194", "/book/auto_complete"}; !reflect.DeepEqual(paths, want) {
+		t.Errorf("requests = %v, want %v", paths, want)
 	}
 }
 
@@ -130,8 +167,14 @@ func TestGoodreadsTitleSearchMergesTheTwoQueriesAndFiltersByTitle(t *testing.T) 
 	if len(got) != 1 || got[0].Title != "Dune" {
 		t.Fatalf("got %+v, want only Dune once", got)
 	}
-	if len(*reqs) != 2 {
-		t.Errorf("requests = %v, want one per query", *reqs)
+	searches := 0
+	for _, r := range *reqs {
+		if strings.HasPrefix(r, "/book/auto_complete") {
+			searches++
+		}
+	}
+	if searches != 2 {
+		t.Errorf("requests = %v, want one search per query", *reqs)
 	}
 }
 
@@ -206,6 +249,10 @@ func TestGoodreadsRetriesAShedLoadStatusOnce(t *testing.T) {
 
 	var calls atomic.Int32
 	srv := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/book/show/") { // no page: the suggestion stands
+			http.NotFound(w, r)
+			return
+		}
 		if calls.Add(1) == 1 {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return

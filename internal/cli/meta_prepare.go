@@ -473,10 +473,8 @@ func (m metaPageModel) prepareSources(width int) []string {
 	if m.wereadOn() {
 		lines = append(lines, "  "+colorFaint(ansi.Truncate("WeRead sends each title to Tencent under your account.", max(1, width-4), "…")))
 	}
-	for _, note := range []string{m.titleNote(), m.goodreadsNote()} {
-		if note != "" {
-			lines = append(lines, "  "+colorFaint(ansi.Truncate(note, max(1, width-4), "…")))
-		}
+	if note := m.titleNote(); note != "" {
+		lines = append(lines, "  "+colorFaint(ansi.Truncate(note, max(1, width-4), "…")))
 	}
 	return lines
 }

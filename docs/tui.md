@@ -276,10 +276,8 @@ nothing while a search or a write runs:
   dropped. The shortcuts for editing the file's fields (`m`) and for all its
   details (`i`) are on the `Search for` rule under the card. Under the card is what will be searched and where each part
   came from, read from the file name first and then the file (an ISBN row only
-  when there is an ISBN to search by); under that the sources to ask. When
-  Goodreads is the only source on, a line under them says it gives no
-  publisher, date or ISBN and that adding Open Library fills them. Nothing has
-  been sent yet. The `File` line under the card does not repeat the rename key:
+  when there is an ISBN to search by); under that the sources to ask. Nothing
+  has been sent yet. The `File` line under the card does not repeat the rename key:
   `n` is in the footer at every width. On a short terminal the card
   gives up lines first, then the search terms shrink to one line, and a very
   short one drops the card, so the sources are never the part that is cut.

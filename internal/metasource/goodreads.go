@@ -21,6 +21,20 @@ const (
 	goodreadsBase      = "https://www.goodreads.com"
 	sourceGoodreads    = "Goodreads"
 	goodreadsCoverHost = "i.gr-assets.com"
+	// goodreadsPageCoverHost serves the full-size cover a book page names.
+	goodreadsPageCoverHost = "m.media-amazon.com"
+
+	// goodreadsMaxPages is how many book pages one title search reads. A page is
+	// large (about 0.9 MB) and Goodreads sheds load, so the rest of the hits stay
+	// as the summary the suggestion list gives.
+	goodreadsMaxPages = 3
+
+	// goodreadsUserAgent is the User-Agent the source sends. It is the desktop
+	// Chrome of the user who asked for this source, and using it instead of zlib's
+	// own was their decision, as the WeRead source's is. Chrome reports only its
+	// major version, so the string stays as it is until someone bumps it by hand.
+	// NewGoodreads takes another with WithGoodreadsUserAgent; nothing else sets it.
+	goodreadsUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
 )
 
 // goodreadsRetryDelay is the pause before the one retry of a request that
@@ -28,44 +42,67 @@ const (
 // shorten it.
 var goodreadsRetryDelay = 1200 * time.Millisecond
 
+// goodreadsPagePause is the wait between two book pages of one search, so a
+// lookup does not ask for them in a burst. A variable, for tests.
+var goodreadsPagePause = 600 * time.Millisecond
+
 // Goodreads looks books up on Goodreads. It is opt-in: it is chosen by name
 // and is never a default (DefaultSourceNamesFor).
 //
-// Only two endpoints are used, and both answer a plain request that carries
-// zlib's own User-Agent, with no cookies and no login:
+// It reads three addresses, with no cookies and no login, and a User-Agent
+// (see goodreadsUserAgent):
 //
 //   - /book/auto_complete?format=json&q=... returns up to a handful of books
-//     as JSON: title, author, cover, page count and a blurb. It is searched
-//     with a title, a title and an author, or an ISBN.
+//     as JSON: title, author, cover, page count and a blurb that is cut short.
+//     It is searched with a title, a title and an author, or an ISBN.
 //   - /book/isbn/<isbn> redirects to the book's page. The redirect is read and
-//     not followed, because the page itself sits behind a bot challenge that
-//     answers a plain request with HTTP 202 and a script. The source does not
-//     solve it and does not imitate a browser to avoid it, so it never reads
-//     a book page, and so never has a publisher, a date, a language or an ISBN
-//     of its own to offer.
+//     not followed.
+//   - /book/show/<id> is the book's page, whose embedded data holds the whole
+//     record of one edition: authors, publisher, date, language, ISBNs,
+//     categories, series, the full description and the cover.
 //
-// An ISBN is resolved to a book ID through the redirect, and that ID picks the
-// one autocomplete hit that is the book: the candidate is edition level, and
-// carries the ISBN that was asked for. A title search returns work-level
-// candidates, since a title does not name an edition.
-//
-// A blurb that autocomplete cut short is dropped, so it cannot replace a full
-// description from another source with a fragment.
+// An ISBN is resolved to a book ID through the redirect and the page of that ID
+// is read, which gives an edition-level candidate. A title search ranks the
+// suggestions and reads the pages of the first few, so those rows are edition
+// level too; the others stay as the suggestion list describes them, with a
+// title, authors, a series and a cover. Goodreads sometimes answers a page with
+// a bot check instead of the page (HTTP 202 and a script). The source does not
+// answer it: it falls back to the suggestion for that book and reads no more
+// pages in that lookup, so a lookup is never lost to it. A blurb that the
+// suggestion list cut short is dropped, so it cannot replace a full description
+// from another source with a fragment.
 type Goodreads struct {
 	base       string
+	ua         string
 	client     *http.Client // follows redirects within the allowed host
 	noRedirect *http.Client // returns the first response, for the ISBN hop
 	limit      int          // the lookup's result limit; 0 is the default
 }
 
-// NewGoodreads returns the source for rt (nil for the default transport).
-func NewGoodreads(rt http.RoundTripper) *Goodreads { return newGoodreads(goodreadsBase, rt) }
+// GoodreadsOption changes how a Goodreads source is built.
+type GoodreadsOption func(*Goodreads)
 
-func newGoodreads(base string, rt http.RoundTripper) *Goodreads {
+// WithGoodreadsUserAgent makes the source send ua instead of the default. An
+// empty ua, or one with a line break in it, keeps the default.
+func WithGoodreadsUserAgent(ua string) GoodreadsOption {
+	return func(g *Goodreads) {
+		if ua = strings.TrimSpace(ua); ua != "" && !strings.ContainsAny(ua, "\r\n") {
+			g.ua = ua
+		}
+	}
+}
+
+// NewGoodreads returns the source for rt (nil for the default transport).
+func NewGoodreads(rt http.RoundTripper, opts ...GoodreadsOption) *Goodreads {
+	return newGoodreads(goodreadsBase, rt, opts...)
+}
+
+func newGoodreads(base string, rt http.RoundTripper, opts ...GoodreadsOption) *Goodreads {
 	u, _ := url.Parse(base)
 	const timeout = 20 * time.Second
-	return &Goodreads{
+	g := &Goodreads{
 		base:   base,
+		ua:     goodreadsUserAgent,
 		client: newHTTPClient(rt, timeout, hostPolicy{strings.ToLower(u.Host)}, u.Scheme),
 		noRedirect: &http.Client{
 			Transport:     rt,
@@ -73,14 +110,18 @@ func newGoodreads(base string, rt http.RoundTripper) *Goodreads {
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
+	for _, opt := range opts {
+		opt(g)
+	}
+	return g
 }
 
 func (*Goodreads) Name() string { return sourceGoodreads }
 
-// errGoodreadsChallenge is the bot challenge Goodreads serves in place of a
-// page. It is reported as a failure of this source, and the lookup carries on
-// with the others.
-var errGoodreadsChallenge = errors.New("Goodreads asked for a bot challenge, which this client does not answer")
+// errGoodreadsChallenge is the bot check Goodreads serves in place of a page. It
+// is reported as a failure of this source when nothing else could be read, and
+// the lookup carries on with the others.
+var errGoodreadsChallenge = errors.New("Goodreads answered with a bot check, which zlib does not solve")
 
 // goodreadsBookPath matches the path a book redirects to: /book/show/<id>
 // followed by a slug, as "-slug" or ".Slug", or by nothing.
@@ -102,13 +143,31 @@ func (s *Goodreads) Identify(ctx context.Context, q Query) ([]Candidate, error) 
 	return s.byTitle(ctx, q)
 }
 
-// byISBN resolves isbn to a book ID, then returns that book as autocomplete
-// describes it, or nil when Goodreads does not know the ISBN.
+// byISBN resolves isbn to a book ID, then returns that book from its page, or
+// as the suggestion list describes it when the page cannot be read, or nil when
+// Goodreads does not know the ISBN.
 func (s *Goodreads) byISBN(ctx context.Context, isbn string) (*Candidate, error) {
 	id, err := s.bookIDByISBN(ctx, isbn)
 	if err != nil || id == "" {
 		return nil, err
 	}
+	switch c, err := s.page(ctx, id); {
+	case c != nil:
+		// Goodreads resolved this ISBN to the book, so it is the book's ISBN
+		// even when its page prints none.
+		if c.ISBN() == "" {
+			c.Identifiers = append([]ebookmeta.Identifier{{Scheme: "isbn", Value: isbn}}, c.Identifiers...)
+		}
+		return c, nil
+	case err != nil && ctx.Err() != nil:
+		return nil, ctx.Err()
+	}
+	return s.byISBNSuggestion(ctx, isbn, id)
+}
+
+// byISBNSuggestion is the book of id as the suggestion list for its ISBN
+// describes it: what a lookup has when the page cannot be read.
+func (s *Goodreads) byISBNSuggestion(ctx context.Context, isbn, id string) (*Candidate, error) {
 	items, err := s.autocomplete(ctx, isbn)
 	if err != nil {
 		return nil, err
@@ -171,7 +230,7 @@ func (s *Goodreads) noRedirectStatus(ctx context.Context, rawURL string) (int, *
 		if err != nil {
 			return 0, nil, err
 		}
-		req.Header.Set("User-Agent", userAgent)
+		req.Header.Set("User-Agent", s.ua)
 		resp, err := s.noRedirect.Do(req)
 		if err != nil {
 			return 0, nil, stripURL(err)
@@ -240,15 +299,50 @@ func (s *Goodreads) byTitle(ctx context.Context, q Query) ([]Candidate, error) {
 	for i, h := range hits {
 		out[i] = h.c
 	}
+	s.readPages(ctx, out)
 	return out, nil
 }
+
+// readPages replaces the first goodreadsMaxPages suggestions with the books'
+// pages, one after another with a pause. The first page that cannot be read (a
+// bot check, a rate limit, a failure) ends it: the suggestion stays for that
+// book and the rest, so nothing already read is lost. A context that ends has
+// the same effect, and no error is returned, because the lookup drops the
+// candidates of a source that returns one.
+func (s *Goodreads) readPages(ctx context.Context, out []Candidate) {
+	for i := 0; i < len(out) && i < goodreadsMaxPages; i++ {
+		if i > 0 && sleepCtx(ctx, goodreadsPagePause) != nil {
+			return
+		}
+		c, err := s.page(ctx, goodreadsID(out[i]))
+		if err != nil {
+			return
+		}
+		if c != nil { // no page for this book: its suggestion stays
+			out[i] = *c
+		}
+	}
+}
+
+// goodreadsID is the Goodreads book ID a candidate carries, or "".
+func goodreadsID(c Candidate) string {
+	for _, id := range c.Identifiers {
+		if id.Scheme == "goodreads" {
+			return id.Value
+		}
+	}
+	return ""
+}
+
+// uaHeader is the User-Agent of this source, as the extra headers of a request.
+func (s *Goodreads) uaHeader() http.Header { return http.Header{"User-Agent": {s.ua}} }
 
 // autocomplete returns the books Goodreads suggests for text.
 func (s *Goodreads) autocomplete(ctx context.Context, text string) ([]goodreadsItem, error) {
 	u := s.base + "/book/auto_complete?" + url.Values{"format": {"json"}, "q": {text}}.Encode()
 	var body []byte
 	for attempt := 0; ; attempt++ {
-		b, status, err := fetch(ctx, s.client, u, "application/json", nil)
+		b, status, err := fetch(ctx, s.client, u, "application/json", s.uaHeader())
 		if err != nil {
 			return nil, err
 		}
@@ -367,11 +461,13 @@ func (it goodreadsItem) candidate() *Candidate {
 var goodreadsThumb = regexp.MustCompile(`\._S[XY]\d+_\.`)
 
 // goodreadsCoverURL returns the full-size cover for raw, or "" when raw is not
-// an https URL on Goodreads' image host or is the placeholder for a book with
-// no cover, so a response cannot point the cover fetch elsewhere.
+// an https URL on one of the two hosts Goodreads' covers come from (the
+// suggestion list's and a book page's) or is the placeholder for a book with no
+// cover, so a response cannot point the cover fetch elsewhere.
 func goodreadsCoverURL(raw string) string {
 	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Host, goodreadsCoverHost) ||
+	if err != nil || u.Scheme != "https" || u.Port() != "" ||
+		!(strings.EqualFold(u.Hostname(), goodreadsCoverHost) || strings.EqualFold(u.Hostname(), goodreadsPageCoverHost)) ||
 		strings.Contains(strings.ToLower(u.Path), "nophoto") {
 		return ""
 	}

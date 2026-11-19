@@ -267,38 +267,47 @@ download record.
 
 ### Goodreads
 
-Goodreads knows most English-language books, with their series and a cover. It
-is off by default, because it sends the title, authors or ISBN to a third
-party. List it to ask it, alone or with other sources:
+Goodreads knows most books, in many languages, with their series, categories and
+a cover. It is off by default, because it sends the title, authors or ISBN to a
+third party. List it to ask it, alone or with other sources:
 
 ```sh
 zlib meta book.epub --fetch --source openlibrary,goodreads
 ZLIB_METADATA_SOURCES=openlibrary,goodreads zlib meta book.epub --fetch
 ```
 
-zlib uses two Goodreads addresses, with no cookie or login and its own
-`User-Agent`. A title, or a title and the first author, is searched through
-Goodreads' suggestion list, which returns a few books as JSON: title, author,
-cover and a blurb. An ISBN is resolved through Goodreads' ISBN address, which
-redirects to the book; zlib reads the redirect and does not follow it, and picks
-that book from the suggestions. A result found by an ISBN carries that ISBN
-and the Goodreads book ID.
+zlib reads three Goodreads addresses, with no cookie or login. A title, or a
+title and the first author, is searched through Goodreads' suggestion list,
+which returns a few books as JSON. For the first three of them the book's own
+page is read, which holds the whole record of that edition: the authors, the
+publisher, the publication date, the language, the ISBN, the categories (as
+tags), the series, the full description and the cover. An ISBN is resolved
+through Goodreads' ISBN address, which redirects to the book, and the page of
+that book is read. So a row from a page is an edition, with its own ISBN, and a
+result found by title that came from a page carries the edition's ISBN too. A
+Goodreads edition is one book ID, which is also the `goodreads` identifier that
+is written. The page names the translator as well as the author: only the
+author is taken, and for a Chinese edition that lists the author's name in both
+Latin and Han script, the Han name. The publication date is the day Goodreads
+holds, whatever precision the edition really has.
 
-Goodreads' book pages sit behind a bot challenge that a plain request cannot
-pass, and zlib does not try to solve it or to look like a browser. It never
-reads a book page, so Goodreads gives no publisher, publication date, language
-or ISBN of its own: a result found by title is a `title match` that names no
-edition, and its ID is the only identifier it adds. It does name the series: the
-suggestion list writes a book of a series as `Title (Series, #2)`, and zlib reads
-the series and the position from that. A series belongs to the work, so a match
-found by title may fill an empty series, and one the file already has is never
-replaced unless you choose it. A box set's range such as `#1-3` is not a
-position and is not read. The suggestion list cuts long blurbs short, and a cut-short blurb is not offered as a description, so
-it never replaces a whole one from another source. The cover is the full-size
-image from Goodreads' image server (`i.gr-assets.com`). If Goodreads asks for the
-challenge, or refuses a request, the source is reported as failing like any
-other and the rest of the lookup carries on; a request it answers with 502, 503
-or 504 is tried once more.
+Goodreads sometimes answers a page with a bot check instead of the page, and
+zlib does not answer it. The source then uses the suggestion for that book, with
+only a title, authors, a series and a cover, and reads no more pages in that
+lookup, so a lookup is never lost to it; a request it answers with 502, 503 or
+504 is tried once more, and a rate limit also ends the reading. The suggestion's
+blurb is cut short, and a cut-short blurb is not offered as a description, so it
+never replaces a whole one. The suggestion writes a book of a series as
+`Title (Series, #2)`, and the series and the position are read from that, where
+a box set's range such as `#1-3` is not a position. A series belongs to the work, so a match found by title may
+fill an empty series, and one the file already has is never replaced unless you
+choose it. The cover is the full-size image from Goodreads' image servers
+(`m.media-amazon.com` for a page, `i.gr-assets.com` for a suggestion).
+
+Goodreads' pages are asked for with a desktop browser's `User-Agent` and not
+zlib's own, which is a decision of the project's owner and applies to this source
+only. It is not configurable from the command line, the environment or the
+settings.
 
 ### Douban
 

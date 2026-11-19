@@ -166,23 +166,6 @@ func (m metaPageModel) wereadOn() bool {
 	return false
 }
 
-// goodreadsNote says what a Goodreads row holds while Goodreads is asked.
-// Goodreads' book pages sit behind a bot challenge that zlib does not answer,
-// so it supplies a title, authors, a series and a cover, and never a publisher,
-// a date or an ISBN. Its rows are its own, not joined with another source's, so
-// they stay without those. It is a note of the prepare page, not part of the
-// source's own row, which the settings list shows too.
-func (m metaPageModel) goodreadsNote() string {
-	choices := m.sources
-	if m.stage == metaPrepare {
-		choices = m.draft
-	}
-	if slices.Contains(enabledMetaSources(choices), metasource.NameGoodreads) {
-		return "Goodreads rows have no publisher, date or ISBN."
-	}
-	return ""
-}
-
 // titleNote warns that WeRead cannot search without a title: it has no lookup
 // by ISBN, so a title-less search would quietly return nothing from it.
 func (m metaPageModel) titleNote() string {
