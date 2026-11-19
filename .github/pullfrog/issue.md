@@ -28,7 +28,7 @@ Write the reply in this order, as plain paragraphs or at most four bullets:
 
 Use no headings, greetings, sign-offs or tables, and no code blocks except a
 command the author should run. Do not restate the issue, name affected files,
-write an implementation plan or verification steps, or promise a fix or a
+write an implementation plan or steps to verify a fix, or promise a fix or a
 response time. Do not mention people with @. Post one reply, with related issue
 links when supported.
 
