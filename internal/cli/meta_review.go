@@ -79,65 +79,50 @@ func btoi(b bool) int {
 
 // --- Results page ------------------------------------------------------------
 
-// minTitleAuthors is the room the results list keeps for the title and the
-// authors before the sources column gives up its full names.
-const minTitleAuthors = 34
-
-// metaSourceLabel says where a result came from: the catalogue, or the
-// catalogues it was merged from, joined with "+" in brackets. short uses the
-// two-letter names.
-func metaSourceLabel(c metasource.Candidate, short bool) string {
+// metaSourceLabel says which catalogue a result came from, in brackets. Every
+// result comes from one catalogue: the lookup does not merge the answers of
+// different ones.
+func metaSourceLabel(c metasource.Candidate) string {
 	if len(c.Sources) == 0 {
 		return ""
 	}
 	names := make([]string, len(c.Sources))
 	for i, s := range c.Sources {
-		if short {
-			s = metasource.ShortSourceName(s)
-		}
 		names[i] = safeText(s)
 	}
 	return "[" + strings.Join(names, "+") + "]"
 }
 
-// candidateColumns sizes the columns of the results list. The sources column
-// comes first and is as wide as the longest label of any result, so a merge of
-// several catalogues is never cut short and the column does not move as the
-// list scrolls; title and authors take what is left. When the full names would
-// leave the title and the authors less than minTitleAuthors cells the labels use
-// the short names (short).
-func (m metaPageModel) candidateColumns(width int) (titleW, authorW, sourceW int, short bool) {
-	var full, brief int
+// candidateColumns sizes the columns of the results list. The source column
+// comes first and is as wide as the longest label of any result (not only the
+// visible ones, so it does not move as the list scrolls), so a name is never
+// cut; title and authors take what is left.
+func (m metaPageModel) candidateColumns(width int) (titleW, authorW, sourceW int) {
 	for _, c := range m.res.Candidates {
 		titleW = max(titleW, ansi.StringWidth(safeText(c.Title)))
 		authorW = max(authorW, ansi.StringWidth(safeText(strings.Join(c.Authors, " & "))))
-		full = max(full, ansi.StringWidth(metaSourceLabel(c, false)))
-		brief = max(brief, ansi.StringWidth(metaSourceLabel(c, true)))
+		sourceW = max(sourceW, ansi.StringWidth(metaSourceLabel(c)))
 	}
 	const fixed = 2 + 5 + 1 + 4 + 6 // cursor, marker, year and the gaps
-	sourceW, short = full, false
-	if width-fixed-full < minTitleAuthors {
-		sourceW, short = brief, true
-	}
-	sourceW = max(sourceW, len("Sources"))
+	sourceW = max(sourceW, len("Source"))
 	rest := max(20, width-fixed-sourceW)
 	titleW = min(max(5, titleW), max(10, rest*45/100))
 	if authorW > 0 { // a column is never narrower than its title
 		authorW = max(len("Authors"), min(authorW, max(8, rest*28/100)))
 	}
-	return titleW, authorW, sourceW, short
+	return titleW, authorW, sourceW
 }
 
 func (m metaPageModel) candidatesBody() string {
 	width := max(20, m.width)
 	rows := m.listRows()
 	end := min(len(m.res.Candidates), m.top+rows)
-	titleW, authorW, sourceW, short := m.candidateColumns(width)
+	titleW, authorW, sourceW := m.candidateColumns(width)
 	head := "  " + padCell("Match", 5) + " " + padCell("Title", titleW)
 	if authorW > 0 {
 		head += "  " + padCell("Authors", authorW)
 	}
-	head += "  Year  Sources"
+	head += "  Year  Source"
 	lines := []string{colorFaint(ansi.Truncate(head, width, "…"))}
 	for i := m.top; i < end; i++ {
 		c := m.res.Candidates[i]
@@ -150,9 +135,8 @@ func (m metaPageModel) candidatesBody() string {
 			year = padCell(ansi.Truncate(y, 4, ""), 4)
 		}
 		label += "  " + year
-		// Where the match came from, so an entry from one catalogue is not
-		// taken for a merge of several.
-		if src := metaSourceLabel(c, short); src != "" {
+		// Where the match came from: every row is one catalogue's own answer.
+		if src := metaSourceLabel(c); src != "" {
 			label += "  " + padCell(src, sourceW)
 		}
 		lines = append(lines, styledListRow(label, i == m.cursor, width, currentTheme))

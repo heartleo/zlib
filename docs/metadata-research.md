@@ -28,11 +28,21 @@ Studied revision: `kovidgoyal/calibre` at
 ## What zlib adopted, changed and left out
 
 Adopted: an ISBN is the strongest key; sources run in parallel and a slow one
-does not hold up the rest; a source failing never fails the lookup; results
-from several sources for the same book are merged; and applying metadata
-fills what is empty before replacing what exists.
+does not hold up the rest; a source failing never fails the lookup; and
+applying metadata fills what is empty before replacing what exists.
 
 Changed:
+
+- **Sources are not merged.** Calibre pools the answers of several sources for
+  one book into one record. zlib lists each source's own answer in its own
+  row or rows, and the rows are ranked together: an ISBN match first, then the
+  score, and for equal rows the order of the sources, so one book from several
+  sources stands in adjacent rows. A reader sees exactly what each catalogue
+  says, and a source with little to say (Goodreads gives no publisher, date or
+  ISBN) is plainly that, instead of being filled in from another source
+  without saying which. The cost is that one row cannot combine fields of two
+  sources. Within one source the same book listed twice (one ISBN) is still
+  one row, joined by the pooling and the field rules below.
 
 - **ISBNs are normalised** (checksum validated, ISBN-10 converted to
   ISBN-13) before pooling, so one book has one key whichever form a source

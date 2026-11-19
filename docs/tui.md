@@ -310,7 +310,10 @@ nothing while a search or a write runs:
   with opens on the editor.
 - **Looking up** shows the title, authors and ISBN being searched. Esc cancels
   the request and returns to the page it started from.
-- **Candidates** list the merged matches, best first. On a terminal 100
+- **Candidates** list the matches of every source, best first. The answers of
+  different sources are not merged: each source has its own row or rows, so the
+  same book from three catalogues is three adjacent rows, each with only what
+  that catalogue says. On a terminal 100
   columns wide or more the page puts the file beside the highlighted match
   under the list, in the same two panels as the workbench (read only, and only
   the fields either side has), so you compare before choosing. One line between
@@ -323,7 +326,7 @@ nothing while a search or a write runs:
   it says `loading…` while the image downloads (once per match, as soon as the
   page can show it, also after a resize), `no cover` when the match has none and
   `cover unavailable` when it cannot be fetched or read. The matches are in columns (match, title,
-  authors, year, sources) that line up for wide characters too. On a narrower
+  authors, year, source) that line up for wide characters too. On a narrower
   terminal a details pane starts with what choosing the highlighted match would do to the file:
   `Would add` names the empty fields it fills and selects, `Could add` empty
   fields it offers unselected (the edition fields of a title-only or `ISBN?`
@@ -332,16 +335,12 @@ nothing while a search or a write runs:
   place for. Page Up and Page Down move a page of matches. Each row starts with a
   five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
   the title is different or nothing independent vouches for it, or a percentage for a title match. The pane under the
-  list shows the selected match's details. Each row ends with the sources that
-  agreed on it in brackets, such as `[WeRead]` or `[Google Books+Open Library]`.
-  The sources column is as wide as the longest label of any match, so a label is
-  never cut and the column does not move as the list scrolls; the title and the
-  authors share what is left. When the full names would leave them less than 34
-  cells (80 columns with a merge of three catalogues), every row uses two-letter
-  names instead (`OL` Open Library, `GB` Google Books, `GR` Goodreads, `DB`
-  Douban, `WR` WeRead), and the details and the match's panel still name the
-  catalogues in full. The details name the ISBN, or say `no ISBN listed` for an
-  edition without one, which is then a guess by title. A source that failed while others
+  list shows the selected match's details. Each row ends with its catalogue in
+  brackets, such as `[Goodreads]` or `[Google Books]`. The source column is as
+  wide as the longest name of any match, so a name is never cut and the column
+  does not move as the list scrolls; the title and the authors share what is
+  left. The details name the ISBN, or say `no ISBN listed` for an edition
+  without one, which is then a guess by title. A source that failed while others
   answered is named on the status line. `e` edits what is searched for: the
   title, authors (separated by `&`) and ISBNs (separated by commas), then
   Enter searches again, Tab moves between the fields and Esc cancels. This

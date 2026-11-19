@@ -166,19 +166,19 @@ func (m metaPageModel) wereadOn() bool {
 	return false
 }
 
-// goodreadsNote says what a lookup that asks only Goodreads can give. Goodreads'
-// book pages sit behind a bot challenge that zlib does not answer, so it
-// supplies a title, authors, a series and a cover, and never a publisher, a
-// date or an ISBN: another source has to fill those. It is a note of the
-// prepare page, not part of the source's own row, which the settings list shows
-// too.
+// goodreadsNote says what a Goodreads row holds while Goodreads is asked.
+// Goodreads' book pages sit behind a bot challenge that zlib does not answer,
+// so it supplies a title, authors, a series and a cover, and never a publisher,
+// a date or an ISBN. Its rows are its own, not joined with another source's, so
+// they stay without those. It is a note of the prepare page, not part of the
+// source's own row, which the settings list shows too.
 func (m metaPageModel) goodreadsNote() string {
 	choices := m.sources
 	if m.stage == metaPrepare {
 		choices = m.draft
 	}
-	if on := enabledMetaSources(choices); len(on) == 1 && on[0] == metasource.NameGoodreads {
-		return "Goodreads alone gives no publisher, date or ISBN: add Open Library to fill them."
+	if slices.Contains(enabledMetaSources(choices), metasource.NameGoodreads) {
+		return "Goodreads rows have no publisher, date or ISBN."
 	}
 	return ""
 }

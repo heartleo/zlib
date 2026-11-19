@@ -681,7 +681,7 @@ func (m metaPageModel) fieldsHeaderLines() []string {
 	if m.manual {
 		return append([]string{ansi.Truncate("  "+colorFaint("Editing the file's own metadata. Nothing is looked up."), width, "…")}, file...)
 	}
-	lines := []string{ansi.Truncate("  "+colorFaint("Match: ")+safeText(m.cand.Title)+colorFaint(" · "+strings.TrimSuffix(strings.TrimPrefix(metaSourceLabel(m.cand, false), "["), "]")+" · "+metaMatchLabel(m.cand)), width, "…")}
+	lines := []string{ansi.Truncate("  "+colorFaint("Match: ")+safeText(m.cand.Title)+colorFaint(" · "+safeText(strings.Join(m.cand.Sources, "+"))+" · "+metaMatchLabel(m.cand)), width, "…")}
 	lines = append(lines, file...)
 	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
 	switch {

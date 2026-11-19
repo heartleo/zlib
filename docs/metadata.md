@@ -186,10 +186,15 @@ What it does:
 - Sources are asked in parallel. One failing, for example when Google
   Books refuses a request for quota reasons, is reported on stderr and the
   other results are still listed.
-- At most 10 results are listed, best first. `zlib config metadata results`
-  (or `ZLIB_METADATA_RESULTS`) sets the limit, 1 to 50; empty restores 10. Each
-  source is asked for enough hits to fill it. Douban and WeRead read one page
-  per hit, at most 10, so a high limit costs them more requests.
+- Results are not merged across sources: each source's answer is shown as
+  that source says it, in one row or several, and every row names its source.
+  The same book from three sources is three adjacent rows. A source that lists
+  one book twice (the same ISBN) still has one row for it.
+- At most 10 results are listed for each source, best first across all of them.
+  `zlib config metadata results` (or `ZLIB_METADATA_RESULTS`) sets the limit, 1
+  to 50; empty restores 10. Each source is asked for enough hits to fill it.
+  Douban and WeRead read one page per hit, at most 10, so a high limit costs
+  them more requests.
 - An ISBN gives the exact edition. Without one, the title and authors are
   searched, and results are ranked by how well they agree. A result found
   from a title alone is a guess about the edition: check it before using its

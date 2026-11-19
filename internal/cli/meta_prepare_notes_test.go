@@ -12,7 +12,7 @@ import (
 // The one-line summary above the panels is never cut in the middle of a word:
 // it names the fields it adds and counts the rest, and shortens itself to fit.
 func TestResultsSummaryLineFitsWithoutCuttingWords(t *testing.T) {
-	m := metaPageAfterLookup(t, answerWith(mergedSources(), nil, nil), nil)
+	m := metaPageAfterLookup(t, answerWith(perSourceResult(), nil, nil), nil)
 	c := m.res.Candidates[0]
 	for w := 50; w <= 200; w++ {
 		line := m.candidateEffectLine(c, w)
@@ -58,17 +58,17 @@ func goodreadsChoices(openLibrary, goodreads bool) []metaSourceChoice {
 	}
 }
 
-// Asked alone, Goodreads cannot give a publisher, a date or an ISBN, and the
-// prepare page says so while that is the choice; any other source with it, or
-// none of it, and the note is gone.
-func TestPrepareSaysWhatGoodreadsAloneCannotGive(t *testing.T) {
-	const note = "Goodreads alone gives no publisher, date or ISBN"
+// Goodreads cannot give a publisher, a date or an ISBN, and its rows are not joined
+// with another source's, so the prepare page says so while Goodreads is on, and not
+// otherwise.
+func TestPrepareSaysWhatGoodreadsRowsLack(t *testing.T) {
+	const note = "Goodreads rows have no publisher, date or ISBN"
 	for name, tc := range map[string]struct {
 		choices []metaSourceChoice
 		want    bool
 	}{
 		"goodreads alone":            {goodreadsChoices(false, true), true},
-		"with open library":          {goodreadsChoices(true, true), false},
+		"with open library":          {goodreadsChoices(true, true), true}, // its rows are not joined with Open Library's
 		"open library without it":    {goodreadsChoices(true, false), false},
 		"nothing chosen":             {goodreadsChoices(false, false), false},
 		"a page without any sources": {nil, false},
@@ -81,16 +81,16 @@ func TestPrepareSaysWhatGoodreadsAloneCannotGive(t *testing.T) {
 		}
 	}
 
-	// The choice being made decides, so ticking Open Library takes it away.
+	// The choice being made decides, so ticking Goodreads off takes it away.
 	var asked [][]string
 	var queries []metasource.Query
-	m := sized(t, preparedSourcesPage(t, goodreadsChoices(false, true), &asked, &queries), 100, 30)
+	m := sized(t, preparedSourcesPage(t, goodreadsChoices(true, true), &asked, &queries), 100, 30)
 	if !strings.Contains(metaScreen(m), note) {
-		t.Fatalf("no note for Goodreads alone:\n%s", metaScreen(m))
+		t.Fatalf("no note while Goodreads is on:\n%s", metaScreen(m))
 	}
-	m, _ = metaStep(t, m, key("up"))
+	m, _ = metaStep(t, m, key("down")) // Goodreads
 	m, _ = metaStep(t, m, key("space"))
 	if strings.Contains(metaScreen(m), note) {
-		t.Errorf("the note stays after Open Library is ticked:\n%s", metaScreen(m))
+		t.Errorf("the note stays after Goodreads is ticked off:\n%s", metaScreen(m))
 	}
 }

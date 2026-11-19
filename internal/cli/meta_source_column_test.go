@@ -9,101 +9,101 @@ import (
 	"github.com/heartleo/zlib/internal/metasource"
 )
 
-// mergedSources is a lookup answer with a merge of three catalogues, one of two
-// and one of a single catalogue: the widest label decides the column.
-func mergedSources() metasource.Result {
-	three := dune()
-	three.Title = "Dune"
-	three.Sources = []string{"Douban", "Goodreads", "Open Library"}
-	three.Match, three.Score = metasource.MatchTitle, 0.99
-	three.Identifiers = append(three.Identifiers,
-		ebookmeta.Identifier{Scheme: "goodreads", Value: "44767458"},
-		ebookmeta.Identifier{Scheme: "openlibrary", Value: "OL1M"})
-	two := metasource.Candidate{Title: "Dune Messiah", Authors: []string{"Frank Herbert"}, Sources: []string{"Open Library", "Google Books"},
-		Match: metasource.MatchTitle, Score: 0.8}
-	one := metasource.Candidate{Title: "The Road to Dune", Authors: []string{"Frank Herbert"}, Sources: []string{"Goodreads"},
-		Match: metasource.MatchTitle, Score: 0.71}
-	return metasource.Result{Candidates: []metasource.Candidate{three, two, one}}
+// perSourceResult is a lookup answer as the lookup gives it: the same book from
+// three catalogues as three rows, each one catalogue's own answer, and other
+// books after them.
+func perSourceResult() metasource.Result {
+	row := func(source, title string, score float64, ids ...ebookmeta.Identifier) metasource.Candidate {
+		return metasource.Candidate{Title: title, Authors: []string{"Frank Herbert"}, Sources: []string{source}, Match: metasource.MatchTitle,
+			Score: score, Identifiers: ids}
+	}
+	return metasource.Result{Candidates: []metasource.Candidate{
+		row("Douban", "Dune", 0.99, ebookmeta.Identifier{Scheme: "douban", Value: "1291997"}),
+		row("Goodreads", "Dune", 0.99, ebookmeta.Identifier{Scheme: "goodreads", Value: "44767458"}),
+		row("Open Library", "Dune", 0.99),
+		row("Google Books", "Dune Messiah", 0.8),
+		row("Goodreads", "The Road to Dune", 0.71),
+	}}
 }
 
-// sourceCell is the bracketed sources of a result row.
+// sourceCell is the bracketed source of a result row.
 func sourceCell(t *testing.T, row string) string {
 	t.Helper()
 	i := strings.Index(row, "[")
 	if i < 0 {
-		t.Fatalf("no sources on the row %q", row)
+		t.Fatalf("no source on the row %q", row)
 	}
 	j := strings.Index(row[i:], "]")
 	if j < 0 {
-		t.Fatalf("the sources are cut short on the row %q", row)
+		t.Fatalf("the source is cut short on the row %q", row)
 	}
 	return row[i : i+j+1]
 }
 
-// bracketCell is the display column of the sources on a row: a cut title ends
-// in a three-byte ellipsis, so byte offsets would not line up.
+// bracketCell is the display column of the source on a row: a cut title ends in
+// a three-byte ellipsis, so byte offsets would not line up.
 func bracketCell(row string) int { return ansi.StringWidth(row[:strings.Index(row, "[")]) }
 
-// Each result row names where it came from, whole, at every width. The names
-// are full while they fit, then every row uses the short ones: a label is
-// never cut, and rows never mix the two forms.
-func TestMetaResultsNameEverySourceWholeAtEveryWidth(t *testing.T) {
-	for _, tc := range []struct {
-		width      int
-		three, one string
-	}{
-		{120, "[Douban+Goodreads+Open Library]", "[Goodreads]"},
-		{100, "[Douban+Goodreads+Open Library]", "[Goodreads]"},
-		{80, "[DB+GR+OL]", "[GR]"},
-		{60, "[DB+GR+OL]", "[GR]"},
-	} {
-		m := metaPageAfterLookup(t, answerWith(mergedSources(), nil, nil), nil)
-		m = sized(t, m, tc.width, 30)
+// Each result row names its catalogue, whole, at every width, and the names line
+// up in one column. Rows of different catalogues stay separate rows.
+func TestMetaResultsNameEachRowsSourceWholeAtEveryWidth(t *testing.T) {
+	for _, width := range []int{60, 80, 100, 120} {
+		m := sized(t, metaPageAfterLookup(t, answerWith(perSourceResult(), nil, nil), nil), width, 30)
 		screen := metaScreen(m)
-		first := rowWith(t, screen, "99%  Dune ")
-		second := rowWith(t, screen, "Dune Messiah")
-		third := rowWith(t, screen, "The Road") // the title itself may be cut at 60
-		if got := sourceCell(t, first); got != tc.three {
-			t.Errorf("width %d: first row sources %q, want %q\n%s", tc.width, got, tc.three, screen)
-		}
-		if got := sourceCell(t, third); got != tc.one {
-			t.Errorf("width %d: third row sources %q, want %q", tc.width, got, tc.one)
-		}
-		for _, row := range []string{first, second, third} {
-			if cell := sourceCell(t, row); strings.Contains(cell, "…") {
-				t.Errorf("width %d: a source was cut: %q", tc.width, cell)
+		var cells []string
+		col := -1
+		for _, want := range []string{"[Douban]", "[Goodreads]", "[Open Library]", "[Google Books]"} {
+			if !strings.Contains(screen, want) {
+				t.Errorf("width %d: no %s on the rows:\n%s", width, want, screen)
 			}
 		}
-		if bracketCell(first) != bracketCell(second) || bracketCell(first) != bracketCell(third) {
-			t.Errorf("width %d: the source column is not aligned:\n%s\n%s\n%s", tc.width, first, second, third)
+		for _, row := range strings.Split(screen, "\n") {
+			if !strings.Contains(row, "[") || !strings.Contains(row, "%") {
+				continue
+			}
+			cell := sourceCell(t, row)
+			cells = append(cells, cell)
+			if strings.Contains(cell, "+") || strings.Contains(cell, "…") {
+				t.Errorf("width %d: a row names more than one catalogue or is cut: %q", width, cell)
+			}
+			if col < 0 {
+				col = bracketCell(row)
+			} else if got := bracketCell(row); got != col {
+				t.Errorf("width %d: the source column is not aligned (%d and %d):\n%s", width, col, got, screen)
+			}
+		}
+		if len(cells) != 5 {
+			t.Errorf("width %d: %d result rows, want 5 (one per source answer): %v", width, len(cells), cells)
 		}
 	}
 }
 
-// The sources take their room first, but the titles stay readable: at 80
-// columns the full title of a result still fits beside its authors.
-func TestMetaResultsKeepTitlesReadableBesideTheSources(t *testing.T) {
-	m := sized(t, metaPageAfterLookup(t, answerWith(mergedSources(), nil, nil), nil), 80, 30)
+// The source takes its room first, but the titles stay readable: at 80 columns
+// the full title of a result still fits beside its authors.
+func TestMetaResultsKeepTitlesReadableBesideTheSource(t *testing.T) {
+	m := sized(t, metaPageAfterLookup(t, answerWith(perSourceResult(), nil, nil), nil), 80, 30)
 	row := rowWith(t, metaScreen(m), "The Road to Dune")
 	if !strings.Contains(row, "The Road to Dune") || !strings.Contains(row, "Frank Herbert") {
 		t.Errorf("the title or the authors were cut: %q", row)
 	}
 }
 
-// Short names are only a fallback for the list; the selected result's full
-// names are always on the page, here in the details.
-func TestMetaResultsDetailsKeepTheFullSourceNames(t *testing.T) {
-	m := sized(t, metaPageAfterLookup(t, answerWith(mergedSources(), nil, nil), nil), 80, 30)
-	if screen := metaScreen(m); !strings.Contains(screen, "Douban, Goodreads, Open Library") {
-		t.Errorf("the details do not name the sources:\n%s", screen)
+// The details of the selected row name its catalogue in full.
+func TestMetaResultsDetailsNameTheSource(t *testing.T) {
+	m := sized(t, metaPageAfterLookup(t, answerWith(perSourceResult(), nil, nil), nil), 80, 30)
+	if screen := metaScreen(m); !strings.Contains(screen, "Source") || !strings.Contains(screen, "Douban") {
+		t.Errorf("the details do not name the source:\n%s", screen)
 	}
 }
 
 // A long label such as "ID openlibrary" does not run into its value or lose
 // its end: the label column is as wide as the longest label shown.
 func TestMetaPanelsKeepLongIdentifierLabelsApartFromTheirValues(t *testing.T) {
+	long := metasource.Candidate{Title: "Dune", Authors: []string{"Frank Herbert"}, Sources: []string{"Open Library"},
+		Match: metasource.MatchTitle, Score: 0.99,
+		Identifiers: []ebookmeta.Identifier{{Scheme: "goodreads", Value: "44767458"}, {Scheme: "openlibrary", Value: "OL1M"}}}
 	var queries []metasource.Query
-	m, err := newMetaPageModel(richEPUB(t), recordingLookup(mergedSources(), &queries), nil)
+	m, err := newMetaPageModel(richEPUB(t), recordingLookup(metasource.Result{Candidates: []metasource.Candidate{long}}, &queries), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

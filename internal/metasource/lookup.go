@@ -1,6 +1,7 @@
 package metasource
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -19,19 +20,20 @@ type Options struct {
 	Grace time.Duration
 	// MinScore drops title matches below it. Default 0.45.
 	MinScore float64
-	// MaxResults caps the candidates returned. Default 10.
+	// MaxResults caps the candidates returned for each source. Default 10.
 	MaxResults int
 }
 
-// Result is the outcome of a lookup: ranked candidates plus what went wrong
-// at each source. A source failing never fails the lookup.
+// Result is the outcome of a lookup: ranked candidates, each from one source,
+// plus what went wrong at each source. A source failing never fails the lookup.
 type Result struct {
 	Candidates []Candidate
 	Errors     []SourceError
 }
 
-// Lookup asks every source in parallel and returns the merged, ranked
-// candidates. It returns ErrNoQuery for an empty query and
+// Lookup asks every source in parallel and returns the candidates of all of
+// them in one ranked list, each candidate from a single source: the answers of
+// different sources are not merged. It returns ErrNoQuery for an empty query and
 // ErrAllSourcesFailed when every source failed and nothing was found; a
 // lookup that simply finds nothing returns an empty Result and no error.
 func Lookup(ctx context.Context, sources []Source, q Query, opt Options) (Result, error) {
@@ -82,7 +84,10 @@ func Lookup(ctx context.Context, sources []Source, q Query, opt Options) (Result
 	}
 
 	var res Result
-	var all []Candidate
+	// Each source's own answer is ranked on its own (the same book listed twice
+	// by one source is one row), and the sources' rows are never joined: what a
+	// source says is shown as that source says it.
+	var rows []sourceRow
 	for i, a := range answers { // source order, so equal runs rank equally
 		name := sources[i].Name()
 		if a.err != nil {
@@ -93,16 +98,54 @@ func Lookup(ctx context.Context, sources []Source, q Query, opt Options) (Result
 			res.Errors = append(res.Errors, SourceError{Source: name, Err: err})
 			continue
 		}
-		for _, c := range a.cands {
+		own := make([]Candidate, len(a.cands))
+		for j, c := range a.cands {
 			c.Sources = []string{name}
-			all = append(all, c)
+			own[j] = c
+		}
+		for _, c := range rankAndMerge(q, own, opt.MinScore, opt.MaxResults) {
+			rows = append(rows, sourceRow{c, i})
 		}
 	}
-	res.Candidates = rankAndMerge(q, all, opt.MinScore, opt.MaxResults)
+	res.Candidates = orderSourceRows(q, rows)
 	if len(res.Candidates) == 0 && len(sources) > 0 && len(res.Errors) == len(sources) {
 		return res, ErrAllSourcesFailed
 	}
 	return res, nil
+}
+
+// sourceRow is one candidate of one source, and the position of that source in
+// the lookup's list.
+type sourceRow struct {
+	c   Candidate
+	src int
+}
+
+// orderSourceRows puts the rows of every source in one list, best first: an ISBN
+// match before a title match, then by score and by how well the edition agrees
+// with the file, and for equal rows by the order of the sources, so the same
+// book from several sources stands in adjacent rows, one per source.
+func orderSourceRows(q Query, rows []sourceRow) []Candidate {
+	slices.SortStableFunc(rows, func(a, b sourceRow) int {
+		if (a.c.Match == MatchISBN) != (b.c.Match == MatchISBN) {
+			if a.c.Match == MatchISBN {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Or(
+			cmp.Compare(b.c.Score, a.c.Score),
+			cmp.Compare(editionBonus(q, b.c), editionBonus(q, a.c)),
+			cmp.Compare(a.src, b.src),
+			cmp.Compare(completeness(b.c), completeness(a.c)),
+			strings.Compare(a.c.Title, b.c.Title),
+		)
+	})
+	out := make([]Candidate, len(rows))
+	for i, r := range rows {
+		out[i] = r.c
+	}
+	return out
 }
 
 func cmpDefault(v, def time.Duration) time.Duration {
@@ -120,25 +163,6 @@ const (
 	NameDouban      = "douban"
 	NameWeRead      = "weread"
 )
-
-// ShortSourceName is a source's display name (Source.Name) in two letters, for
-// a list too narrow to name every source of a merged result in full. A name it
-// does not know is returned as it is.
-func ShortSourceName(name string) string {
-	switch name {
-	case sourceOL:
-		return "OL"
-	case sourceGoogle:
-		return "GB"
-	case sourceGoodreads:
-		return "GR"
-	case sourceDouban:
-		return "DB"
-	case sourceWeRead:
-		return "WR"
-	}
-	return name
-}
 
 // DefaultSourceNames are the sources used for a book that is not Chinese when
 // none are chosen and no Google Books key is set. See DefaultSourceNamesFor.
