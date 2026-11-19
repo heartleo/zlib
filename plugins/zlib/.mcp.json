@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zlib": {
+      "command": "zlib",
+      "args": ["mcp"]
+    }
+  }
+}

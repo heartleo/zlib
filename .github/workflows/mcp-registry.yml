@@ -58,6 +58,28 @@ jobs:
       - name: Download the bundles
         run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.mcpb' --dir dist/mcpb
 
+      # The hashes in server.json come from the downloaded files, so check the
+      # files are the ones GoReleaser built and checksummed at release time.
+      - name: Check the bundles against checksums.txt
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern checksums.txt --dir dist
+          cd dist/mcpb
+          grep -F '.mcpb' ../checksums.txt | sha256sum --check --strict -
+
+      # The official MCPB validator, pinned. Clients refuse a bundle whose
+      # manifest does not pass it.
+      - name: Validate the bundle manifests
+        env:
+          MCPB_VERSION: 2.1.2
+        run: |
+          set -euo pipefail
+          for bundle in dist/mcpb/*.mcpb; do
+            dir="$(mktemp -d)"
+            unzip -q "$bundle" -d "$dir"
+            npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" validate "$dir/manifest.json"
+          done
+
       - name: Render server.json
         run: |
           go run ./scripts/mcpb server --version "${TAG#v}" --assets dist/mcpb --out server.json

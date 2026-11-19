@@ -37,7 +37,8 @@ binary on install (a second package to keep in step). Both are possible later.
 | `packaging/mcpb/manifest.json` | The bundle's manifest: tools, settings, privacy policy |
 | `scripts/mcpb/` | Builds a bundle per platform and renders `server.json` from a release's bundles, with the schema's checks |
 | `.goreleaser.yml` | A post-build hook makes the bundles; they are uploaded with the release and listed in `checksums.txt` |
-| `.github/workflows/mcp-registry.yml` | Manual workflow: renders, validates and, only when asked, publishes |
+| `.github/workflows/mcp-registry.yml` | Manual workflow: checks the bundles against `checksums.txt`, validates their manifests with the pinned MCPB validator, renders `server.json`, runs `mcp-publisher validate` and, only when asked, publishes |
+| `plugins/zlib/.mcp.json` | Registers `zlib mcp` in the Claude Code, Codex and Grok plugin, the install route for clients that do not read bundles |
 | `docs/privacy.md` | The privacy policy the manifest links to, required because the server talks to external services |
 
 `TestRegistryFilesMatchTheServer` keeps the descriptions, the tool list and the
@@ -48,6 +49,24 @@ The server reads each flag from `ZLIB_MCP_<FLAG>` too (`ZLIB_MCP_READ_ONLY=true`
 `ZLIB_MCP_ALLOWED_DIR=/books`), because a registry entry or a bundle configures a
 server with environment variables, not arguments. A flag on the command line
 wins and an empty variable counts as unset.
+
+## Which clients use what
+
+The registry lists packages; a client installs the types it understands. The
+`mcpb` entry reaches clients that install MCP Bundles, such as Claude Desktop.
+Codex and Grok install neither a bundle nor a registry entry, so for them the
+install route is the plugin (`plugins/zlib`, which carries `.mcp.json`) or one
+registration command:
+
+| Client | Route | Checked |
+| --- | --- | --- |
+| Claude Desktop and other MCPB clients | The `.mcpb` bundle, from the registry or the release | Bundle runs and passes the schema checks here; the MCPB validator runs in the workflow |
+| Claude Code | Plugin, or `claude mcp add` | `claude plugin validate` shows the server |
+| Codex | Plugin (`mcpServers` in its manifest), or `codex mcp add` | The plugin installed from the local marketplace listed `zlib mcp` in `codex mcp list` |
+| Grok | Plugin with `--trust`, or `grok mcp add` | The plugin installed from the local marketplace; `grok mcp doctor` started the server and listed its tools |
+
+The plugin runs the `zlib` on `PATH`, so a CLI older than a tool does not offer
+it: update the CLI to get new tools.
 
 ## Versioning
 
@@ -85,10 +104,10 @@ branch is merged and released first.
 1. Release as usual ([Versioning](versioning.md#releasing)) and publish the draft.
    Check that `zlib_X.Y.Z_<os>_<arch>.mcpb` exists for all six platforms and that
    `checksums.txt` lists them.
-2. Validate the bundle: `npx @anthropic-ai/mcpb validate manifest.json` on an
-   unpacked bundle, and install one in Claude Desktop through its extensions
-   settings. Check the tools list, the two settings and a search after
-   `zlib login`.
+2. Install one bundle in Claude Desktop through its extensions settings. Check
+   the tools list, the two settings and a search after `zlib login`. The
+   workflow also runs `npx @anthropic-ai/mcpb validate` on every manifest; read
+   the result of that step in the dry run, as it could not be run beforehand.
 3. Run the MCP Registry workflow with the tag and `dry_run` on (the default). It
    renders `server.json`, runs `mcp-publisher validate` and stops. Read the
    rendered file in the log.

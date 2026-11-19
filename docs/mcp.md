@@ -80,6 +80,25 @@ command = "zlib"
 args = ["mcp"]
 ```
 
+### Grok
+
+```sh
+grok mcp add zlib -- zlib mcp
+grok mcp doctor zlib
+```
+
+`grok mcp add` writes `~/.grok/config.toml`; add `--scope project` to write
+`.grok/config.toml` of the current folder instead, which Grok starts only after
+you trust the folder. `grok mcp doctor` starts the server and lists its tools.
+
+### Plugins
+
+The Claude Code, Codex and Grok [plugins](agents.md#plugins) carry this server
+too: installing one registers `zlib mcp` next to the skills, with nothing else to
+configure. `zlib` must be on `PATH` and recent enough to have the tools you
+want, since the plugin runs the installed CLI. Grok starts a plugin's MCP server
+only once the plugin is trusted (`grok plugin install zlib --trust`).
+
 ### Gemini CLI
 
 ```sh

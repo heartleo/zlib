@@ -1,6 +1,6 @@
 {
   "name": "zlib",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Search and download Z-Library books, browse saved books and recommendations, fix the metadata of local e-books, and send local files to Kindle with the zlib CLI.",
   "author": {
     "name": "heartleo"
@@ -20,6 +20,7 @@
     "cli"
   ],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Z-Library",
     "shortDescription": "Search, save locally, and send books to Kindle.",
