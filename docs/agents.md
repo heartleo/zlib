@@ -2,8 +2,9 @@
 
 [README](../README.md) · [Plugin installation](../README.md#agent-setup)
 
-The shared [zlib](../.agents/skills/zlib/SKILL.md)
-and [Kindle](../.agents/skills/kindle/SKILL.md) skills live in `.agents/skills/`.
+The shared [zlib](../.agents/skills/zlib/SKILL.md),
+[metadata](../.agents/skills/metadata/SKILL.md) and
+[Kindle](../.agents/skills/kindle/SKILL.md) skills live in `.agents/skills/`.
 The Claude Code and Codex plugins bundle these skills. They call the locally
 installed CLI through the agent's shell; there is no separate API server to start.
 
@@ -34,6 +35,15 @@ After [installing the plugin](../README.md#agent-setup), try:
 
 > Use zlib to find The Pragmatic Programmer in EPUB. Show the title, author,
 > year and file size before downloading.
+
+To fix a local e-book's metadata, give the agent the file path; it looks the book
+up and writes only the fields you agree to ([Metadata](metadata.md)):
+
+> Use zlib to check the metadata of ./books/dune.epub, find the right edition and
+> show me what it would change before writing anything.
+
+The metadata skill uses the MCP tools `read_metadata`, `lookup_metadata` and
+`edit_metadata` when the [MCP server](mcp.md) is connected, and `zlib meta` otherwise.
 
 For Kindle delivery, complete [SMTP setup](kindle.md) first, then provide the local
 file path when asking the agent to send it. For WeRead, run `zlib weread login`
@@ -94,8 +104,12 @@ zlib download "id:hash" --dir ./books --json
 `download --json` prints one document, `{"id","name","path","size"}`, with the
 absolute `path` of the saved file; add `--send-to-kindle` and it gains a
 `kindle` object (`sent`, `to` or `error`); `--send-to-weread` adds a `weread`
-object (`imported`, `book_id`, `already_existed` or `error`). Progress lines go to stderr, so
-read stdout only.
+object (`imported`, `book_id`, `already_existed` or `error`). When Z-Library's
+record has a valid ISBN, the download also writes it into the saved file's
+metadata and the document gains `isbn` (`scheme` is `isbn`, or `zlib-isbn` when
+the record's title did not agree with the file's; `value`). An EPUB also records
+the Z-Library book ID as the identifier `zlib-id` and the document gains
+`zlib_id` (`id:hash`). `--no-embed` skips both. Progress lines go to stderr, so read stdout only.
 
 Branch on the [exit code](usage.md#exit-codes) rather than on message text: `3`
 means the session needs `zlib login`, `4` a network or mirror problem
@@ -123,7 +137,7 @@ as the CLI. Client setup, flags, permissions and the tool list are in
 
 Edit `.agents/skills/<name>/SKILL.md` and its `references/` files. Run
 `node scripts/sync-plugin-skills.mjs` to generate `plugins/zlib/skills/` for both
-plugin packages. Only the plugin skills listed in the script (`zlib`, `kindle`)
+plugin packages. Only the plugin skills listed in the script (`zlib`, `metadata`, `kindle`)
 are copied; the other folders in `.agents/skills/` are repository-level skills
 for maintaining this repo and are not part of the plugin. `node scripts/sync-plugin-skills.mjs --check` verifies the bundle
 without changing files; CI runs that check on every pull request.

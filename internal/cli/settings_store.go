@@ -7,20 +7,46 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/heartleo/zlib/internal/config"
+	"github.com/heartleo/zlib/internal/metasource"
 	zlib "github.com/heartleo/zlib/internal/zlib"
 	"github.com/joho/godotenv"
 )
 
-var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv}
+// settingKeys lists the settings backed by .env files and the environment, in
+// the order store.values returns them. New keys go at the end: a few pages
+// still index values by position.
+var settingKeys = []string{zlib.EnvDomain, zlib.EnvProxy, downloadDirEnvVar, zlib.EnvRetries, searchExtensionsEnv, wereadProxyEnv, googleBooksKeyEnv, metaSourcesEnv, metaResultsEnv, nameLayoutEnv, wereadAPIKeyEnv}
+
+// metaSourcesByLanguage is what the sources row shows when no list is set: the
+// sources follow the book's language.
+const metaSourcesByLanguage = "By book language"
+
+// googleKeyNotSet is what the key row shows when there is no key. It is not a
+// value: displaySetting leaves it alone and masks everything else.
+const googleKeyNotSet = "Not set (shared quota)"
+
+// wereadKeyNotSet is the same for the WeRead API key row.
+const wereadKeyNotSet = "Not set"
+
+// isSecretSetting reports whether a setting is an API key: it is shown masked
+// everywhere, its editor hides what is typed and opens empty, and it is removed
+// only on request.
+func isSecretSetting(key string) bool { return key == googleBooksKeyEnv || key == wereadAPIKeyEnv }
+
 var settingsEnvironment map[string]string
+
+// settingEnvNames is every name the settings read: the keys plus the
+// Google Books key alias, which has no row of its own.
+func settingEnvNames() []string { return append(slices.Clone(settingKeys), googleBooksKeyAliasEnv) }
 
 func captureSettingsEnvironment() {
 	settingsEnvironment = make(map[string]string)
-	for _, key := range settingKeys {
+	for _, key := range settingEnvNames() {
 		if value, ok := os.LookupEnv(key); ok {
 			settingsEnvironment[key] = value
 		}
@@ -33,6 +59,10 @@ type settingValue struct {
 	Source   string `json:"source"`
 	Saved    string `json:"saved"`
 	Override string `json:"override,omitempty"`
+
+	// alias is set when the value came from googleBooksKeyAliasEnv, so there
+	// is nothing under Key to remove.
+	alias bool
 }
 
 type settingsStore struct {
@@ -53,7 +83,7 @@ func newSettingsStore() (settingsStore, error) {
 	env := settingsEnvironment
 	if env == nil {
 		env = make(map[string]string)
-		for _, k := range settingKeys {
+		for _, k := range settingEnvNames() {
 			if v, ok := os.LookupEnv(k); ok {
 				env[k] = v
 			}
@@ -103,6 +133,19 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Source = "Default (invalid retry setting)"
 			}
 		}
+		if key == googleBooksKeyEnv && strings.TrimSpace(v.Value) == "" {
+			// A key saved or exported under the plain name counts when
+			// nothing holds the ZLIB_ one; the same order as the lookups use.
+			for _, a := range []struct {
+				from map[string]string
+				name string
+			}{{s.env, "Process environment"}, {l, "Working-directory .env"}, {g, "Global configuration"}} {
+				if x := a.from[googleBooksKeyAliasEnv]; strings.TrimSpace(x) != "" {
+					v.Value, v.Source, v.alias = x, a.name+" ("+googleBooksKeyAliasEnv+")", true
+					break
+				}
+			}
+		}
 		if strings.TrimSpace(v.Value) == "" {
 			switch key {
 			case zlib.EnvDomain:
@@ -117,6 +160,16 @@ func (s settingsStore) values() ([]settingValue, error) {
 				v.Value, v.Source = "3", "Default"
 			case searchExtensionsEnv:
 				v.Value, v.Source = "Any format", "Default"
+			case googleBooksKeyEnv:
+				v.Value, v.Source = googleKeyNotSet, "Default"
+			case wereadAPIKeyEnv:
+				v.Value, v.Source = wereadKeyNotSet, "Default"
+			case metaSourcesEnv:
+				v.Value, v.Source = metaSourcesByLanguage, "Default"
+			case metaResultsEnv:
+				v.Value, v.Source = strconv.Itoa(metasource.DefaultMaxResults), "Default"
+			case nameLayoutEnv:
+				v.Value, v.Source = string(metasource.DefaultNameLayout), "Default"
 			}
 		}
 		values = append(values, v)
@@ -125,6 +178,13 @@ func (s settingsStore) values() ([]settingValue, error) {
 }
 
 func displaySetting(key, value string) string {
+	// An API key is a credential: every screen and --json shows it masked.
+	if isSecretSetting(key) {
+		if strings.TrimSpace(value) == "" || value == googleKeyNotSet || value == wereadKeyNotSet {
+			return value
+		}
+		return "Configured (hidden)"
+	}
 	if key == wereadProxyEnv && strings.EqualFold(strings.TrimSpace(value), wereadProxyDirect) {
 		return "Direct (no proxy)"
 	}
@@ -166,6 +226,30 @@ func validateSetting(key, value string) (string, error) {
 		}
 	case wereadProxyEnv:
 		return validateWeReadProxy(value)
+	case googleBooksKeyEnv:
+		// The message never repeats the value: it is a credential.
+		if !metasource.ValidAPIKey(value) {
+			return "", fmt.Errorf("a Google API key is 20 to 128 letters, digits, - and _")
+		}
+	case wereadAPIKeyEnv:
+		// The message never repeats the value: it is a credential.
+		if !metasource.ValidWeReadKey(value) {
+			return "", fmt.Errorf("a WeRead API key is 8 to 128 letters, digits, - and _")
+		}
+	case metaSourcesEnv:
+		return metasource.NormalizeSourceList(value)
+	case nameLayoutEnv:
+		l, err := metasource.ParseNameLayout(value)
+		if err != nil {
+			return "", err
+		}
+		return string(l), nil
+	case metaResultsEnv:
+		n, err := metasource.ParseMaxResults(value)
+		if err != nil {
+			return "", err
+		}
+		return strconv.Itoa(n), nil
 	case downloadDirEnvVar:
 		path, err := expandTilde(value)
 		if err != nil {

@@ -168,11 +168,12 @@ func TestMCPIndependentWriteCapabilities(t *testing.T) {
 		hidden []string
 		count  int
 	}{
-		{"download", mcpServerOptions{DisableDownload: true}, []string{"download_book"}, 11},
-		{"delete", mcpServerOptions{DisableHistoryDelete: true}, []string{"delete_download_history"}, 11},
-		{"kindle", mcpServerOptions{DisableKindle: true}, []string{"send_to_kindle"}, 11},
-		{"weread", mcpServerOptions{DisableWeRead: true}, []string{"import_to_weread"}, 11},
-		{"read only", mcpServerOptions{ReadOnly: true}, []string{"download_book", "delete_download_history", "send_to_kindle", "import_to_weread"}, 8},
+		{"download", mcpServerOptions{DisableDownload: true}, []string{"download_book"}, 14},
+		{"delete", mcpServerOptions{DisableHistoryDelete: true}, []string{"delete_download_history"}, 14},
+		{"kindle", mcpServerOptions{DisableKindle: true}, []string{"send_to_kindle"}, 14},
+		{"weread", mcpServerOptions{DisableWeRead: true}, []string{"import_to_weread"}, 14},
+		{"metadata edit", mcpServerOptions{DisableMetadataEdit: true}, []string{"edit_metadata"}, 14},
+		{"read only", mcpServerOptions{ReadOnly: true}, []string{"download_book", "delete_download_history", "send_to_kindle", "import_to_weread", "edit_metadata"}, 10},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			session := connectMCPTestSession(t, tc.opts, nil)

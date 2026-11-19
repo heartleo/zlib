@@ -45,9 +45,11 @@ zlib config kindle security
 zlib config weread
 zlib config weread account
 zlib config weread proxy
+zlib config metadata
+zlib config metadata google-key
 ```
 
-`zlib config` shows network, download, search, Kindle and WeRead settings together. The
+`zlib config` shows network, download, search, Kindle, WeRead and metadata settings together. The
 subcommands open the same TUI at a specific section or field. Use arrow keys
 or Tab to select, Enter to edit, and Esc to return to the selected setting.
 The settings list keeps its controls and save feedback next to the fields;
@@ -71,8 +73,16 @@ For Kindle, Reset clears an address or restores the default SMTP host or port.
   Enter opens a directory and Space selects the current directory. Selection
   fills the editor; Save persists it. Directories must exist; relative paths
   are saved as absolute paths. Enter a drive path to switch Windows drives.
-- **Retries:** enter a non-negative integer. Zero disables retries; the default
-  is three.
+- **Settings with a short list of values** open a list instead of a text box:
+  Retries, Lookup results, File name format, SMTP port and SMTP security. ↑/↓
+  move, the current value is marked `(•)`, Enter chooses a row and Esc cancels.
+  Where another value makes sense, the last row (`Other number…`, `Other port…`,
+  `Custom pattern…`) opens the text box, with what it accepts and, for a file
+  name pattern, a preview; Esc there returns to the list. Choosing the default
+  row removes the saved value. SMTP security has no such row, since only
+  `starttls`, `tls` or following the port are valid.
+- **Retries:** choose 0, 1, 3 (the default), 5 or 10, or enter a non-negative
+  integer. Zero disables retries.
 - **Search formats:** choose formats from a checklist. Arrow keys move; Space
   toggles a format; Ctrl+A checks every format, or clears them all when every
   format is already checked. Enter saves (Ctrl+S too) and Esc cancels. Save with
@@ -87,8 +97,16 @@ For Kindle, Reset clears an address or restores the default SMTP host or port.
   connects without any proxy, or enter an `http`, `https`, `socks5` or
   `socks5h` URL. Ctrl+T checks that WeRead answers through the value, without
   logging in. `ZLIB_PROXY` never applies to WeRead.
+- **Google Books key:** an optional API key for [metadata lookups](metadata.md).
+  Without one, Google Books answers from a quota shared with other users, so a
+  lookup often reports it as rate limited and relies on Open Library. A key
+  gives you your own quota. Create one for the Books API in the Google Cloud
+  console. The editor opens empty and masks what you type: the saved key is
+  never shown, in the TUI or in `--json`, which prints `Configured (hidden)`.
+  Enter on an empty box keeps the saved key; press Ctrl+R, then Enter, to remove
+  it. The key is sent only to Google, in a request header, never in a URL.
 
-Network, download and search changes are saved to `~/.config/zlib/.env`, preserving unrelated settings.
+Network, download, search and metadata changes are saved to `~/.config/zlib/.env`, preserving unrelated settings.
 Kindle address and SMTP server settings are saved to `~/.config/zlib/kindle.json`.
 The UI reports when process or working-directory settings override a saved
 network or download value. It does not change login cookies. If the SMTP password
@@ -107,13 +125,18 @@ zlib config network proxy --json
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `ZLIB_DOMAIN` | EAPI domain | Saved session domain for authenticated commands |
-| `ZLIB_PROXY` | HTTP, HTTPS or SOCKS proxy URL | Standard `HTTP_PROXY` / `HTTPS_PROXY` environment settings |
+| `ZLIB_PROXY` | HTTP, HTTPS or SOCKS proxy URL for Z-Library, and for online metadata lookups and cover downloads (`zlib meta --fetch`, `/meta`) | Standard `HTTP_PROXY` / `HTTPS_PROXY` environment settings |
 | `ZLIB_DOWNLOAD_DIR` | Download destination when `--dir` is omitted | Current directory |
 | `ZLIB_SEARCH_EXTENSIONS` | Default TUI and CLI search extensions, separated by commas | Unset (any format) |
 | `ZLIB_DOWNLOAD_RETRIES` | Retries for interrupted downloads and HTTP 502/503/504 | `3` |
 | `ZLIB_THEME` | Override the saved terminal theme | Saved preference |
 | `ZLIB_SMTP_PWD` | SMTP password for Kindle delivery | Unset |
 | `ZLIB_WEREAD_PROXY` | WeRead proxy URL, or `direct` for no proxy | Standard `HTTPS_PROXY` environment settings |
+| `ZLIB_GOOGLE_BOOKS_KEY` | Google Books API key for metadata lookups (20 to 128 letters, digits, `-` and `_`). Keep it private. `GOOGLE_BOOKS_API_KEY` is read as well when this one is empty; `zlib config metadata google-key` shows which name supplied the key but only saves and removes this one | Unset (shared quota) |
+| `ZLIB_METADATA_SOURCES` | Metadata lookup sources, separated by commas: `openlibrary`, `google`, `douban`, `weread`. `zlib config metadata sources` shows, sets and clears it, `zlib meta --fetch --source` overrides it for one run, and Ctrl+D on the `/meta` prepare page saves it. See [Douban](metadata.md#douban) and [WeRead](metadata.md#weread) | By book language: `douban` for a Chinese book, else `openlibrary`, plus `google` when a Google Books key is set. See [Default sources](metadata.md#default-sources) |
+| `ZLIB_METADATA_RESULTS` | How many matches a metadata lookup lists, a whole number from 1 to 50. `zlib config metadata results` shows, sets and clears it. See [Metadata](metadata.md) | `10` |
+| `ZLIB_FILENAME_FORMAT` | The order of the title and the authors in a file name `zlib meta --rename` and the rename page give: `title-author` (`Dune - Frank Herbert.epub`), `author-title`, `title-paren` (`Dune (Frank Herbert).epub`), or a custom pattern such as `{title} [{authors}]`. `zlib config metadata filename` shows, sets and clears it; the rename page saves its choice with Ctrl+D. See [File name format](metadata.md#file-name-format) | `title-author` |
+| `ZLIB_WEREAD_API_KEY` | WeRead agent gateway API key (the WeRead skill key) for the `weread` metadata source, 8 to 128 letters, digits, `-` and `_`. Not the WeRead login. `zlib config metadata weread-key` sets and removes it, hidden. Keep it private | Unset |
 
 See [env.example](env.example) for sample values.
 

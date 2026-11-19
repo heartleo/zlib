@@ -41,6 +41,24 @@ func TestEAPIBookDerivesISBNPair(t *testing.T) {
 		{"978-7-115-39057-8", "7115390576", "9787115390578"},
 		{"7115390576", "7115390576", "9787115390578"},
 		{"9791234567896", "", "9791234567896"},
+		// Z-Library lists several identifiers in one comma-separated string: an
+		// ISBN-13 with its ISBN-10 (the usual form in search results), either
+		// order, and sometimes an Amazon ASIN, which is not an ISBN.
+		{"9787229042066,7229042062", "7229042062", "9787229042066"},
+		{"7229042062,9787229042066", "7229042062", "9787229042066"},
+		{"978-7-229-04206-6, 7-229-04206-2", "7229042062", "9787229042066"},
+		{"9787229042066;7229042062", "7229042062", "9787229042066"},
+		{"B07S7CCQGL", "", ""},
+		{"B07S7CCQGL,9787229042066", "7229042062", "9787229042066"},
+		{"9787229042066,9787229042067", "7229042062", "9787229042066"}, // the second has a bad check digit
+		// An identifier can list the ISBNs of several editions. The pair stays
+		// consistent: the ISBN-10 is the one for the chosen ISBN-13, never one
+		// that belongs to another edition in the list.
+		{"9787229042066,7536692935", "7229042062", "9787229042066"},
+		{"9787520150446,9780120167067,0120167069,7520150445", "7520150445", "9787520150446"},
+		{"9788666362526,9798666362525,8666362529", "8666362529", "9788666362526"},
+		{"9781593272203,9781593272913,1593272200,159327291X", "1593272200", "9781593272203"},
+		{"0120167069,9787520150446", "7520150445", "9787520150446"}, // an ISBN-10 alone is not matched to a later ISBN-13
 	} {
 		book := client.mapEAPIBook(eapiBook{Identifier: tc.identifier})
 		if book.ISBN10 != tc.isbn10 || book.ISBN13 != tc.isbn13 {

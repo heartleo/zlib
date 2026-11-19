@@ -92,6 +92,9 @@ func TestMCPListToolsAndSchemas(t *testing.T) {
 		"delete_download_history",
 		"send_to_kindle",
 		"import_to_weread",
+		"read_metadata",
+		"lookup_metadata",
+		"edit_metadata",
 	}
 	var gotNames []string
 	for _, tool := range res.Tools {
@@ -99,7 +102,8 @@ func TestMCPListToolsAndSchemas(t *testing.T) {
 		if tool.Title == "" || tool.Description == "" {
 			t.Errorf("tool %s missing title or description", tool.Name)
 		}
-		if tool.Annotations == nil || tool.Annotations.OpenWorldHint == nil || !*tool.Annotations.OpenWorldHint {
+		// read_metadata reads a local file and asks nobody, so it is the one closed-world tool.
+		if tool.Annotations == nil || tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint != (tool.Name != "read_metadata") {
 			t.Errorf("tool %s missing openWorldHint annotation", tool.Name)
 		}
 		rawIn, err := json.Marshal(tool.InputSchema)
@@ -138,12 +142,12 @@ func TestMCPListToolsAndSchemas(t *testing.T) {
 		if !tool.Annotations.ReadOnlyHint {
 			t.Errorf("read-only server exposed non-read-only tool %q", tool.Name)
 		}
-		if slices.Contains([]string{"download_book", "delete_download_history", "send_to_kindle", "import_to_weread"}, tool.Name) {
+		if slices.Contains([]string{"download_book", "delete_download_history", "send_to_kindle", "import_to_weread", "edit_metadata"}, tool.Name) {
 			t.Errorf("read-only server exposed write tool %q", tool.Name)
 		}
 	}
-	if len(roRes.Tools) != 8 {
-		t.Errorf("read-only tool count = %d, want 8", len(roRes.Tools))
+	if len(roRes.Tools) != 10 {
+		t.Errorf("read-only tool count = %d, want 10", len(roRes.Tools))
 	}
 }
 

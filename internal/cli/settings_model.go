@@ -48,6 +48,7 @@ var settingsSections = []settingsSection{
 	{"SEARCH", "search", []string{searchExtensionsEnv}},
 	{"KINDLE", "kindle", kindleSettingKeys},
 	{"WEREAD", "weread", []string{wereadAccountKey, wereadProxyEnv}},
+	{"METADATA", "metadata", []string{metaSourcesEnv, metaResultsEnv, nameLayoutEnv, googleBooksKeyEnv, wereadAPIKeyEnv}},
 }
 
 var settingLabels = map[string]string{
@@ -63,6 +64,11 @@ var settingLabels = map[string]string{
 	kindleSecurityKey:   "SMTP security",
 	wereadAccountKey:    "WeRead account",
 	wereadProxyEnv:      "WeRead proxy",
+	googleBooksKeyEnv:   "Google Books key",
+	wereadAPIKeyEnv:     "WeRead API key",
+	metaSourcesEnv:      "Lookup sources",
+	metaResultsEnv:      "Lookup results",
+	nameLayoutEnv:       "File name format",
 }
 
 // settingsPageKeys lists the setting rows of a list page in display order.
@@ -79,7 +85,7 @@ func settingsPageKeys(page string) []string {
 }
 
 func isSettingsListPage(page string) bool {
-	return page == "home" || page == "network" || page == "download" || page == "search" || page == "kindle" || page == "weread"
+	return page == "home" || page == "network" || page == "download" || page == "search" || page == "kindle" || page == "weread" || page == "metadata"
 }
 
 // wereadAccount loads the saved WeRead login and its settings row: the
@@ -133,12 +139,28 @@ type settingsModel struct {
 	directories    []string
 	discard        bool
 	discardFocused bool
-	editAction     int
-	formats        []zlib.Extension
-	formatCursor   int
-	original       string
-	returnPage     string
-	returnCursor   int
+	// resetSecret records that the user chose to remove a saved secret (Ctrl+R),
+	// so an empty box means "remove" and not "nothing typed yet".
+	resetSecret  bool
+	editAction   int
+	formats      []zlib.Extension
+	formatCursor int
+	// The lookup sources page (settings_sources.go).
+	sourceChoices []metaSourceChoice
+	sourceCursor  int
+	// The choice page of a setting with a short list of values
+	// (settings_choice.go). choiceCustom: the value is none of the rows and is
+	// held by the custom row. choiceEditing and fromChoice: the text box of the
+	// custom row is being opened, or is open over the choice page.
+	choice        choiceSpec
+	choiceCursor  int
+	choiceCustom  bool
+	choiceValue   string
+	choiceEditing bool
+	fromChoice    bool
+	original      string
+	returnPage    string
+	returnCursor  int
 	// Domain page state (settings_domains.go).
 	checks        map[string]zlib.DomainCheck
 	pendingCheck  zlib.DomainCheck
@@ -283,7 +305,20 @@ func (m *settingsModel) edit(key string) tea.Cmd {
 	if (v.Source == "Default" && !isKindleSetting(key)) || (key == zlib.EnvDomain && v.Source == "Saved session") {
 		value = v.Saved
 	}
+	if isSecretSetting(key) {
+		// A secret is never shown or prefilled, so the box starts empty.
+		value = ""
+		m.resetSecret = false
+	}
 	m.original = value
+	if spec, ok := choiceSpecFor(key); ok && !m.choiceEditing {
+		m.openChoicePage(spec, v)
+		return nil
+	}
+	if key == metaSourcesEnv {
+		m.openSourcesPage(value)
+		return nil
+	}
 	if key == searchExtensionsEnv {
 		m.page = "formats"
 		m.formats, _ = parseDefaultSearchExtensions(value)
@@ -298,9 +333,14 @@ func (m *settingsModel) edit(key string) tea.Cmd {
 		m.input.Placeholder = "http://host:port"
 	} else if key == wereadProxyEnv {
 		m.input.Placeholder = "http://host:port or direct"
+	} else if isSecretSetting(key) {
+		m.input.Placeholder = "Paste a key"
 	}
 	m.input.SetWidth(max(1, min(56, m.width-ansi.StringWidth(m.input.Prompt)-4)))
 	m.input.EchoMode = textinput.EchoNormal
+	if isSecretSetting(key) {
+		m.input.EchoMode = textinput.EchoPassword
+	}
 	return m.input.Focus()
 }
 
@@ -313,6 +353,12 @@ func (m *settingsModel) back() {
 	m.busy = false
 	m.cursor = 0
 	m.message = ""
+	if m.page == "edit" && m.fromChoice {
+		// The box of a choice page's custom row: back to the choices.
+		m.fromChoice, m.page = false, "choice"
+		m.input.Blur()
+		return
+	}
 	switch m.page {
 	case "domain":
 		m.page = m.returnPage
@@ -320,7 +366,7 @@ func (m *settingsModel) back() {
 			m.page = "network"
 		}
 		m.cursor = m.returnCursor
-	case "edit", "formats":
+	case "edit", "formats", "sources", "choice":
 		m.page = m.returnPage
 		if m.page == "" {
 			m.page = "home"
@@ -415,9 +461,11 @@ func (m *settingsModel) save(value string) {
 		// Explicit process and working-directory settings keep precedence.
 	} else if v.Source == "Global configuration" {
 		_ = os.Setenv(m.key, v.Value)
-	} else if v.Source == "Default" || v.Source == "Saved session" {
+	} else if v.Source == "Default" || v.Source == "Saved session" || v.alias {
+		// An alias value means nothing is left under this key.
 		_ = os.Unsetenv(m.key)
 	}
+	m.fromChoice = false // a saved value leaves the choice page too
 	m.back()
 	m.message = "Saved"
 	if v.Override != "" {
@@ -475,6 +523,7 @@ func (m *settingsModel) saveKindle(value string) {
 		m.message = "Saved; could not reload settings: " + err.Error()
 		return
 	}
+	m.fromChoice = false // a saved value leaves the choice page too
 	m.back()
 	m.message = "Saved"
 }
@@ -581,6 +630,12 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.page == "formats" {
 			return m.updateFormats(k)
 		}
+		if m.page == "sources" {
+			return m.updateSources(k)
+		}
+		if m.page == "choice" {
+			return m.updateChoice(k)
+		}
 		if k == "ctrl+c" {
 			if m.cancel != nil {
 				m.cancel()
@@ -661,11 +716,20 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			switch k {
 			case "enter":
+				if isSecretSetting(m.key) && strings.TrimSpace(m.input.Value()) == "" && !m.resetSecret {
+					// Opening the editor and pressing Enter must not delete a saved key.
+					m.message = "Paste a key to save, or press Ctrl+R to remove the saved one"
+					return m, nil
+				}
 				m.save(m.input.Value())
 				return m, nil
 			case "ctrl+r":
 				m.input.SetValue("")
 				m.message = "Default selected; Enter saves"
+				if isSecretSetting(m.key) {
+					m.resetSecret = true
+					m.message = "Key removal selected; Enter saves"
+				}
 				return m, nil
 			case "ctrl+b":
 				if m.key == downloadDirEnvVar {
@@ -705,6 +769,9 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			before := m.input.Value()
 			m.input, cmd = m.input.Update(msg)
+			if isSecretSetting(m.key) && m.input.Value() != before {
+				m.resetSecret = false // typing replaces a pending removal
+			}
 			if m.busy && m.input.Value() != before {
 				if m.cancel != nil {
 					m.cancel()
@@ -748,7 +815,7 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			switch m.page {
-			case "home", "network", "download", "kindle", "weread":
+			case "home", "network", "download", "kindle", "weread", "metadata":
 				keys := settingsPageKeys(m.page)
 				if m.cursor >= len(keys) {
 					return m, nil
@@ -775,7 +842,11 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	if m.page == "edit" {
 		var cmd tea.Cmd
+		before := m.input.Value()
 		m.input, cmd = m.input.Update(msg)
+		if isSecretSetting(m.key) && m.input.Value() != before {
+			m.resetSecret = false // a paste replaces a pending removal too
+		}
 		return m, cmd
 	}
 	return m, nil
@@ -886,6 +957,12 @@ func (m settingsModel) View() tea.View {
 	if m.page == "formats" {
 		return m.formatsView(w, h)
 	}
+	if m.page == "sources" {
+		return m.sourcesView(w, h)
+	}
+	if m.page == "choice" {
+		return m.choiceView(w, h)
+	}
 	if m.page == "domain" || m.page == "mirror" {
 		return m.domainView(w, h)
 	}
@@ -895,7 +972,7 @@ func (m settingsModel) View() tea.View {
 	if m.page == "weread-account" && !m.busy {
 		return m.wereadAccountView(w, h)
 	}
-	titles := map[string]string{"home": "Settings", "network": "Settings / Network", "download": "Settings / Downloads", "search": "Settings / Search", "kindle": "Settings / Kindle", "weread": "Settings / WeRead", "weread-account": "Settings / WeRead account", "browse": "Settings / Choose directory", "edit": "Settings / Edit"}
+	titles := map[string]string{"home": "Settings", "network": "Settings / Network", "download": "Settings / Downloads", "search": "Settings / Search", "kindle": "Settings / Kindle", "weread": "Settings / WeRead", "metadata": "Settings / Metadata", "weread-account": "Settings / WeRead account", "browse": "Settings / Choose directory", "edit": "Settings / Edit"}
 	if m.busy {
 		return screenView(w, h, titles[m.page], "", m.spinner.View(), "", uiKey("esc", "back"))
 	}
@@ -907,19 +984,49 @@ func (m settingsModel) View() tea.View {
 		return m.settingsListView(w, h, titles[m.page])
 	} else if m.page == "edit" {
 		v := m.value(m.key)
-		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy"}
+		labels := map[string]string{zlib.EnvProxy: "Proxy URL", downloadDirEnvVar: "Download directory", zlib.EnvRetries: "Download retries", kindleToKey: "Kindle address", kindleFromKey: "From address", kindleHostKey: "SMTP host", kindlePortKey: "SMTP port", kindleSecurityKey: "SMTP security", wereadProxyEnv: "WeRead proxy", googleBooksKeyEnv: "Google Books API key", wereadAPIKeyEnv: "WeRead API key", metaSourcesEnv: "Lookup sources", metaResultsEnv: "Lookup results", nameLayoutEnv: "File name format"}
 		if v.Override != "" {
 			subtitle = "Using " + v.Override
 		}
 		lines = append(lines, labels[m.key], m.input.View(), "")
-		if m.key == kindleSecurityKey {
-			lines = append(lines, "tls: SSL/TLS on connect (port 465)", "starttls: upgrade after connect (port 587)", "Empty: follow the port", "")
+		if m.fromChoice {
+			// The box of a choice page's custom row: what it takes, and what it would do.
+			lines = append(lines, m.choice.help...)
+			if m.choice.preview != nil && strings.TrimSpace(m.input.Value()) != "" {
+				lines = append(lines, "", ansi.Truncate("Preview: "+safeText(m.choice.preview(m.input.Value())), max(1, w-2), "…"))
+			}
+			lines = append(lines, "")
 		}
 		if isKindleSetting(m.key) {
 			lines = append(lines, "SMTP password: ZLIB_SMTP_PWD", "")
 		}
 		if m.key == wereadProxyEnv {
 			lines = append(lines, "Empty: system proxy (HTTPS_PROXY)", "direct: connect without any proxy", "Proxy URL: http, https, socks5 or socks5h", "The Z-Library proxy (ZLIB_PROXY) never applies", "")
+		}
+		if m.key == wereadAPIKeyEnv {
+			status := "No key is set: the WeRead source cannot run"
+			if v.Source != "Default" || v.Saved != "" {
+				status = "A key is set (hidden). Paste a new one to replace it"
+			}
+			lines = append(lines, status,
+				"The key for WeRead's agent API (the WeRead skill), bound to your account.",
+				"It is not your WeRead login, which imports books.",
+				"Lookups on the weread source send each title to Tencent under it.",
+				"Saved to the global .env; "+wereadAPIKeyEnv+" overrides it.", "")
+		}
+		if m.key == googleBooksKeyEnv {
+			status := "No key is set: lookups use Google's shared quota"
+			if v.Source != "Default" || v.Saved != "" {
+				status = "A key is set (hidden). Paste a new one to replace it"
+			}
+			lines = append(lines, status,
+				"Optional. A key gives metadata lookups their own Google Books quota.",
+				"Create one for the Books API in the Google Cloud console.",
+				"Saved to the global .env; "+googleBooksKeyEnv+" overrides it.")
+			if v.alias {
+				lines = append(lines, "Now read from "+googleBooksKeyAliasEnv+"; a key saved here wins.")
+			}
+			lines = append(lines, "")
 		}
 		actions := []string{"", "Reset", "Cancel", "Save"}
 		if m.key == downloadDirEnvVar {

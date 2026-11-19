@@ -344,7 +344,8 @@ func TestShellDownloadKindleRejectsUnsupportedFile(t *testing.T) {
 	m := newShellModel()
 	page := newDownloadModel("1:abc", ".", nil)
 	page.state = stateComplete
-	page.savedPath = filepath.Join(t.TempDir(), "book.fb2")
+	// DjVu is not a Kindle, WeRead or metadata format, so only Back is offered.
+	page.savedPath = filepath.Join(t.TempDir(), "book.djvu")
 	m.open("download", page)
 	if strings.Contains(ansi.Strip(m.View().Content), "Send to Kindle") {
 		t.Fatal("unsupported file still offers Kindle delivery")

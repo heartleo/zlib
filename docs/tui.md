@@ -79,9 +79,9 @@ the version line. Use `zlib version` to see the full version.
 
 The shell accepts `/search`, `/favorites`, `/recommended`, `/most-popular`,
 `/history`, `/login`, `/logout`, `/profile`, `/doctor`,
-`/config`, `/config network`, `/config download`, `/config kindle`, `/config weread`, `/theme`, `/kindle`,
+`/config`, `/config network`, `/config download`, `/config kindle`, `/config weread`, `/config metadata`, `/theme`, `/kindle`,
 `/kindle config`, `/kindle send <file>`, `/weread`, `/weread import <file>`,
-`/weread login`, `/weread logout` and `/quit`. Use `zlib version`
+`/weread login`, `/weread logout`, `/meta`, `/meta <file>` and `/quit`. Use `zlib version`
 outside the TUI to check the installed version.
 For automation, use direct commands and their flags, including `--json`.
 To download a selected book in the TUI, press Enter on its list row. To download
@@ -124,7 +124,10 @@ Search, Favorites, Recommended, Most popular, and History share one list layout:
   uses 13 rows when the page has at least 24 rows. Otherwise it uses 8 rows.
 - The expanded card shows category, year, edition, publisher, language, pages,
   and ISBN 10/13 when available. Missing EAPI fields are left blank. Valid
-  ISBN 10 and `978` ISBN 13 values can supply each other's equivalent.
+  ISBN 10 and `978` ISBN 13 values can supply each other's equivalent. History
+  keeps the ISBN its list response names, as the other lists do, so its card
+  shows it before the details load; `zlib history --json` carries it as `isbn`,
+  `isbn_10` and `isbn_13` when present.
 - Leave one empty row between the card and the column header.
 - At a page height of 15 rows or more, leave one empty row between the list area
   and the bottom controls.
@@ -249,6 +252,180 @@ pages the same way. The login page renders the QR code black on white so it
 scans on dark terminals, offers `r` for a new code after expiry or a declined
 login, and asks for a larger terminal when the code does not fit. Kindle and
 WeRead file pickers open in the default download directory.
+
+`/meta` looks a local book up online and fixes its metadata; it needs no
+Z-Library login. It opens a file picker listing folders and the formats
+`zlib meta` reads, or takes a path (`/meta "<file>"`). The page does not search
+at once: it moves through a prepare step, a lookup, candidates, fields and
+writing. The subtitle says which of the three steps you are on (`Step 2 of 3:
+Choose a match`, or `2/3` when the terminal is narrow), and `?` on any page
+lists every key it takes, including those the footer has no room for, and
+leaves out keys that do nothing there; the list scrolls when the terminal is
+short. `?`, Esc, `q` or Enter close it. In an editor `?` is text, and it does
+nothing while a search or a write runs:
+
+- **Prepare** has three parts, top to bottom. First a book detail card, like
+  the one in the search results: a rounded border with the file's cover on the
+  left (where the terminal can draw images; a file with none shows `no cover`)
+  and its metadata beside it: the title and authors, then labelled rows whose
+  values start in one column (publisher, date, language, series, tags, ISBN,
+  Z-Library ID, format) and the start of the description. Only fields the file
+  has are shown, with no blank lines, so a sparse book gives a short card; when
+  the rows are too few the fields are packed into dotted lines instead of being
+  dropped. The shortcuts for editing the file's fields (`m`) and for all its
+  details (`i`) are on the `Search for` rule under the card. Under the card is what will be searched and where each part
+  came from, read from the file name first and then the file; under that the
+  sources to ask. Nothing has been sent yet. On a short terminal the card
+  gives up lines first, then the search terms shrink to one line, and a very
+  short one drops the card, so the sources are never the part that is cut.
+  `i` opens `File details` with everything in the file, the description wrapped, in a view that
+  scrolls with the arrow keys and Page Up/Down when it is taller than the
+  terminal (the status line gives the position); Esc, `i` or Enter return. A
+  Z-Library name such as `Title (Author).epub` is usually cleaner than the
+  title inside the file, which often carries a marketing line, so the name's
+  title is used, with the file's own title offered as the other choice: press
+  `t` to switch. For a Chinese title the authors come from the side that writes
+  them in Chinese when only one does; otherwise from the file when it names
+  the same person, as a file name often adds the translator, and from the
+  file name when it does not. A title that is only a placeholder (`Unknown`,
+  a UUID, a long number) is not used, and an ISBN alone is not a title. The file's own ISBN is confirmed; an ISBN read from the copyright
+  page, recorded by a download or found in the file name is a hint. The file's
+  publisher and year rank editions of one title a little. A title read from
+  the name or the download is marked `a guess` and cannot by itself confirm a
+  hint ISBN; the file's own title, or one you edit, can. The terms and sources
+  come first on the page, so a short terminal still shows them. Space toggles a
+  source, `e` edits the terms, Enter searches and Esc leaves. `m` opens the
+  fields workbench on the file's own metadata with no lookup at all, to edit
+  any field by hand. Where the terminal can draw images (Kitty or Sixel), the
+  prepare page and the file details show the file's cover at the top right,
+  and the results show the highlighted match's, downloaded once per match. Ctrl+D saves the
+  sources that are on as the default (`ZLIB_METADATA_SOURCES` in the global
+  `.env`); nothing is saved unless you press it, and the page says so when the
+  environment or a `.env` in the working directory overrides it. A file with nothing to search
+  with opens on the editor.
+- **Looking up** shows the title, authors and ISBN being searched. Esc cancels
+  the request and returns to the page it started from.
+- **Candidates** list the merged matches, best first. On a terminal 100
+  columns wide or more the page puts the file beside the highlighted match
+  under the list, in the same two panels as the workbench (read only, and only
+  the fields either side has), so you compare before choosing. Where the
+  terminal can draw images each panel starts with its cover, the file's on the
+  left and the match's on the right. The match's cover place is always there:
+  it says `loading…` while the image downloads (once per match, as soon as the
+  page can show it, also after a resize), `no cover` when the match has none and
+  `cover unavailable` when it cannot be fetched or read. The matches are in columns (match, title,
+  authors, year, sources) that line up for wide characters too. On a narrower
+  terminal a details pane starts with what choosing the highlighted match would do to the file:
+  `Would add` names the empty fields it fills and selects, `Could add` empty
+  fields it offers unselected (the edition fields of a title-only or `ISBN?`
+  match), `Differs on` the values it would replace, which stay as they are
+  unless you select them, and `Cannot store` what the file's format has no
+  place for. Page Up and Page Down move a page of matches. Each row starts with a
+  five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
+  the title is different or nothing independent vouches for it, or a percentage for a title match. The pane under the
+  list shows the selected match's details. Each row ends with the sources that
+  agreed on it in brackets, such as `[WeRead]` or `[Google Books+Open Library]`,
+  and the details name the ISBN, or say `no ISBN listed` for an edition without
+  one, which is then a guess by title. A source that failed while others
+  answered is named on the status line. `e` edits what is searched for: the
+  title, authors (separated by `&`) and ISBNs (separated by commas), then
+  Enter searches again, Tab moves between the fields and Esc cancels. This
+  changes only the search, never the file. An ISBN you type counts as
+  confirmed, like `--isbn`; an ISBN the download or the book itself supplied
+  stays a hint while it is in the field, even if you retype it, and only a
+  different ISBN you type counts as confirmed. A hint confirms a match only
+  when the title searched agrees closely with the result's, so typing the
+  title of the book the hint names is how you say the file is that book, while
+  a different title leaves the match flagged. `s` goes back to the prepare page to
+  change the sources: Open Library, Google Books, Douban and WeRead, each with
+  `[x]` or `[ ]` and why it cannot be turned on (WeRead without
+  `ZLIB_WEREAD_API_KEY` says so, and the key is only reported as set or not
+  set, never shown). Esc there returns to these results with the choice as it
+  was. A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first
+  search used it, even when its key is missing and it can only report that; it
+  can be turned off but not back on without the key. While a search runs, Esc
+  returns to the page it started from. The choice applies to this session and
+  is saved only by Ctrl+D; the page says that WeRead sends each title to Tencent
+  under your account. WeRead cannot search by ISBN, so when it is on and the
+  search has no title the page says so.
+- **Rename** (`n` or `F2` on the prepare, results, no-match and fields pages)
+  shows the file's name now, the name it would get, whether that can be done
+  (`✓ ready`, `● this is the file's name now`, or `✗` with the reason, such as
+  a file with that name already existing), the format switch and where the name
+  comes from. The prepare and fields pages carry a `File` line with the same
+  before and after, so a name that does not say the book is visible before `n`
+  is pressed. `←`/`→` (or `h`/`l`, or `1` `2` `3`) switch the format between
+  `Title - Author`, `Author - Title` and `Title (Author)`; every row is
+  recomputed, and Ctrl+D saves the format as the default
+  (`ZLIB_FILENAME_FORMAT`). The names come from the search terms (the default:
+  read from the file name and the file, or as you edited them), from the file's
+  own embedded title, which often carries a marketing line, and from the
+  selected match (on the results and fields pages). The page starts on the
+  first name that would change something. A name that is already the file's, or
+  taken by another file, is marked and refused. `Type a
+  name…`, or `e` on any row, opens an editor on the name without its extension;
+  characters a file system rejects are replaced. Enter renames at once, never
+  over another file, and goes back to the page `n` was pressed on, with the
+  title and the sources unchanged. Fields written afterwards go to the file
+  under its new name, and the saved-file page of a download follows the rename,
+  so Send to Kindle and Send to WeRead use it. See
+  [Rename a file](metadata.md#rename-a-file) for how a name is built.
+- **Fields** is a workbench of every field the file's format can store: title,
+  title sort, authors, author sort, series, publisher, date, languages, tags,
+  ISBN, rating, description and cover, then any other catalogue ID the match
+  offers. On a terminal 100
+  columns wide or more it shows two panels side by side: `This file`, with
+  the value each field will be written with, and `Match`, with what the match
+  says, row for row. Where the terminal can draw images each panel starts
+  with its cover, the file's own beside the match's. On a narrower terminal
+  the same rows are a table with a `This file` and a `Match` column. Under
+  the panels the focused field is shown in full: what the file holds, what
+  will be written and what the match says. A description's markup is shown
+  as plain text, and written back as it was.
+
+  Each field is decided on its own. `→` (or `l`) takes the match's value,
+  Space switches between it and the file's, `←` (or `h`) keeps the file's,
+  `e` or Enter types a value, `x` clears the field, `a` takes the match for
+  every field it proposes (or for none), and `u` undoes every change. The
+  file's side marks each field that will change: `←` from the match, `✎`
+  typed, `✗` cleared; the match's side marks `✓` taken, `≠` different and
+  `=` the same as the file. What starts taken depends on the match: with
+  `ISBN`, the fields the file leaves empty; with a percentage (a title match),
+  the empty fields that describe the book, while publisher, date, language and
+  identifiers, which differ between editions, wait for you under a warning;
+  with `ISBN?`, nothing. A value the file already has is only replaced when
+  you take or type another; a new title or new authors keep the file's sort
+  forms unless you change those too. Tags are separated by commas and authors
+  by `&`, so a tag or a name that contains one is split when it is edited. Typing is checked per field: authors separated by
+  `&`, languages and tags by commas, a date written `2008`, `2008-01` or
+  `2008-01-05`, an ISBN with a correct check digit, a series as `Name #2`.
+  The description opens a text area where Enter starts a new line and Ctrl+S
+  keeps the text; the cover asks for the path of a JPEG, PNG, GIF or WebP
+  image. A title cannot be cleared, nor the identifier an EPUB names as its unique
+  identifier, which the format requires; give it another value instead. A
+  rating is 0 to 5 stars in halves. Ctrl+S writes every changed field (a
+  match's cover is the image the preview downloaded, or is downloaded then);
+  the status line lists them. Esc goes back, and asks first when changes are
+  not written. Fields the format cannot store are named on the status line.
+- **Failures** stay on the page. When nothing matched, or no source could be
+  reached, the page names why; `r` retries and `e` changes the search first. A
+  file with no title, author or ISBN opens on the search editor instead of being
+  refused, and `r` there asks what to search for rather than sending nothing.
+  The key hints on every page of the lookup shrink with the width, from full
+  labels to shorter ones to the keys alone, so Esc stays visible. A write error
+  keeps the field choices so Ctrl+S can be pressed again.
+
+A match with a cover adds a `Cover` row, preselected only when the file has none.
+Applying downloads the image first; a failed download writes nothing and is
+reported on the page. The saved-file page after a download offers **Fix metadata**
+for every format `zlib meta` reads. It opens the same page, adds the Z-Library
+record's ISBN to the search, and returns to the saved file with the outcome.
+
+The lookup starts in `Init`, once however often `Init` runs, and a late answer
+to a lookup the user already left is ignored. `zlib meta` with no file or only
+`--fetch` opens the same file picker as `/meta` on a terminal, and
+`zlib meta <file> --fetch` opens the page itself; with `--json`, `-t`, `-a` or `--isbn`, or when
+output is redirected, it prints the candidates instead.
 
 The QR code is drawn with half-block characters, two modules per cell: one
 column and half a row per module, so modules are square on a terminal whose

@@ -1,6 +1,6 @@
 ---
 name: zlib
-description: Search and download Z-Library books, browse saved books and recommendations, inspect download history or account quota, and diagnose domain connectivity through the zlib CLI. For sending a local file to Kindle, use the bundled kindle skill.
+description: Search and download Z-Library books, browse saved books and recommendations, inspect download history or account quota, and diagnose domain connectivity through the zlib CLI. For fixing local e-book metadata, use the bundled metadata skill; for sending a local file to Kindle, the bundled kindle skill.
 license: MIT
 ---
 
@@ -95,6 +95,11 @@ says why; do not download again); `130` means it was cancelled. If the command t
 the destination before retrying; a partial file or matching displayed size alone
 does not prove completion. Avoid repeating downloads after an uncertain outcome.
 
+A download records Z-Library's ISBN in the saved file's metadata when it has a
+valid one; the JSON `isbn` object says what was written, and `zlib_id` the
+Z-Library ID (`id:hash`) an EPUB records as the identifier `zlib-id`. Add `--no-embed` only
+when the user wants the file left byte-for-byte as downloaded.
+
 For history re-downloads, use `zlib history --download "id:hash"`. For delivery
 requested by the user, follow the bundled [Kindle skill](../kindle/SKILL.md).
 Use `--send-to-kindle` only when delivery was requested and SMTP is configured.
@@ -108,3 +113,12 @@ retry after an error saying the import is unconfirmed; ask the user to check the
 WeRead shelf instead. `already_existed: true` means WeRead already had the file;
 report it as already in WeRead, not as a new import. TXT files can be up to
 20 MiB and other formats up to 300 MiB.
+
+## Local file metadata
+
+To read or fix the metadata of a local e-book (a wrong title or author, a missing
+ISBN, series or cover), look the book up in online catalogues, or rename a file
+from its metadata, use the bundled [metadata skill](../metadata/SKILL.md). It
+covers the `zlib meta` command and the `read_metadata`, `lookup_metadata` and
+`edit_metadata` MCP tools. `zlib meta "<file>" --json` reads a file's metadata,
+offline, and changes nothing.

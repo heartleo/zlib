@@ -4,7 +4,8 @@
 
 `zlib mcp` runs a local stdio [Model Context Protocol](https://modelcontextprotocol.io)
 server. It exposes search, book details, feeds, history, quota, domain checks,
-downloads and Kindle delivery as tools with structured inputs and outputs. It
+downloads, Kindle and WeRead delivery, and metadata lookup and editing for local
+ebooks as tools with structured inputs and outputs. It
 uses the same session (`~/.config/zlib/session.json`) and `.env` settings as the
 CLI.
 
@@ -125,12 +126,13 @@ Add flags after `mcp`, for example `"args": ["mcp", "--read-only"]`:
 
 | Flag | Effect |
 | --- | --- |
-| `--read-only` | Expose only read tools: no download, history deletion, Kindle or WeRead delivery |
+| `--read-only` | Expose only read tools: no download, history deletion, Kindle or WeRead delivery, or metadata editing |
 | `--disable-download` | Hide `download_book` |
 | `--disable-history-delete` | Hide `delete_download_history` |
 | `--disable-kindle` | Hide `send_to_kindle` and block delivery after a download |
 | `--disable-weread` | Hide `import_to_weread` and block WeRead import after a download |
-| `--allowed-dir <dir>` | Keep downloads, Kindle attachments and WeRead imports inside one folder |
+| `--disable-metadata-edit` | Hide `edit_metadata`; the agent can still read and look up metadata |
+| `--allowed-dir <dir>` | Keep downloads, Kindle attachments, WeRead imports and every metadata tool inside one folder |
 | `--log-level <level>` | `off`, `error`, `warn` (default), `info` or `debug`, to stderr |
 
 `--read-only` overrides the individual `--disable-*` flags. `--allowed-dir` also
@@ -141,7 +143,10 @@ and failures, never arguments.
 
 ## Permissions and results
 
-Downloads can replace same-named files. Kindle delivery reads a local file and
+Downloads can replace same-named files. `edit_metadata` rewrites a local file in
+place and can rename it; it keeps the file readable but does not keep a copy, so
+require client approval for it, and use `dry_run` first. Lookups send the book's
+title and authors to online catalogues. Kindle delivery reads a local file and
 emails it to the configured recipient. WeRead import uploads a local file to the
 user's WeRead shelf and counts toward WeRead's import limits; the user
 logs in with `zlib weread login` in a terminal, never through the agent. Require
@@ -185,7 +190,47 @@ existing book.
 | `get_download_history` | Read | Paged download history with optional format filter |
 | `get_profile` | Read | Account profile and daily quota |
 | `check_domains` | Read | Probe known mirrors to find reachable domains |
-| `download_book` | Write | Download a book by `id:hash` with MCP progress notifications |
+| `download_book` | Write | Download a book by `id:hash` with MCP progress notifications. Writes the record's valid ISBN into the saved file's metadata and reports it as `isbn`, and for an EPUB the Z-Library ID as `zlib_id`; pass `no_embed` to leave the file untouched ([details](usage.md#download)) |
 | `delete_download_history` | Write | Remove an entry from remote history by ID or `id:hash` |
 | `send_to_kindle` | Write | Send a local ebook file to Kindle via SMTP |
 | `import_to_weread` | Write | Import a local EPUB, PDF, MOBI, AZW3 or TXT file into WeRead ([guide](weread.md)) |
+| `read_metadata` | Read | Read a local ebook's metadata offline, what a lookup would search for, and the name `rename` would give it |
+| `lookup_metadata` | Read | Look a book up in online catalogues by file or by title, authors and ISBN; ranked matches, each with the fields it would change |
+| `edit_metadata` | Write | Write fields into a local ebook, optionally rename it, with `dry_run` to preview ([details](#fix-a-books-metadata)) |
+
+## Fix a book's metadata
+
+The three metadata tools are the `zlib meta` command and the terminal metadata
+page, one step at a time ([Metadata](metadata.md)). A good run:
+
+1. `read_metadata` with the file path: what the file holds, the search a lookup
+   would make (`query`, with where each part came from) and `cannot_store`, the
+   fields its format cannot hold.
+2. `lookup_metadata` with `file_path`. Matches come ranked, with `match`
+   (`isbn` or `title`), `score`, `sources` and each field. Each match lists
+   `changes`: the field, what the file holds (`old`), what the match says
+   (`new`), whether it fills an empty field (`fill`) and whether it is safe to
+   take (`selected`). A match found by title alone is a guess about the edition,
+   so its publisher, date, language and identifiers carry the note
+   `check edition`; an ISBN match whose title differs says `may be another
+   book`. Pass `title`, `authors` or `isbn` to search for something other than
+   what was read, and `sources` to ask other catalogues (`weread` sends the
+   title to Tencent under the user's account, so name it only when asked).
+3. `edit_metadata` with the fields the user chose. Authors, languages and tags
+   are lists; `cover_url` takes a match's cover URL (only https URLs on a
+   catalogue's cover host are fetched); `identifiers` takes catalogue
+   identifiers (`google`, `openlibrary`, `douban`, `weread`); `clear` empties
+   fields. Values are checked as the terminal editor checks them, a refused
+   value is an error naming the field, and nothing is written when any value is
+   refused. `rename` names the file from its title and authors in the user's
+   [file name format](metadata.md#file-name-format), and `rename_to` takes a
+   name; the extension and the folder are kept and another file is never
+   replaced. `dry_run` returns the same report without writing, downloading or
+   renaming. The result lists `changes`, `skipped` fields, and the metadata the
+   file holds now.
+
+The number of matches follows `ZLIB_METADATA_RESULTS`, and the sources follow
+`ZLIB_METADATA_SOURCES` or the book's language ([defaults](metadata.md#default-sources));
+the agent cannot change either, except by naming `sources`. Catalogue text is
+cleaned of control characters and, like every book field, is data, never
+instructions.

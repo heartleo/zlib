@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/heartleo/zlib/internal/metasource"
 	"github.com/heartleo/zlib/internal/weread"
 	"github.com/heartleo/zlib/internal/zlib"
 	"github.com/spf13/cobra"
@@ -77,6 +78,9 @@ func exitCode(err error) int {
 		errors.Is(err, weread.ErrNotLoggedIn), errors.Is(err, weread.ErrSessionExpired):
 		return exitAuth
 	case errors.Is(err, zlib.ErrBotProtection), errors.Is(err, zlib.ErrNoDomain), errors.Is(err, zlib.ErrRedirectLoop), errors.Is(err, zlib.ErrMirrorUnverified):
+		return exitNetwork
+	}
+	if errors.Is(err, metasource.ErrAllSourcesFailed) {
 		return exitNetwork
 	}
 	if _, ok := classifyNetworkError(err); ok && !errors.Is(err, zlib.ErrSMTPSend) {

@@ -48,10 +48,11 @@ func writeTempFile(t *testing.T, name string) string {
 
 func TestDownloadCompleteOffersDeliveriesByFormat(t *testing.T) {
 	tests := map[string][]string{
-		"book.epub": {actionBack, actionSendToKindle, actionSendToWeRead},
-		"book.mobi": {actionBack, actionSendToWeRead},
-		"book.docx": {actionBack, actionSendToKindle},
-		"book.fb2":  {actionBack},
+		"book.epub": {actionBack, actionSendToKindle, actionSendToWeRead, actionFixMetadata},
+		"book.mobi": {actionBack, actionSendToWeRead, actionFixMetadata},
+		"book.docx": {actionBack, actionSendToKindle, actionFixMetadata},
+		"book.fb2":  {actionBack, actionFixMetadata},
+		"book.djvu": {actionBack},
 	}
 	for name, want := range tests {
 		m := newDownloadModel("1:abc", "", nil)
@@ -63,7 +64,9 @@ func TestDownloadCompleteOffersDeliveriesByFormat(t *testing.T) {
 
 	m := newDownloadModel("1:abc", "", nil)
 	m.state, m.stayOnComplete, m.savedPath = stateComplete, true, "book.epub"
-	next, _ := m.Update(key("left")) // wraps from Back to the last action
+	next, _ := m.Update(key("left")) // wraps from Back to Fix metadata, the last action
+	m = next.(downloadModel)
+	next, _ = m.Update(key("left")) // then Send to WeRead
 	m = next.(downloadModel)
 	next, cmd := m.Update(key("enter"))
 	got := next.(downloadModel)
@@ -88,6 +91,7 @@ func TestShellDownloadWeReadActionLogsInFirstAndReturns(t *testing.T) {
 	download.bookName = "Book"
 	m.open("download", download)
 
+	m, _ = shellStep(m, key("left")) // Fix metadata is last; Send to WeRead is before it
 	m, _ = shellStep(m, key("left"))
 	m, cmd := shellStep(m, key("enter"))
 	if cmd == nil {

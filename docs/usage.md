@@ -64,6 +64,20 @@ or `{"sent":false,"error":"..."}` when the book was saved but delivery failed.
 or `{"imported":false,"error":"..."}`.
 `history --download` accepts `--json` the same way.
 
+When Z-Library's record has a valid ISBN, the download writes it into the saved
+file's metadata before any Kindle or WeRead delivery, so a later
+[`zlib meta --fetch`](metadata.md#look-a-book-up) finds the exact edition. The
+JSON document then has `isbn`: `{"scheme":"isbn","value":"978..."}`, or
+`{"scheme":"zlib-isbn","value":"978..."}` when the record's title did not agree
+with the file's, or the record lists the ISBNs of several editions. An existing
+ISBN is never replaced. An EPUB also records the Z-Library book ID (`id:hash`)
+as the identifier `zlib-id`, so the file can always be traced back to its
+record; the JSON document then has `zlib_id`, and `zlib meta` shows it as
+`Z-Library ID`. Other formats have no place for an identifier of their own and
+keep only the ISBN. Add `--no-embed` to leave
+the file untouched. Downloads from a direct URL (`history --download`) have no
+record and write nothing.
+
 ## Saved books, recommendations and history
 
 In the history browser, press `d` to delete the selected entry, then `y` to
@@ -124,7 +138,18 @@ With redirected output, it prints the current and available themes instead.
 `ZLIB_THEME` overrides the saved theme. See [Themes](themes.md) for the built-in
 names and preview controls.
 
-See [Terminal interface](tui.md) for interactive controls. For exact flags and
+## Book metadata
+
+```sh
+zlib meta book.epub
+zlib meta book.epub -t "New Title" -a "Jane Doe & John Roe" --cover cover.jpg
+```
+
+`meta` shows or edits the title, authors, series, identifiers, cover and other
+metadata inside a local file, offline; `--fetch` looks the book up online. See
+[E-book metadata](metadata.md).
+
+For interactive controls, see [Terminal interface](tui.md). For exact flags and
 defaults, run `zlib <command> --help`.
 
 ## Exit codes
@@ -135,7 +160,7 @@ defaults, run `zlib <command> --help`.
 | 1 | Other error |
 | 2 | Usage error: unknown command or flag, wrong number of arguments |
 | 3 | Not logged in, or the saved session expired; run `zlib login` (or `zlib weread login` for WeRead) |
-| 4 | Network: a host (a mirror, or GitHub for `update`) is unreachable, the mirror is behind DiamWall, `doctor` found no usable domain, or `mirrors add` found no Z-Library at the domain |
+| 4 | Network: a host (a mirror, or GitHub for `update`) is unreachable, the mirror is behind DiamWall, `doctor` found no usable domain, `mirrors add` found no Z-Library at the domain, or every source of `meta --fetch` failed |
 | 5 | The book was saved, but Send to Kindle or WeRead failed |
 | 130 | You cancelled the download or its folder prompt, or declined to trust a mirror |
 

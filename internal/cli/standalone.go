@@ -15,6 +15,9 @@ func newStandaloneShellCommand(command string) (shellModel, error) {
 	if strings.HasPrefix(command, "/weread") {
 		m.standaloneTitle = "WeRead"
 	}
+	if strings.HasPrefix(command, "/meta") {
+		m.standaloneTitle = "Metadata"
+	}
 	m.dispatch(command)
 	if m.page == nil && m.kind == "" {
 		return m, fmt.Errorf("%s", m.status)
@@ -24,13 +27,23 @@ func newStandaloneShellCommand(command string) (shellModel, error) {
 
 func runStandaloneShellCommand(command string) error {
 	if !isInteractive() {
-		return fmt.Errorf("this command requires a terminal; use zlib kindle send <file> for non-interactive delivery")
+		// Only the Kindle commands have a plain form to suggest.
+		if strings.HasPrefix(command, "/kindle") {
+			return fmt.Errorf("this command requires a terminal; use zlib kindle send <file> for non-interactive delivery")
+		}
+		return fmt.Errorf("this command requires a terminal")
 	}
 	m, err := newStandaloneShellCommand(command)
 	if err != nil {
 		return err
 	}
-	result, err := tea.NewProgram(m).Run()
+	// The metadata page draws covers; the others have none to draw.
+	var result tea.Model
+	if strings.HasPrefix(command, "/meta") {
+		result, err = runCoverProgram(m)
+	} else {
+		result, err = tea.NewProgram(m).Run()
+	}
 	if err != nil {
 		return err
 	}

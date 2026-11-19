@@ -69,6 +69,19 @@ separate ISBN 10/13 fields are not guaranteed by the APK model alone. The client
 shows only the categories present in the response, and derives ISBN numbers only
 from a valid ISBN.
 
+Live measurement: in search results and in the details of the same books,
+`identifier` is one string that can hold several values separated by a comma,
+for example an ISBN-13 followed by its ISBN-10, or a single Amazon ASIN (ten
+characters starting with `B`), which is not an ISBN. Each value is checked on
+its own, so the pair fills both ISBN 10 and ISBN 13 and an ASIN fills neither.
+In the sample, 5 of 8 search results carried an ISBN pair and 3 an ASIN; the
+search list itself had no separate `isbn10` or `isbn13` keys. Some lists name
+the ISBNs of several editions (for example two ISBN-13 values and two ISBN-10
+values, or a 978 and a 979 ISBN-13 of one book). The first valid ISBN-13 is
+used, and the ISBN-10 is the listed one that belongs to it, or else derived from
+it, so the two shown together are always one edition's. Some identifiers are
+UUIDs, which are not ISBNs and fill neither field.
+
 ## Separate controls on the login endpoint
 
 Z-Library controls `/eapi/user/login` separately from the rest of the EAPI. A

@@ -149,6 +149,25 @@ func TestHistorySharesListScrollAndBookCard(t *testing.T) {
 	}
 }
 
+// The history list response carries a book's ISBN like every other list, so
+// the selected book's card shows ISBN 10 and 13 without waiting for details.
+func TestHistoryCardShowsTheISBNFromTheList(t *testing.T) {
+	for _, size := range [][2]int{{80, 24}, {100, 30}, {60, 24}} {
+		m := newHistorySelectModel(nil)
+		m.state, m.width, m.height, m.inShell = historyStateResults, size[0], size[1], true
+		m.items = []zlib.DownloadHistoryItem{{
+			ID: "1", Hash: "abcdef", Name: "A book", Authors: []string{"An Author"}, Date: "2026-10-13",
+			ISBN10: "7115390576", ISBN13: "9787115390578",
+		}}
+		view := ansi.Strip(m.View().Content)
+		for _, want := range []string{"ISBN 10: 7115390576", "ISBN 13: 9787115390578"} {
+			if !strings.Contains(view, want) {
+				t.Errorf("%dx%d: history card lacks %q:\n%s", size[0], size[1], want, view)
+			}
+		}
+	}
+}
+
 func TestHistoryEmptyPageCanGoBack(t *testing.T) {
 	m := newHistorySelectModel(nil)
 	next, _ := m.Update(historyResultMsg{page: 2})

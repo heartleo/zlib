@@ -105,13 +105,14 @@ var shellCommands = []shellCommand{
 	{"most-popular", "Show most popular books"},
 	{"history", "Show download history"},
 	{"profile", "Show account profile and download quota"},
-	{"config", "View or edit network, download, Kindle and WeRead settings"},
+	{"config", "View or edit network, download, search, Kindle, WeRead and metadata settings"},
 	{"theme", "Choose a color theme"},
 	{"doctor", "Find working Z-Library domains"},
 	{"login", "Log in with email and password"},
 	{"logout", "Delete the saved session"},
 	{"kindle", "Send a file to Kindle"},
 	{"weread", "Import a file into WeRead"},
+	{"meta", "Look up and fix a local book's metadata"},
 	{"quit", "Exit zlib"},
 }
 
@@ -245,6 +246,7 @@ func (m *shellModel) returnToDownloadCompletion(tone noticeTone, message string)
 	page.completeAction = 0
 	page.sendToKindle = false
 	page.sendToWeRead = false
+	page.fixMetadata = false
 	page.completeMessage, page.completeTone = message, tone
 	return m.open("download", page)
 }
@@ -644,7 +646,7 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 			page = "home"
 		}
 		if !isSettingsListPage(page) && page != "domain" {
-			m.setError("Use /config network, /config domain, /config download, /config search, /config kindle or /config weread")
+			m.setError("Use /config network, /config domain, /config download, /config search, /config kindle, /config weread or /config metadata")
 			return nil
 		}
 		model, err := newSettingsModel(context.Background(), store, page)
@@ -659,6 +661,8 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 		return m.openKindle(arg)
 	case "weread":
 		return m.openWeRead(arg)
+	case "meta":
+		return m.openMeta(arg)
 	}
 	c, err := loadClient()
 	if err != nil {
@@ -851,6 +855,11 @@ func (m *shellModel) completed() tea.Cmd {
 			}
 			m.wereadPath = page.savedPath
 			return m.open("weread-confirm", confirm)
+		} else if page.fixMetadata {
+			page.fixMetadata = false
+			page.completeAction = 0
+			m.deliveryReturn = new(page)
+			return m.openMetaForDownload(page)
 		} else {
 			m.deliveryReturn = nil
 			m.restore()
@@ -922,11 +931,16 @@ func (m *shellModel) completed() tea.Cmd {
 		}
 	case sendFileModel:
 		if page.accepted {
-			if m.kind == "weread-file" {
+			switch m.kind {
+			case "weread-file":
 				return m.importWeRead(page.path)
+			case "meta-file":
+				return m.openMetaFile(page.path)
 			}
 			return m.sendKindle(page.path)
 		}
+	case metaPageModel:
+		return m.metaDone(page)
 	case wereadLoginModel:
 		return m.wereadLoginDone(page)
 	case wereadImportModel:

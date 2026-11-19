@@ -331,7 +331,8 @@ func (m historySelectModel) View() tea.View {
 		list.state = searchStateLoading
 	}
 	for _, item := range m.items {
-		book := zlib.Book{ID: item.ID, Hash: item.Hash, URL: item.URL, Name: item.Name, Authors: item.Authors, Extension: item.Extension, Size: item.Size}
+		book := zlib.Book{ID: item.ID, Hash: item.Hash, URL: item.URL, Name: item.Name, Authors: item.Authors, Extension: item.Extension, Size: item.Size,
+			ISBN: item.ISBN, ISBN10: item.ISBN10, ISBN13: item.ISBN13}
 		list.books = append(list.books, m.details.book(historyCommandID(item), book))
 	}
 	status := pageLabel(m.page, m.totalPages)
