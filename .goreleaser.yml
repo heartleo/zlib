@@ -72,6 +72,10 @@ brews:
     homepage: "https://github.com/heartleo/zlib"
     description: "A CLI for Z-Library"
     license: "MIT"
+    caveats: |
+      The Homebrew formula is now zlib-cli. For future installations, use:
+        brew install heartleo/tap/zlib-cli
+      The executable is still named zlib.
     install: |
       bin.install "zlib"
     test: |

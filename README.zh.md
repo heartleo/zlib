@@ -44,6 +44,10 @@ macOS / Linux，使用 Homebrew：
 brew install heartleo/tap/zlib-cli
 ```
 
+> [!IMPORTANT]
+> Homebrew formula 已从 `zlib` 改名为 **`zlib-cli`**，请使用上面的命令。
+> 安装后的命令仍然是 `zlib`。
+
 macOS / Linux，使用安装脚本（安装到 `/usr/local/bin`，可能需要 `sudo`）：
 
 ```bash

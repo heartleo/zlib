@@ -79,6 +79,10 @@ func runToolUpdate(ctx context.Context, in io.Reader, out, errOut io.Writer, met
 	lipgloss.Fprintf(out, "Updating zlib with %s %s\n", name, colorFaint("("+name+" "+strings.Join(args, " ")+")"))
 	start := time.Now()
 	if err := runUpdateCommand(ctx, in, out, errOut, name, args); err != nil {
+		// Ctrl+C also fails the command; rename advice would mislead then.
+		if method == updateBrew && ctx.Err() == nil {
+			lipgloss.Fprint(errOut, brewRenameNotice())
+		}
 		return fmt.Errorf("%s update failed: %w", name, err)
 	}
 	lipgloss.Fprintf(out, "%s %s finished %s\n", colorGreen(symbolSuccess), name, colorFaint("in "+formatElapsed(time.Since(start))))
@@ -179,9 +183,26 @@ func updateCommand(method updateMethod) (string, []string) {
 	}
 }
 
-// isHomebrewKeg reports whether path is inside a zlib-cli keg.
+// isHomebrewKeg reports whether path is inside a zlib-cli keg, or the keg of
+// the zlib formula it replaced (homebrew/core's zlib is a library with no zlib
+// executable, so that directory cannot hold another program).
 func isHomebrewKeg(path string) bool {
-	return strings.Contains(strings.ToLower(strings.ReplaceAll(path, `\`, "/")), "/cellar/zlib-cli/")
+	p := strings.ToLower(strings.ReplaceAll(path, `\`, "/"))
+	return strings.Contains(p, "/cellar/zlib-cli/") || strings.Contains(p, "/cellar/zlib/")
+}
+
+// brewRenameNotice explains the zlib -> zlib-cli formula rename. A tap that has
+// not been refreshed makes brew report a missing formula, so it leads with the
+// fix.
+func brewRenameNotice() string {
+	return fmt.Sprintf("\n%s\n"+
+		"  If brew said the formula is missing or not installed, refresh the tap and upgrade:\n"+
+		"    %s\n"+
+		"  New install:\n"+
+		"    %s\n\n",
+		colorBold(symbolInfo+" The Homebrew formula was renamed from zlib to zlib-cli."),
+		colorCyan("brew update && brew upgrade heartleo/tap/zlib-cli"),
+		colorCyan("brew install heartleo/tap/zlib-cli"))
 }
 
 func detectUpdateMethod(ctx context.Context, executable string) updateMethod {
