@@ -181,7 +181,9 @@ and failures, never arguments.
 
 ## Permissions and results
 
-Downloads can replace same-named files. `edit_metadata` rewrites a local file in
+`--read-only`, the `--disable-*` flags and `--allowed-dir` are guardrails, not a
+sandbox: the real limits are your Z-Library account, your file permissions and
+the approval your client asks for. Downloads can replace same-named files. `edit_metadata` rewrites a local file in
 place and can rename it; it keeps the file readable but does not keep a copy, so
 require client approval for it, and use `dry_run` first. Lookups send the book's
 title and authors to online catalogues. Kindle delivery reads a local file and

@@ -68,6 +68,47 @@ registration command:
 The plugin runs the `zlib` on `PATH`, so a CLI older than a tool does not offer
 it: update the CLI to get new tools.
 
+## What popular listed servers do
+
+Read from the registry's API and the projects' repositories. Go servers are the
+closest to zlib.
+
+| Practice | Seen in | zlib |
+| --- | --- | --- |
+| One server, several channels. A native binary plus a thin npm and PyPI launcher, so `npx -y` and `uvx` clients work with no install | `kubernetes-mcp-server` (npm, PyPI, OCI); Azure MCP (NuGet, npm, PyPI, six MCPB) | MCPB only. The launchers are the main gap, and the next step below |
+| A container image as the one package, run with `docker run -i --rm` through `runtimeArguments` | GitHub's server, `mcp-grafana` | Not used: the server needs your session and your files |
+| MCPB added next to other types, one package per platform with a `fileSha256` | Azure MCP | Done; the other types are missing |
+| The package version equals the server version | all of them | Done: one tag gives both |
+| `environmentVariables` with `isRequired`, `isSecret` and a description | Grafana, Terraform servers | Done for the two switches. API keys are left out on purpose: see below |
+| Safety switches as settings: read-only and destructive-tool limits, an audit log | Terraform servers, Kubernetes | `--read-only`, `--disable-*` and `--allowed-dir`, with `ZLIB_MCP_*` |
+| Guardrails described as best effort, the real control being the account's own permissions | `kubernetes-mcp-server` | Said in [MCP server](mcp.md#permissions-and-results) |
+| A per-client install section, with deeplink buttons for VS Code and Cursor | `kubernetes-mcp-server` | A section per client; no buttons |
+| A repository with `server.json`, a bundle manifest, `AGENTS.md` and `SECURITY.md` | `kubernetes-mcp-server` | All present |
+
+API keys stay out of `environmentVariables` and the bundle's settings. A client
+may pass a blank value for a setting the user left empty, and zlib treats a set
+but empty variable as an override, so a blank `ZLIB_GOOGLE_BOOKS_KEY` would hide
+the key saved with `zlib config`. The bundle uses the same saved settings as the
+CLI, so keys need no second place. The two `ZLIB_MCP_*` switches are safe:
+a blank one counts as unset.
+
+### The next step: launchers
+
+The pattern in the table that zlib lacks is an `npx` and `uvx` route. Sketch,
+following `kubernetes-mcp-server` and the usual native-binary launchers:
+
+- An npm package whose `bin` script runs `zlib mcp` from a per-platform optional
+  dependency (`…-linux-x64`, `…-darwin-arm64`, and so on, each holding one
+  binary), as esbuild does. `package.json` carries `mcpName`
+  (`io.github.heartleo/zlib`), and the package version is the release version.
+- The release workflow publishes the packages with npm provenance, then lists
+  an `npm` package in `server.json` next to the six bundles, with `runtimeHint`
+  `npx`. A PyPI wheel per platform works the same way with `mcp-name:` in its
+  README, if `uvx` matters.
+- It needs a name and scope on npm (and PyPI), and a publishing token or
+  trusted publishing. Both are decisions for the maintainer: the names are
+  public and hard to take back.
+
 ## Versioning
 
 Release `vX.Y.Z` gives the server version `X.Y.Z` and bundles named
@@ -98,8 +139,8 @@ leaves it the latest. The bundles do not change, so their URLs and hashes stay.
 
 ## Before the first submission
 
-These steps need a release that contains the MCP server as it is now, so the
-branch is merged and released first.
+These steps need a release that contains the MCP bundles, so this change is
+merged and released first.
 
 1. Release as usual ([Versioning](versioning.md#releasing)) and publish the draft.
    Check that `zlib_X.Y.Z_<os>_<arch>.mcpb` exists for all six platforms and that
@@ -142,10 +183,13 @@ it.
 
 ## Open decisions
 
-- **Package type.** MCPB is recommended. Say if an OCI image or an npm wrapper is
-  wanted as well, or instead.
-- **Architecture.** Six per-platform packages, as above, or only the most common
-  (macOS Apple silicon, Windows x86_64, Linux x86_64) to make a wrong pick less
-  likely.
+- **Launchers.** Add an npm package (and a PyPI wheel) that runs the binary, as
+  the popular Go servers do, so `npx` and `uvx` clients work and Codex and Grok
+  users have a one-line route that needs no CLI install. It needs the package
+  names and scopes, and a publishing setup ([above](#the-next-step-launchers)).
+- **Architecture.** Six per-platform MCPB packages, as above, or only the most
+  common (macOS Apple silicon, Windows x86_64, Linux x86_64) to make a wrong pick
+  less likely. Launchers make this less important, since they pick the platform
+  themselves.
 - **When to automate.** Keep the manual workflow, or run it on `release:
   published` once a first publication has gone well.
