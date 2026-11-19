@@ -75,6 +75,8 @@ func MatchValue(c Candidate, f Field) string {
 		return c.Title
 	case FieldAuthors:
 		return strings.Join(c.Authors, " & ")
+	case FieldSeries:
+		return c.SeriesLabel()
 	case FieldPublisher:
 		return c.Publisher
 	case FieldPublished:
