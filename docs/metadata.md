@@ -283,8 +283,12 @@ Goodreads' book pages sit behind a bot challenge that a plain request cannot
 pass, and zlib does not try to solve it or to look like a browser. It never
 reads a book page, so Goodreads gives no publisher, publication date, language
 or ISBN of its own: a result found by title is a `title match` that names no
-edition, and its ID is the only identifier it adds. The suggestion list cuts
-long blurbs short, and a cut-short blurb is not offered as a description, so
+edition, and its ID is the only identifier it adds. It does name the series: the
+suggestion list writes a book of a series as `Title (Series, #2)`, and zlib reads
+the series and the position from that. A series belongs to the work, so a match
+found by title may fill an empty series, and one the file already has is never
+replaced unless you choose it. A box set's range such as `#1-3` is not a
+position and is not read. The suggestion list cuts long blurbs short, and a cut-short blurb is not offered as a description, so
 it never replaces a whole one from another source. The cover is the full-size
 image from Goodreads' image server (`i.gr-assets.com`). If Goodreads asks for the
 challenge, or refuses a request, the source is reported as failing like any

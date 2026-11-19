@@ -321,8 +321,24 @@ func (it goodreadsItem) bookID() string {
 	return ""
 }
 
-// goodreadsSeriesSuffix is the " (Series, #1)" Goodreads appends to a title.
-var goodreadsSeriesSuffix = regexp.MustCompile(`\s*\([^,()]+,\s*#[\d.]+\)\s*$`)
+// goodreadsSeriesSuffix is the " (Series, #1)" Goodreads appends to the title
+// of a book in a series. A range such as "#1-3", which a box set carries, does
+// not match: it is not the position of one book.
+var goodreadsSeriesSuffix = regexp.MustCompile(`\s*\(([^,()]+),\s*#(\d+(?:\.\d+)?)\)\s*$`)
+
+// goodreadsSeries reads the series and the position from a hit's title, or
+// returns "" and 0 when the title has no such suffix.
+func goodreadsSeries(title string) (string, float64) {
+	m := goodreadsSeriesSuffix.FindStringSubmatch(title)
+	if m == nil {
+		return "", 0
+	}
+	index, err := strconv.ParseFloat(m[2], 64)
+	if err != nil || index > 10000 {
+		return "", 0
+	}
+	return clean(m[1]), index
+}
 
 // candidate maps the hit to a work-level candidate, or nil when it has no
 // usable title or ID.
@@ -341,6 +357,7 @@ func (it goodreadsItem) candidate() *Candidate {
 		Description: it.Description.text(),
 		CoverURL:    goodreadsCoverURL(it.ImageURL),
 	}
+	c.Series, c.SeriesIndex = goodreadsSeries(it.Title)
 	c.Identifiers = appendIdentifier(c.Identifiers, "goodreads", id)
 	return c
 }

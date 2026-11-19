@@ -177,8 +177,12 @@ measurements, status codes and key names only:
 | `GET` of a hit's `imageUrl` | 200, `image/jpeg`, 50 by 75 pixels (a thumbnail, with a `._SY75_` size token in the name) |
 | `GET` of the same URL without the size token | 200, `image/jpeg`, 1000 by 1500 pixels, no redirect, on `i.gr-assets.com` |
 
-Consequences: Goodreads adds a title, authors, a cover, a series name inside
-the title text and a Goodreads ID, and nothing that names an edition. A title
+Consequences: Goodreads adds a title, authors, a cover, the series and the
+position in it (read from the ` (Series, #n)` suffix of the title; a range such
+as `#1-3` is skipped) and a Goodreads ID, and nothing that names an edition. A
+series belongs to the work, so it is not an edition field: a title match may
+fill an empty series, and the file's own series, or its position, is never
+replaced or dropped without a choice. A title
 hit is a work-level candidate, so its edition fields start unselected like any
 title match, and an ISBN hit is edition level and carries the ISBN that was
 asked for. The cover host `i.gr-assets.com` is on the cover allow-list with

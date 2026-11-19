@@ -96,6 +96,11 @@ type Candidate struct {
 	Description string                 `json:"description,omitempty"`
 	Identifiers []ebookmeta.Identifier `json:"identifiers,omitempty"`
 	CoverURL    string                 `json:"cover_url,omitempty"`
+	// Series is the series the book belongs to, and SeriesIndex its position
+	// in it; 0 means the position is not known. A series belongs to the work,
+	// so unlike a publisher or a date it does not depend on the edition.
+	Series      string  `json:"series,omitempty"`
+	SeriesIndex float64 `json:"series_index,omitempty"`
 
 	// EditionLevel is true when the source described one specific edition,
 	// so its ISBN belongs to this book. Work-level results (a title search
@@ -116,6 +121,9 @@ const (
 	MatchISBN  Match = "isbn"  // shares an ISBN with the query
 	MatchTitle Match = "title" // matched on title and authors
 )
+
+// SeriesLabel is the series and its position written "Name #2", or "".
+func (c *Candidate) SeriesLabel() string { return seriesText(c.Series, c.SeriesIndex) }
 
 // ISBN returns the candidate's ISBN-13, or "".
 func (c *Candidate) ISBN() string {

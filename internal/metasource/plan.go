@@ -97,6 +97,15 @@ func Plan(cur *ebookmeta.Metadata, cand Candidate) []Change {
 		add(FieldAuthors, strings.Join(cur.Authors, " & "), strings.Join(a, " & "), len(cur.Authors) == 0,
 			func(c *ebookmeta.Changes) { c.Authors = &a })
 	}
+	// A candidate that names the file's own series without a position adds
+	// nothing, and must not drop the position the file has.
+	curSeries := seriesText(cur.Series, cur.SeriesIndex)
+	if cand.Series != "" && !(same(cur.Series, cand.Series) && cand.SeriesIndex == 0) &&
+		!same(curSeries, cand.SeriesLabel()) {
+		name, index := cand.Series, cand.SeriesIndex
+		add(FieldSeries, curSeries, cand.SeriesLabel(), cur.Series == "",
+			func(c *ebookmeta.Changes) { c.Series, c.SeriesIndex = &name, &index })
+	}
 	if cand.Publisher != "" && !same(cur.Publisher, cand.Publisher) {
 		p := cand.Publisher
 		add(FieldPublisher, cur.Publisher, p, cur.Publisher == "", func(c *ebookmeta.Changes) { c.Publisher = &p })

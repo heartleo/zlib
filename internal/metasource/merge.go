@@ -344,6 +344,18 @@ func mergePool(q Query, pool []Candidate) Candidate {
 			out.Description = d
 		}
 	}
+	// The first source that names a series wins, with its spelling; another
+	// that names the same series with a position adds the position when the
+	// first had none.
+	for _, c := range pool {
+		switch {
+		case c.Series == "":
+		case out.Series == "":
+			out.Series, out.SeriesIndex = c.Series, c.SeriesIndex
+		case fold(c.Series) == fold(out.Series) && out.SeriesIndex == 0:
+			out.SeriesIndex = c.SeriesIndex
+		}
+	}
 	out.Tags = mergeTags(pool)
 	out.Identifiers = mergeIdentifiers(q, pool)
 	bestRank := 1 << 30

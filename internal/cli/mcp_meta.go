@@ -151,7 +151,7 @@ type mcpReadMetadataResult struct {
 
 // mcpPlannedChange is one field a match would change in the file.
 type mcpPlannedChange struct {
-	Field    string `json:"field" jsonschema:"title, authors, publisher, languages, tags, published, description, cover or identifier:<scheme>."`
+	Field    string `json:"field" jsonschema:"title, authors, series, publisher, languages, tags, published, description, cover or identifier:<scheme>."`
 	Old      string `json:"old,omitempty" jsonschema:"What the file holds, empty when the field is empty."`
 	New      string `json:"new" jsonschema:"What the match says, as text."`
 	Fill     bool   `json:"fill,omitempty" jsonschema:"True when the file has no value yet."`
@@ -167,6 +167,8 @@ type mcpMetadataCandidate struct {
 	Published            string                 `json:"published,omitempty"`
 	Languages            []string               `json:"languages,omitempty"`
 	Tags                 []string               `json:"tags,omitempty"`
+	Series               string                 `json:"series,omitempty"`
+	SeriesIndex          float64                `json:"series_index,omitempty"`
 	Identifiers          []ebookmeta.Identifier `json:"identifiers,omitempty"`
 	Description          string                 `json:"description,omitempty"`
 	DescriptionTruncated bool                   `json:"description_truncated,omitempty"`
@@ -345,7 +347,8 @@ func handleMCPLookupMetadata(ctx context.Context, _ *mcp.CallToolRequest, in mcp
 	for i, c := range res.Candidates {
 		mc := mcpMetadataCandidate{
 			Rank: i + 1, Title: safeText(c.Title), Authors: safeList(c.Authors), Publisher: safeText(c.Publisher), Published: safeText(c.Published),
-			Languages: safeList(c.Languages), Tags: safeList(c.Tags), CoverURL: c.CoverURL, Match: string(c.Match), Score: c.Score,
+			Languages: safeList(c.Languages), Tags: safeList(c.Tags), Series: safeText(c.Series), SeriesIndex: c.SeriesIndex,
+			CoverURL: c.CoverURL, Match: string(c.Match), Score: c.Score,
 			Sources: c.Sources, EditionLevel: c.EditionLevel,
 			SuggestedFileName: metasource.FileNameWith(metaNameLayout(), c.Title, c.Authors, ext),
 		}

@@ -422,6 +422,7 @@ func printMetaCandidates(out io.Writer, cands []metasource.Candidate) {
 		add("Publisher", c.Publisher)
 		add("Published", c.Published)
 		add("Languages", strings.Join(c.Languages, ", "))
+		add("Series", c.SeriesLabel())
 		add("Tags", strings.Join(c.Tags, ", "))
 		var ids []string
 		for _, id := range c.Identifiers {
