@@ -11,7 +11,7 @@ when you ask for something, and only to the services that task needs.
 | Task | Sent | To |
 | --- | --- | --- |
 | Search, book details, feeds, history, profile, download | Your search text, the book reference and your Z-Library session | The Z-Library mirror you use, or the one `zlib doctor` finds |
-| Metadata lookup | The title, authors and ISBN of the book | Open Library and Google Books by default for a book that is not Chinese (Google Books only with your API key), Douban for a Chinese one, and WeRead only if you turn it on |
+| Metadata lookup | The title, authors and ISBN of the book | Open Library and Google Books by default for a book that is not Chinese (Google Books only with your API key), Douban for a Chinese one, and Goodreads or WeRead only if you turn them on |
 | Cover download | A request for the cover image | The catalogue's image host |
 | Send to Kindle | The e-book file and your Kindle address | Your own SMTP server |
 | Import to WeRead, WeRead lookup | The e-book file, or the title | Tencent's WeRead, under your WeRead account or API key |

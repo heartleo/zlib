@@ -82,6 +82,7 @@ func realPath(t *testing.T, dir string) string {
 func TestMCPLookupMetadata(t *testing.T) {
 	match := dune()
 	match.Title = "Dune"
+	match.Series, match.SeriesIndex = "Dune Chronicles", 1
 	useMetaSources(t, &fakeMetaSource{name: "Fake", cands: []metasource.Candidate{match}})
 	p := namedEPUB(t, "Whatever (Nobody).epub")
 	before, _ := os.ReadFile(p)
@@ -96,14 +97,24 @@ func TestMCPLookupMetadata(t *testing.T) {
 	if c.Rank != 1 || c.Title != "Dune" || len(c.Sources) == 0 || c.SuggestedFileName != "Dune - Frank Herbert.epub" {
 		t.Errorf("candidate = %+v", c)
 	}
-	var title *mcpPlannedChange
+	var title, series *mcpPlannedChange
 	for i := range c.Changes {
-		if c.Changes[i].Field == "title" {
+		switch c.Changes[i].Field {
+		case "title":
 			title = &c.Changes[i]
+		case "series":
+			series = &c.Changes[i]
 		}
 	}
 	if title == nil || title.Old != out.Current.Title || title.New != "Dune" {
 		t.Errorf("the title change is missing or wrong: %+v", c.Changes)
+	}
+	// A series from a catalogue is listed on the match and as a change.
+	if c.Series != "Dune Chronicles" || c.SeriesIndex != 1 {
+		t.Errorf("the match's series = %q #%v", c.Series, c.SeriesIndex)
+	}
+	if series == nil || series.Old != "" || series.New != "Dune Chronicles #1" || !series.Fill {
+		t.Errorf("the series change is missing or wrong: %+v", c.Changes)
 	}
 	if after, _ := os.ReadFile(p); string(after) != string(before) {
 		t.Error("a lookup changed the file")
@@ -117,9 +128,9 @@ func TestMCPLookupMetadata(t *testing.T) {
 	}
 
 	for args, want := range map[string]string{
-		"":                                    "give file_path",
-		`"isbn":"123"`:                        "not a valid ISBN",
-		`"title":"x","sources":["goodreads"]`: "unknown source",
+		"":                                       "give file_path",
+		`"isbn":"123"`:                           "not a valid ISBN",
+		`"title":"x","sources":["librarything"]`: "unknown source",
 	} {
 		in := map[string]any{}
 		switch args {
@@ -127,7 +138,7 @@ func TestMCPLookupMetadata(t *testing.T) {
 		case `"isbn":"123"`:
 			in["isbn"] = "123"
 		default:
-			in["title"], in["sources"] = "x", []string{"goodreads"}
+			in["title"], in["sources"] = "x", []string{"librarything"}
 		}
 		if msg := toolErrorText(t, session, "lookup_metadata", in); !strings.Contains(msg, want) {
 			t.Errorf("%v: %q, want %q", in, msg, want)

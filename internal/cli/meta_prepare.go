@@ -39,6 +39,22 @@ func (m metaPageModel) openPrepare() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// backToPrepare is Esc on the results, or on the page that says nothing was
+// found: the step before them, the prepare page, with the terms and the sources
+// as they were searched. Enter there searches again. Unlike s, it keeps nothing
+// to return to, so Esc on the prepare page leaves, as it does the first time the
+// page opens. A page built with no sources to choose from has no prepare page to
+// go back to, and Esc leaves.
+func (m metaPageModel) backToPrepare() (tea.Model, tea.Cmd) {
+	if len(m.sources) == 0 || m.lookupFor == nil {
+		m.cancelled = true
+		return m, tea.Quit
+	}
+	m.draft = append([]metaSourceChoice(nil), m.sources...)
+	m.stage, m.sourceCursor, m.message, m.prev = metaPrepare, 0, "", nil
+	return m, nil
+}
+
 // prepareKey handles a key on the prepare page. It is not a text input, so q
 // leaves like Esc.
 func (m metaPageModel) prepareKey(k string) (tea.Model, tea.Cmd) {
@@ -406,7 +422,7 @@ func (m metaPageModel) prepareTerms(width int, compact bool) []string {
 	}
 	lines := []string{sectionHeader("Search for", "m edit file · i details", width)}
 	if q.Empty() {
-		return append(lines, "    "+colorFaint(ansi.Truncate("Nothing to search with yet: press e to enter a title, an author or an ISBN.", max(1, width-4), "…")))
+		return append(lines, "    "+colorFaint(ansi.Truncate("Nothing to search yet. Press e to enter a title, author or ISBN.", max(1, width-4), "…")))
 	}
 	title, note := q.Title, prepareFrom(x.TitleFrom)
 	if title == "" {
@@ -430,6 +446,9 @@ func (m metaPageModel) prepareTerms(width int, compact bool) []string {
 		lines = append(lines, row("Other", x.AltTitle, "press t to use it"))
 	}
 	lines = append(lines, row("Authors", authors, prepareFrom(x.AuthorsFrom)))
+	if len(q.ISBNs) == 0 {
+		return lines // a row that only says "none" is a line the card can use
+	}
 	return append(lines, row("ISBN", isbnLine(q, x.ISBNFrom), ""))
 }
 

@@ -152,9 +152,9 @@ func TestMetaPageSubtitleSaysWhichStep(t *testing.T) {
 	cands := fields
 	cands.stage = metaCandidates
 	for want, page := range map[string]metaPageModel{
-		"Step 1 of 3: Prepare the search": prep,
-		"Step 2 of 3: Choose a match":     cands,
-		"Step 3 of 3: Review changes":     fields,
+		"Step 1 of 3: Search":         prep,
+		"Step 2 of 3: Choose a match": cands,
+		"Step 3 of 3: Review changes": fields,
 	} {
 		if !strings.Contains(screenOf(page), want) {
 			t.Errorf("the subtitle lacks %q:\n%s", want, screenOf(page))

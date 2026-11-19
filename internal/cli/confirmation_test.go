@@ -32,6 +32,20 @@ func TestActionButtonsShareConfirmationStyle(t *testing.T) {
 	}
 }
 
+// The dialog shows a note on one line and cuts what does not fit, so a note
+// longer than the dialog read "... Nothing cha…". Every file picker's note, in
+// the wording of the target, must be shown whole.
+func TestFilePickerConfirmationNotesAreShownWhole(t *testing.T) {
+	for name, target := range map[string]sendTarget{"metadata": metaTarget, "kindle": kindleTarget, "weread": wereadTarget} {
+		for _, width := range []int{80, 60} {
+			view := ansi.Strip(confirmationDialog(fullScreenView(width, 24, "").Content, width, 24, target.confirmTitle, "Book.epub", "", target.note, target.action, false, false))
+			if !strings.Contains(view, target.note) {
+				t.Errorf("%s at %d columns: the note %q is cut off:\n%s", name, width, target.note, view)
+			}
+		}
+	}
+}
+
 func TestConfirmationButtonGapUsesPanelBackground(t *testing.T) {
 	original := currentTheme
 	t.Cleanup(func() { currentTheme = original })

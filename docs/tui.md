@@ -257,8 +257,9 @@ WeRead file pickers open in the default download directory.
 Z-Library login. It opens a file picker listing folders and the formats
 `zlib meta` reads, or takes a path (`/meta "<file>"`). The page does not search
 at once: it moves through a prepare step, a lookup, candidates, fields and
-writing. The subtitle says which of the three steps you are on (`Step 2 of 3:
-Choose a match`, or `2/3` when the terminal is narrow), and `?` on any page
+writing. The subtitle says which of the three steps you are on (`Step 1 of 3:
+Search`, `Step 2 of 3: Choose a match`, or `2/3` when the terminal is narrow),
+and `?` on any page
 lists every key it takes, including those the footer has no room for, and
 leaves out keys that do nothing there; the list scrolls when the terminal is
 short. `?`, Esc, `q` or Enter close it. In an editor `?` is text, and it does
@@ -274,8 +275,10 @@ nothing while a search or a write runs:
   the rows are too few the fields are packed into dotted lines instead of being
   dropped. The shortcuts for editing the file's fields (`m`) and for all its
   details (`i`) are on the `Search for` rule under the card. Under the card is what will be searched and where each part
-  came from, read from the file name first and then the file; under that the
-  sources to ask. Nothing has been sent yet. On a short terminal the card
+  came from, read from the file name first and then the file (an ISBN row only
+  when there is an ISBN to search by); under that the sources to ask. Nothing
+  has been sent yet. The `File` line under the card does not repeat the rename key:
+  `n` is in the footer at every width. On a short terminal the card
   gives up lines first, then the search terms shrink to one line, and a very
   short one drops the card, so the sources are never the part that is cut.
   `i` opens `File details` with everything in the file, the description wrapped, in a view that
@@ -305,16 +308,23 @@ nothing while a search or a write runs:
   with opens on the editor.
 - **Looking up** shows the title, authors and ISBN being searched. Esc cancels
   the request and returns to the page it started from.
-- **Candidates** list the merged matches, best first. On a terminal 100
+- **Candidates** list the matches of every source, best first. The answers of
+  different sources are not merged: each source has its own row or rows, so the
+  same book from three catalogues is three adjacent rows, each with only what
+  that catalogue says. On a terminal 100
   columns wide or more the page puts the file beside the highlighted match
   under the list, in the same two panels as the workbench (read only, and only
-  the fields either side has), so you compare before choosing. Where the
+  the fields either side has), so you compare before choosing. One line between
+  the list and the panels sums it up: the fields the match adds by name, then
+  how many more it offers to check (`≠` in the panel, not selected), and what
+  the format cannot store. It gives up names, then words, before it would cut
+  one off. Where the
   terminal can draw images each panel starts with its cover, the file's on the
   left and the match's on the right. The match's cover place is always there:
   it says `loading…` while the image downloads (once per match, as soon as the
   page can show it, also after a resize), `no cover` when the match has none and
   `cover unavailable` when it cannot be fetched or read. The matches are in columns (match, title,
-  authors, year, sources) that line up for wide characters too. On a narrower
+  authors, year, source) that line up for wide characters too. On a narrower
   terminal a details pane starts with what choosing the highlighted match would do to the file:
   `Would add` names the empty fields it fills and selects, `Could add` empty
   fields it offers unselected (the edition fields of a title-only or `ISBN?`
@@ -323,10 +333,12 @@ nothing while a search or a write runs:
   place for. Page Up and Page Down move a page of matches. Each row starts with a
   five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
   the title is different or nothing independent vouches for it, or a percentage for a title match. The pane under the
-  list shows the selected match's details. Each row ends with the sources that
-  agreed on it in brackets, such as `[WeRead]` or `[Google Books+Open Library]`,
-  and the details name the ISBN, or say `no ISBN listed` for an edition without
-  one, which is then a guess by title. A source that failed while others
+  list shows the selected match's details. Each row ends with its catalogue in
+  brackets, such as `[Goodreads]` or `[Google Books]`. The source column is as
+  wide as the longest name of any match, so a name is never cut and the column
+  does not move as the list scrolls; the title and the authors share what is
+  left. The details name the ISBN, or say `no ISBN listed` for an edition
+  without one, which is then a guess by title. A source that failed while others
   answered is named on the status line. `e` edits what is searched for: the
   title, authors (separated by `&`) and ISBNs (separated by commas), then
   Enter searches again, Tab moves between the fields and Esc cancels. This
@@ -337,11 +349,15 @@ nothing while a search or a write runs:
   when the title searched agrees closely with the result's, so typing the
   title of the book the hint names is how you say the file is that book, while
   a different title leaves the match flagged. `s` goes back to the prepare page to
-  change the sources: Open Library, Google Books, Douban and WeRead, each with
+  change the sources: Open Library, Google Books, Goodreads, Douban and WeRead, each with
   `[x]` or `[ ]` and why it cannot be turned on (WeRead without
   `ZLIB_WEREAD_API_KEY` says so, and the key is only reported as set or not
   set, never shown). Esc there returns to these results with the choice as it
-  was. A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first
+  was. Esc on the results (or on the page that says nothing was found) itself
+  goes back a step, to the same prepare page with the terms and sources as they
+  were searched; Enter there searches again and Esc leaves, as the first time.
+  Unlike `s`, it keeps the results from being brought back. `q` and Ctrl+C
+  leave from the results at once. A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first
   search used it, even when its key is missing and it can only report that; it
   can be turned off but not back on without the key. While a search runs, Esc
   returns to the page it started from. The choice applies to this session and

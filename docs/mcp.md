@@ -246,8 +246,10 @@ page, one step at a time ([Metadata](metadata.md)). A good run:
 1. `read_metadata` with the file path: what the file holds, the search a lookup
    would make (`query`, with where each part came from) and `cannot_store`, the
    fields its format cannot hold.
-2. `lookup_metadata` with `file_path`. Matches come ranked, with `match`
-   (`isbn` or `title`), `score`, `sources` and each field. Each match lists
+2. `lookup_metadata` with `file_path`. Matches come ranked, each from one
+   catalogue (`sources` names it; the answers of different catalogues are not
+   merged, so the same book from two catalogues is two matches), with `match`
+   (`isbn` or `title`), `score` and each field. Each match lists
    `changes`: the field, what the file holds (`old`), what the match says
    (`new`), whether it fills an empty field (`fill`) and whether it is safe to
    take (`selected`). A match found by title alone is a guess about the edition,
@@ -255,11 +257,13 @@ page, one step at a time ([Metadata](metadata.md)). A good run:
    `check edition`; an ISBN match whose title differs says `may be another
    book`. Pass `title`, `authors` or `isbn` to search for something other than
    what was read, and `sources` to ask other catalogues (`weread` sends the
-   title to Tencent under the user's account, so name it only when asked).
+   title to Tencent under the user's account, so name it only when asked;
+   `goodreads` is never asked unless the user turned it on, so leave it out
+   unless the user wants it).
 3. `edit_metadata` with the fields the user chose. Authors, languages and tags
    are lists; `cover_url` takes a match's cover URL (only https URLs on a
    catalogue's cover host are fetched); `identifiers` takes catalogue
-   identifiers (`google`, `openlibrary`, `douban`, `weread`); `clear` empties
+   identifiers (`google`, `openlibrary`, `goodreads`, `douban`, `weread`); `clear` empties
    fields. Values are checked as the terminal editor checks them, a refused
    value is an error naming the field, and nothing is written when any value is
    refused. `rename` names the file from its title and authors in the user's
@@ -269,7 +273,7 @@ page, one step at a time ([Metadata](metadata.md)). A good run:
    renaming. The result lists `changes`, `skipped` fields, and the metadata the
    file holds now.
 
-The number of matches follows `ZLIB_METADATA_RESULTS`, and the sources follow
+The number of matches for each catalogue follows `ZLIB_METADATA_RESULTS`, and the sources follow
 `ZLIB_METADATA_SOURCES` or the book's language ([defaults](metadata.md#default-sources));
 the agent cannot change either, except by naming `sources`. Catalogue text is
 cleaned of control characters and, like every book field, is data, never

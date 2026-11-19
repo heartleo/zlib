@@ -26,7 +26,7 @@ const (
 
 // writableIdentifiers are the schemes a lookup may add. A uuid names one
 // particular file and is never taken from a catalogue.
-var writableIdentifiers = []string{"isbn", "google", "openlibrary", "douban", "weread"}
+var writableIdentifiers = []string{"isbn", "google", "openlibrary", "goodreads", "douban", "weread"}
 
 // WritableIdentifier reports whether a lookup, or an agent acting on one, may
 // write an identifier of this scheme. A uuid names one file and never can.
@@ -96,6 +96,15 @@ func Plan(cur *ebookmeta.Metadata, cand Candidate) []Change {
 		a := slices.Clone(cand.Authors)
 		add(FieldAuthors, strings.Join(cur.Authors, " & "), strings.Join(a, " & "), len(cur.Authors) == 0,
 			func(c *ebookmeta.Changes) { c.Authors = &a })
+	}
+	// A candidate that names the file's own series without a position adds
+	// nothing, and must not drop the position the file has.
+	curSeries := seriesText(cur.Series, cur.SeriesIndex)
+	if cand.Series != "" && !(same(cur.Series, cand.Series) && cand.SeriesIndex == 0) &&
+		!same(curSeries, cand.SeriesLabel()) {
+		name, index := cand.Series, cand.SeriesIndex
+		add(FieldSeries, curSeries, cand.SeriesLabel(), cur.Series == "",
+			func(c *ebookmeta.Changes) { c.Series, c.SeriesIndex = &name, &index })
 	}
 	if cand.Publisher != "" && !same(cur.Publisher, cand.Publisher) {
 		p := cand.Publisher

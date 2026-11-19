@@ -7,7 +7,7 @@ license: MIT
 # E-book metadata
 
 zlib reads and writes the metadata of a local e-book, and looks a book up in Open
-Library, Google Books, Douban and WeRead. Searching or downloading books is the
+Library, Google Books, Goodreads, Douban and WeRead. Searching or downloading books is the
 [zlib skill](../zlib/SKILL.md); sending a file to a reader is the
 [Kindle skill](../kindle/SKILL.md).
 

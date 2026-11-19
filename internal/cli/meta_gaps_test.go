@@ -110,7 +110,7 @@ func TestMetaPageWithNoMetadataCanBeCancelledAndReopened(t *testing.T) {
 	if m.editing || m.stage != metaPrepare || m.cancelled {
 		t.Fatalf("esc: editing=%v stage=%v cancelled=%v", m.editing, m.stage, m.cancelled)
 	}
-	if screen := metaScreen(m); !strings.Contains(screen, "Nothing to search with") || !strings.Contains(screen, "e edit search") {
+	if screen := metaScreen(m); !strings.Contains(screen, "Nothing to search yet") || !strings.Contains(screen, "e edit search") {
 		t.Errorf("the page does not explain itself:\n%s", screen)
 	}
 	// Enter must not send an empty search; it asks what to search for instead.

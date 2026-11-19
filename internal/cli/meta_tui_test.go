@@ -98,8 +98,10 @@ func TestMetaPageListsCandidatesWithMatchKind(t *testing.T) {
 	if m.stage != metaCandidates {
 		t.Fatalf("stage = %v", m.stage)
 	}
+	// Wide enough for the catalogues' full names in the sources column.
+	m = sized(t, m, 120, 30)
 	screen := metaScreen(m)
-	for _, want := range []string{"Fix metadata", "book.epub · EPUB", "Match", "Title", "Authors", "Year", "Sources", "Details", "Open Library, Google Books", "esc back"} {
+	for _, want := range []string{"Fix metadata", "book.epub · EPUB", "Match", "Title", "Authors", "Year", "Source", "esc back"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("screen lacks %q:\n%s", want, screen)
 		}

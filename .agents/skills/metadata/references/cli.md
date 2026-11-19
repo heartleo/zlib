@@ -32,10 +32,12 @@ fields, `cover_url` and `suggested_file_name`. `--fetch` writes nothing and
 cannot be combined with the field options.
 
 `-t`, `-a` (authors separated by `&`) and `--isbn` set what to search for.
-`--source` picks the catalogues (`openlibrary`, `google`, `douban`, `weread`) for
-one run. Without it a lookup follows `ZLIB_METADATA_SOURCES`, or asks Douban for
+`--source` picks the catalogues (`openlibrary`, `google`, `goodreads`, `douban`,
+`weread`) for one run. Without it a lookup follows `ZLIB_METADATA_SOURCES`, or asks Douban for
 a Chinese book and Open Library for any other, plus Google Books when a key is
 set. `weread` sends the title to Tencent, so name it only when the user asked.
+`goodreads` is never asked unless the user turned it on: leave it out unless the
+user wants it.
 
 Exit codes: `1` nothing matched, `2` an invalid option, `4` every source was
 unreachable.

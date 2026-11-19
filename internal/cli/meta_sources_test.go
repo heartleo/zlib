@@ -20,7 +20,7 @@ func fakeSourceChoices() []metaSourceChoice {
 		{name: "openlibrary", label: "Open Library", enabled: true, available: true},
 		{name: "google", label: "Google Books", enabled: true, available: true, note: "shared quota"},
 		{name: "douban", label: "Douban", available: true},
-		{name: "weread", label: "WeRead", note: "needs ZLIB_WEREAD_API_KEY (not set)"},
+		{name: "weread", label: "WeRead", note: "needs ZLIB_WEREAD_API_KEY"},
 	}
 }
 
@@ -63,7 +63,7 @@ func TestMetaPageOpensOnThePrepareStepAndSearchesNothingYet(t *testing.T) {
 	screen := metaScreen(m)
 	for _, want := range []string{
 		"Search for", "Title", "Before", "from the file", // the embedded title of the test file
-		"[x] Open Library", "[x] Google Books", "[ ] Douban", "[ ] WeRead", "shared quota", "needs ZLIB_WEREAD_API_KEY (not set)",
+		"[x] Open Library", "[x] Google Books", "[ ] Douban", "[ ] WeRead", "shared quota", "needs ZLIB_WEREAD_API_KEY",
 		"Before", "EPUB",
 	} {
 		if !strings.Contains(screen, want) {
@@ -138,7 +138,7 @@ func TestMetaPageSourcePanelListsEverySourceAndWhyOneIsOff(t *testing.T) {
 	screen := metaScreen(m)
 	for _, want := range []string{
 		"[x] Open Library", "[x] Google Books", "[ ] Douban", "[ ] WeRead",
-		"shared quota", "needs ZLIB_WEREAD_API_KEY (not set)",
+		"shared quota", "needs ZLIB_WEREAD_API_KEY",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the page lacks %q:\n%s", want, screen)

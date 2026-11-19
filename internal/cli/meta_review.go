@@ -31,7 +31,7 @@ func (m metaPageModel) metaStepInfo() (int, string) {
 	}
 	switch stage {
 	case metaPrepare:
-		return 1, "Prepare the search"
+		return 1, "Search"
 	case metaLooking:
 		return 1, "Searching"
 	case metaCandidates:
@@ -79,31 +79,50 @@ func btoi(b bool) int {
 
 // --- Results page ------------------------------------------------------------
 
-// candidateColumns sizes the title and author columns to what the visible rows
-// need, within a share of the width each.
-func (m metaPageModel) candidateColumns(width int) (titleW, authorW int) {
+// metaSourceLabel says which catalogue a result came from, in brackets. Every
+// result comes from one catalogue: the lookup does not merge the answers of
+// different ones.
+func metaSourceLabel(c metasource.Candidate) string {
+	if len(c.Sources) == 0 {
+		return ""
+	}
+	names := make([]string, len(c.Sources))
+	for i, s := range c.Sources {
+		names[i] = safeText(s)
+	}
+	return "[" + strings.Join(names, "+") + "]"
+}
+
+// candidateColumns sizes the columns of the results list. The source column
+// comes first and is as wide as the longest label of any result (not only the
+// visible ones, so it does not move as the list scrolls), so a name is never
+// cut; title and authors take what is left.
+func (m metaPageModel) candidateColumns(width int) (titleW, authorW, sourceW int) {
 	for _, c := range m.res.Candidates {
 		titleW = max(titleW, ansi.StringWidth(safeText(c.Title)))
 		authorW = max(authorW, ansi.StringWidth(safeText(strings.Join(c.Authors, " & "))))
+		sourceW = max(sourceW, ansi.StringWidth(metaSourceLabel(c)))
 	}
-	rest := max(20, width-2-5-1-4-6) // cursor, marker, year and the gaps
+	const fixed = 2 + 5 + 1 + 4 + 6 // cursor, marker, year and the gaps
+	sourceW = max(sourceW, len("Source"))
+	rest := max(20, width-fixed-sourceW)
 	titleW = min(max(5, titleW), max(10, rest*45/100))
 	if authorW > 0 { // a column is never narrower than its title
 		authorW = max(len("Authors"), min(authorW, max(8, rest*28/100)))
 	}
-	return titleW, authorW
+	return titleW, authorW, sourceW
 }
 
 func (m metaPageModel) candidatesBody() string {
 	width := max(20, m.width)
 	rows := m.listRows()
 	end := min(len(m.res.Candidates), m.top+rows)
-	titleW, authorW := m.candidateColumns(width)
+	titleW, authorW, sourceW := m.candidateColumns(width)
 	head := "  " + padCell("Match", 5) + " " + padCell("Title", titleW)
 	if authorW > 0 {
 		head += "  " + padCell("Authors", authorW)
 	}
-	head += "  Year  Sources"
+	head += "  Year  Source"
 	lines := []string{colorFaint(ansi.Truncate(head, width, "…"))}
 	for i := m.top; i < end; i++ {
 		c := m.res.Candidates[i]
@@ -116,10 +135,9 @@ func (m metaPageModel) candidatesBody() string {
 			year = padCell(ansi.Truncate(y, 4, ""), 4)
 		}
 		label += "  " + year
-		// Where the match came from, so an entry from one catalogue is not
-		// taken for a merge of several.
-		if len(c.Sources) > 0 {
-			label += "  [" + safeText(strings.Join(c.Sources, "+")) + "]"
+		// Where the match came from: every row is one catalogue's own answer.
+		if src := metaSourceLabel(c); src != "" {
+			label += "  " + padCell(src, sourceW)
 		}
 		lines = append(lines, styledListRow(label, i == m.cursor, width, currentTheme))
 	}
@@ -130,11 +148,7 @@ func (m metaPageModel) candidatesBody() string {
 	if m.compareFits() {
 		// The file beside the highlighted match, field for field, before
 		// choosing it: what it would add, then both panels.
-		var effect []string
-		for _, r := range m.candidateEffect(c) {
-			effect = append(effect, r[0]+": "+r[1])
-		}
-		lines = append(lines, "", "  "+colorFaint(ansi.Truncate(strings.Join(effect, " · "), max(1, width-4), "…")))
+		lines = append(lines, "", "  "+colorFaint(m.candidateEffectLine(c, max(1, width-4))))
 		cm := m.compareModel()
 		return strings.Join(append(lines, cm.benchPanelsWith(cm.compareRows(), m.compareCovers())...), "\n")
 	}
@@ -150,44 +164,104 @@ func (m metaPageModel) candidatesBody() string {
 // start unselected. It is what metasource.Plan proposes, less what the format
 // cannot store.
 func (m metaPageModel) candidateEffect(c metasource.Candidate) [][2]string {
-	var adds, offers, differs, unstorable []string
-	for _, ch := range metasource.Plan(m.current, c) {
-		if ch.Field == metasource.FieldCover && m.cover == nil {
-			continue
-		}
-		if !m.canOffer(ch) {
-			unstorable = append(unstorable, metaFieldLabel(ch.Field))
-			continue
-		}
-		switch {
-		case ch.DefaultSelected():
-			adds = append(adds, metaFieldLabel(ch.Field))
-		case ch.Fill:
-			offers = append(offers, metaFieldLabel(ch.Field))
-		default:
-			differs = append(differs, metaFieldLabel(ch.Field))
-		}
-	}
+	g := m.effectOf(c)
 	var rows [][2]string
-	if len(adds)+len(offers)+len(differs) == 0 {
-		if len(unstorable) == 0 {
+	if len(g.adds)+len(g.offers)+len(g.differs) == 0 {
+		if len(g.unstorable) == 0 {
 			return [][2]string{{"Would change", "nothing: the file already has these values"}}
 		}
 		rows = append(rows, [2]string{"Would change", "nothing this file can store"})
 	}
-	if len(adds) > 0 {
-		rows = append(rows, [2]string{"Would add", strings.Join(adds, ", ")})
+	if len(g.adds) > 0 {
+		rows = append(rows, [2]string{"Would add", strings.Join(g.adds, ", ")})
 	}
-	if len(offers) > 0 {
-		rows = append(rows, [2]string{"Could add", strings.Join(offers, ", ") + " (check first: not selected)"})
+	if len(g.offers) > 0 {
+		rows = append(rows, [2]string{"Could add", strings.Join(g.offers, ", ") + " (check first: not selected)"})
 	}
-	if len(differs) > 0 {
-		rows = append(rows, [2]string{"Differs on", strings.Join(differs, ", ") + " (kept unless you select them)"})
+	if len(g.differs) > 0 {
+		rows = append(rows, [2]string{"Differs on", strings.Join(g.differs, ", ") + " (kept unless you select them)"})
 	}
-	if len(unstorable) > 0 {
-		rows = append(rows, [2]string{"Cannot store", strings.Join(unstorable, ", ") + " (" + strings.ToUpper(string(m.format)) + " has no place for them)"})
+	if len(g.unstorable) > 0 {
+		rows = append(rows, [2]string{"Cannot store", strings.Join(g.unstorable, ", ") + " (" + strings.ToUpper(string(m.format)) + " has no place for them)"})
 	}
 	return rows
+}
+
+// effectGroups are the fields choosing a match would touch, by what happens to
+// each: filled and selected, filled but left for the user to select, replaced
+// only if selected, or not storable in the file's format.
+type effectGroups struct{ adds, offers, differs, unstorable []string }
+
+// effectOf sorts what metasource.Plan proposes for c, so every summary of the
+// effect, long or short, promises exactly what the next page selects.
+func (m metaPageModel) effectOf(c metasource.Candidate) effectGroups {
+	var g effectGroups
+	for _, ch := range metasource.Plan(m.current, c) {
+		if ch.Field == metasource.FieldCover && m.cover == nil {
+			continue
+		}
+		label := metaFieldLabel(ch.Field)
+		switch {
+		case !m.canOffer(ch):
+			g.unstorable = append(g.unstorable, label)
+		case ch.DefaultSelected():
+			g.adds = append(g.adds, label)
+		case ch.Fill:
+			g.offers = append(g.offers, label)
+		default:
+			g.differs = append(g.differs, label)
+		}
+	}
+	return g
+}
+
+// candidateEffectLine is candidateEffect on one line, for the wide results page
+// whose panels already mark every field themselves (✓ taken, ≠ different). It
+// names the fields it adds and counts the rest, and gives up names, then words,
+// before it would cut one off.
+func (m metaPageModel) candidateEffectLine(c metasource.Candidate, width int) string {
+	g := m.effectOf(c)
+	check := len(g.offers) + len(g.differs)
+	if check+len(g.adds) == 0 {
+		if len(g.unstorable) == 0 {
+			return "Changes nothing: the file already has these values"
+		}
+		return "Changes nothing this file can store"
+	}
+	build := func(names, long bool) string {
+		var parts []string
+		switch n := len(g.adds); {
+		case n == 0:
+			parts = append(parts, "Adds nothing by default")
+		case names:
+			parts = append(parts, "Adds "+strings.Join(g.adds, ", "))
+		default:
+			parts = append(parts, "Adds "+strconv.Itoa(n))
+		}
+		if check > 0 {
+			text := strconv.Itoa(check) + " to check"
+			if long {
+				text = strconv.Itoa(check) + " more to check (≠, not selected)"
+			}
+			parts = append(parts, text)
+		}
+		if n := len(g.unstorable); n > 0 {
+			if names {
+				parts = append(parts, "can't store "+strings.Join(g.unstorable, ", "))
+			} else {
+				parts = append(parts, strconv.Itoa(n)+" can't be stored")
+			}
+		}
+		return strings.Join(parts, " · ")
+	}
+	var last string
+	for _, v := range [][2]bool{{true, true}, {true, false}, {false, false}} {
+		last = build(v[0], v[1])
+		if ansi.StringWidth(last) <= width {
+			return last
+		}
+	}
+	return ansi.Truncate(last, width, "…")
 }
 
 // withHelpKey adds a bare ? before the last hint (esc) of every tier that does

@@ -345,7 +345,7 @@ func newMCPServer(opts mcpServerOptions) *mcp.Server {
 	addMCPTool(server, &mcp.Tool{
 		Name:  "lookup_metadata",
 		Title: "Look Up Book Metadata",
-		Description: "Look a book up in online catalogues (Open Library, Google Books, Douban, WeRead) by a local file or by title, authors and ISBN, and return ranked matches. " +
+		Description: "Look a book up in online catalogues (Open Library, Google Books, Goodreads, Douban, WeRead) by a local file or by title, authors and ISBN, and return ranked matches. " +
 			"With file_path, each match lists the fields it would change in the file (changes), which are safe to take (selected), and a suggested file name; nothing is written. " +
 			"An ISBN match with score 1 is confirmed; a title match is a guess about the edition, so check publisher, date, language and ISBN with the user before taking them. " +
 			"Sends the title and authors to the catalogues.",

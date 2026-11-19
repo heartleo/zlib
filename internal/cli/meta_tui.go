@@ -366,7 +366,9 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case metaFailed:
 		switch k {
-		case "esc", "ctrl+c", "q":
+		case "esc":
+			return m.backToPrepare()
+		case "ctrl+c", "q":
 			m.cancelled = true
 			return m, tea.Quit
 		case "e":
@@ -380,7 +382,9 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case metaCandidates:
 		switch k {
-		case "esc", "ctrl+c", "q":
+		case "esc":
+			return m.backToPrepare()
+		case "ctrl+c", "q":
 			m.cancelled = true
 			return m, tea.Quit
 		case "e":
@@ -688,6 +692,7 @@ func metaDetailRows(c metasource.Candidate) [][2]string {
 	add("Publisher", c.Publisher)
 	add("Published", c.Published)
 	add("Languages", strings.Join(c.Languages, ", "))
+	add("Series", c.SeriesLabel())
 	add("Tags", strings.Join(c.Tags, ", "))
 	var ids []string
 	for _, id := range c.Identifiers {

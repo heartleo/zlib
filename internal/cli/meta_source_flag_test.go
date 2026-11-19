@@ -188,13 +188,13 @@ func TestSettingsPageEditsAndClearsTheLookupSources(t *testing.T) {
 		t.Fatalf("the row did not open an empty checklist: page %q, ticked %q", m.page, ticked())
 	}
 	screen := ansi.Strip(m.View().Content)
-	for _, want := range []string{"Lookup sources", "[ ] Open Library", "[ ] Douban", "[ ] WeRead", "By book language", "Space toggle"} {
+	for _, want := range []string{"Lookup sources", "[ ] Open Library", "[ ] Goodreads", "[ ] Douban", "[ ] WeRead", "By book language", "Space toggle"} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the checklist lacks %q:\n%s", want, screen)
 		}
 	}
-	// Tick Douban and WeRead (down twice to Douban, then once more), then save.
-	press("down", "down", "space", "down", "space")
+	// Tick Douban and WeRead (down three times to Douban, then once more), then save.
+	press("down", "down", "down", "space", "down", "space")
 	if ticked() != "douban,weread" || !strings.Contains(ansi.Strip(m.View().Content), "[✓] Douban") {
 		t.Fatalf("ticked %q:\n%s", ticked(), ansi.Strip(m.View().Content))
 	}
@@ -219,7 +219,7 @@ func TestSettingsPageEditsAndClearsTheLookupSources(t *testing.T) {
 	// WeRead cannot be ticked without its key, but can be unticked while listed.
 	t.Setenv(wereadAPIKeyEnv, "")
 	m.edit(metaSourcesEnv)
-	press("down", "down", "down", "space")
+	press("down", "down", "down", "down", "space")
 	if ticked() != "douban" {
 		t.Errorf("WeRead was not unticked: %q", ticked())
 	}
@@ -230,7 +230,7 @@ func TestSettingsPageEditsAndClearsTheLookupSources(t *testing.T) {
 
 	// Ctrl+A ticks what can run, again clears; nothing ticked saves the default.
 	press("ctrl+a")
-	if ticked() != "openlibrary,google,douban" {
+	if ticked() != "openlibrary,google,goodreads,douban" {
 		t.Errorf("ctrl+a ticked %q", ticked())
 	}
 	press("ctrl+a", "enter")
@@ -246,8 +246,11 @@ func TestMetaSourcesSettingIsValidatedAndHasADefault(t *testing.T) {
 	if v, err := validateSetting(metaSourcesEnv, " Douban , openlibrary,douban "); err != nil || v != "openlibrary,douban" {
 		t.Errorf("normalized = %q, %v", v, err)
 	}
-	if _, err := validateSetting(metaSourcesEnv, "openlibrary,goodreads"); err == nil || !strings.Contains(err.Error(), "goodreads") {
+	if _, err := validateSetting(metaSourcesEnv, "openlibrary,librarything"); err == nil || !strings.Contains(err.Error(), "librarything") {
 		t.Errorf("a typo was accepted: %v", err)
+	}
+	if v, err := validateSetting(metaSourcesEnv, "goodreads,openlibrary"); err != nil || v != "openlibrary,goodreads" {
+		t.Errorf("goodreads = %q, %v", v, err)
 	}
 	if v, err := validateSetting(metaSourcesEnv, ""); err != nil || v != "" {
 		t.Errorf("empty = %q, %v", v, err)

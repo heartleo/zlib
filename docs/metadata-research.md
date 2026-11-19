@@ -28,11 +28,21 @@ Studied revision: `kovidgoyal/calibre` at
 ## What zlib adopted, changed and left out
 
 Adopted: an ISBN is the strongest key; sources run in parallel and a slow one
-does not hold up the rest; a source failing never fails the lookup; results
-from several sources for the same book are merged; and applying metadata
-fills what is empty before replacing what exists.
+does not hold up the rest; a source failing never fails the lookup; and
+applying metadata fills what is empty before replacing what exists.
 
 Changed:
+
+- **Sources are not merged.** Calibre pools the answers of several sources for
+  one book into one record. zlib lists each source's own answer in its own
+  row or rows, and the rows are ranked together: an ISBN match first, then the
+  score, and for equal rows the order of the sources, so one book from several
+  sources stands in adjacent rows. A reader sees exactly what each catalogue
+  says, and a source with little to say (Goodreads gives no publisher, date or
+  ISBN) is plainly that, instead of being filled in from another source
+  without saying which. The cost is that one row cannot combine fields of two
+  sources. Within one source the same book listed twice (one ISBN) is still
+  one row, joined by the pooling and the field rules below.
 
 - **ISBNs are normalised** (checksum validated, ISBN-10 converted to
   ISBN-13) before pooling, so one book has one key whichever form a source
@@ -65,7 +75,8 @@ allow-listed host re-checked on every redirect (Open Library covers can
 redirect to Internet Archive hosts), at most 10 MiB, a real JPEG, PNG, GIF or
 WebP image, and at least 50 pixels on each side. Douban's image hosts
 (`img<N>.doubanio.com`) are on the list too; they answer a request without a
-Douban `Referer` with HTTP 418, so one is sent to those hosts only.
+Douban `Referer` with HTTP 418, so one is sent to those hosts only. So is
+Goodreads' image host (`i.gr-assets.com`), which needs no `Referer`.
 
 For a book downloaded through zlib, the Z-Library record's own ISBN is added
 to the lookup. The record is validated like any other ISBN, and its title and
@@ -145,6 +156,61 @@ subject's HTML page would need page scraping, which zlib does not do.
 
 Not measured: whether Douban accepts zlib's own `User-Agent` (the
 measurements used the `curl` default), and its throttling limits.
+
+## Goodreads
+
+Studied revision: `bookorbit/bookorbit` at
+`c1dd6b4f1947ff50843a155e12e70f1e7d15f0c7`, the Goodreads provider of its
+metadata fetch (the provider, mapper and types files). zlib's source is written
+in Go from the behaviour below and the measurements, and shares no code with it.
+
+| Behaviour | What zlib does |
+| --- | --- |
+| Search the suggestion endpoint first, then read the book page of each hit, because the page is the only place with a full description, a publisher, a date, a language and an ISBN | Same: the suggestions rank the hits, and the pages of the first three are read, one after another with a pause. An ISBN is resolved through the redirect and its page is read, so the suggestions are only the fallback |
+| The book page's embedded state (`__NEXT_DATA__`, an Apollo cache of records that refer to each other by key) holds the book | The `Book` record whose `legacyId` is the ID asked for is read; a page that holds no such record is treated as blocked |
+| A bot check is a 202 with a script, not a block status, and carrying on only keeps it up | A 202, a 401 or 403, or a page with no embedded data is a block. The suggestion stands in for that book and no more pages are read in that lookup. The check is never answered |
+| A 503 with no `Retry-After` clears within seconds; a 429 is a cooldown | One retry after a short wait for 502, 503 or 504, ended by the lookup's own timeout. 500 is never retried. A 429 ends the page reading |
+| A browser `User-Agent` and `Accept` headers on the page requests | A desktop Chrome `User-Agent` only, on every request of this source: the project's owner decided it, as for the WeRead source. No other browser header is sent. It can be changed only in Go, with an option on the source's constructor |
+| Only the first primary contributor is the author | Every contributor in the Author role is, and the translator is not. A Chinese edition lists an author's name in Latin script and, right after it, in Han script as two contributors. Only that neighbouring pair, in an edition whose language is Chinese, is read as one author and the Han name kept; every other name stays, so a co-author with no Han form is not lost. Where the shape is not there, or the edition's language is missing or wrong, an author may be listed twice, which loses nothing. Measured on a single edition, so the pair rule rests on that one shape |
+| The publication time is turned to a date | The same, in UTC: it is the day Goodreads holds, and nothing says how precise the edition's real date is |
+| Results are scored by title, author, rating count and a penalty for summaries and study guides | The lookup's own ranking and title similarity decide. The live endpoint returned a study-guide hit for a one-word title, and its title did not reach the similarity threshold, so no separate filter was added |
+
+Live measurements, status codes and key names only. The requests carry no
+cookie and no login:
+
+| Request | Result |
+| --- | --- |
+| `GET /book/auto_complete?format=json&q=<isbn>` | 200, `application/json`, a list of one hit |
+| `GET /book/auto_complete?format=json&q=<title and author>` | 200, a list of up to five hits |
+| A hit | `bookId` (a string), `workId`, `bookUrl` (a path ending `/book/show/<id>` and a slug, after `-` or `.`), `title` (with a ` (Series, #n)` suffix when it is in one), `bookTitleBare`, `author` (an object: `id`, `name`, `isGoodreadsAuthor`, `profileUrl`, `worksListUrl`), `numPages` (a number), `avgRating` (a string), `ratingsCount` (a number), `imageUrl`, `description` (an object: `html`, `truncated`, `fullContentUrl`), `qid`, `rank`, `from_search`, `from_srp`, `kcrPreviewUrl` |
+| `description.truncated` | `true` in every hit measured |
+| `GET /book/isbn/<isbn>` | 301 with an absolute `Location` of `/book/show/<id>-<slug>` on the same host. The ID is the one the suggestion list gives for the same ISBN |
+| `GET /book/show/<id>` with zlib's own `User-Agent`, first measurement | 202, `text/html`, a few kilobytes: a script and the markers `awsWafCookieDomainList` and `challenge-container`, and none of the page's data |
+| The same, eight more requests for three books, four seconds apart | 200 every time, `text/html`, about 0.7 to 0.9 MB, with `__NEXT_DATA__`. The bot check is intermittent, not constant; the first measurement was a single request, and its conclusion that a page can never be read was wrong |
+| `__NEXT_DATA__` | `props.pageProps.apolloState`, about 150 records: `Book` (a dozen, the book asked for and the ones the page lists), `Contributor`, `Work`, `Series` when there is one, and `User`, `Shelving` and `Review` records that are not used |
+| The `Book` record | `legacyId` (a number), `title`, `titleComplete`, `description` (HTML), `description({"stripped":true})`, `imageUrl`, `details`, `bookGenres`, `bookSeries`, `primaryContributorEdge`, `secondaryContributorEdges`, `work`, `webUrl`, `links`, `featureFlags` and others. `details`: `publisher`, `publicationTime` (milliseconds since the epoch, a number), `numPages`, `isbn`, `isbn13`, `asin`, `format`, `language` (an object with `name`, in English). A contributor edge has `role` (`Author`, `Translator`) and `node.__ref` to a `Contributor` record with `name` |
+| An edition in Chinese | Three contributors: the author in Latin script (primary), the same author in Han script (secondary, role `Author`) and a translator (secondary, role `Translator`) |
+| `GET` of a hit's `imageUrl` | 200, `image/jpeg`, 50 by 75 pixels (a thumbnail, with a `._SY75_` size token in the name) |
+| `GET` of the same URL without the size token | 200, `image/jpeg`, 1000 by 1500 pixels, no redirect, on `i.gr-assets.com` |
+| `GET` of the page's `imageUrl` | 200, `image/jpeg`, about 1600 by 2200 pixels, no redirect, on `m.media-amazon.com`, with zlib's own `User-Agent` |
+
+Consequences: a Goodreads row read from a page is an edition, like a Douban
+subject: it carries its ISBN, publisher, date and language, and a title match
+that came from a page may fill them like any edition's, under the same rules as
+any match (unselected until the match is sure). A hit whose page was not read is
+a work-level candidate: a title, authors, a cover, a series and a Goodreads ID,
+and nothing that names an edition. A series belongs to the work, so it is not an
+edition field: a title match may fill an empty series, and the file's own series,
+or its position, is never replaced or dropped without a choice. Both cover hosts
+are on the cover allow-list with no `Referer`, and a URL for the "no photo"
+placeholder is not offered. The rating, the page count and the ASIN are not
+used: the rating is the readers' average, not the user's own.
+
+The endpoints and the page's data are not an API Goodreads documents, and
+Goodreads has ended its public API, so they can change without notice. A change
+shows as the source falling back to the suggestions or failing, never as a wrong
+write: a hit with no usable ID or title is skipped, and a page that does not hold
+the book asked for is not used.
 
 ## WeRead
 

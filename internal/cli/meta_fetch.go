@@ -50,8 +50,9 @@ func googleBooksKey() string {
 const wereadAPIKeyEnv = "ZLIB_WEREAD_API_KEY"
 
 // metaSourcesEnv selects the lookup sources, a comma-separated list of
-// openlibrary, google, douban and weread. Unset means openlibrary and google;
-// douban and weread are opt-in.
+// openlibrary, google, goodreads, douban and weread. Unset means the sources
+// for the book's language (DefaultSourceNamesFor); goodreads, douban for an
+// English book, and weread are opt-in.
 const metaSourcesEnv = "ZLIB_METADATA_SOURCES"
 
 // metaResultsEnv is how many matches a lookup lists, 1 to 50; unset means 10.
@@ -421,6 +422,7 @@ func printMetaCandidates(out io.Writer, cands []metasource.Candidate) {
 		add("Publisher", c.Publisher)
 		add("Published", c.Published)
 		add("Languages", strings.Join(c.Languages, ", "))
+		add("Series", c.SeriesLabel())
 		add("Tags", strings.Join(c.Tags, ", "))
 		var ids []string
 		for _, id := range c.Identifiers {

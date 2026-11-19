@@ -39,7 +39,7 @@ type mcpLookupMetadataInput struct {
 	Title    string   `json:"title,omitempty" jsonschema:"Title to search for, in place of the one read from the file."`
 	Authors  []string `json:"authors,omitempty" jsonschema:"Authors to search for, in place of the ones read from the file."`
 	ISBN     string   `json:"isbn,omitempty" jsonschema:"ISBN-10 or ISBN-13 to search for. An ISBN gives the exact edition."`
-	Sources  []string `json:"sources,omitempty" jsonschema:"Catalogues to ask: openlibrary, google, douban or weread. Leave unset to use the user's configuration. weread sends the title to Tencent under the user's account, so name it only when the user asked."`
+	Sources  []string `json:"sources,omitempty" jsonschema:"Catalogues to ask: openlibrary, google, goodreads, douban or weread. Leave unset to use the user's configuration. weread sends the title to Tencent under the user's account, so name it only when the user asked. goodreads is never asked unless the user turned it on, so leave it out unless the user wants it."`
 }
 
 type mcpEditMetadataInput struct {
@@ -57,7 +57,7 @@ type mcpEditMetadataInput struct {
 	Rating      *float64          `json:"rating,omitempty" jsonschema:"Rating from 0 to 5 stars, in halves."`
 	Description string            `json:"description,omitempty" jsonschema:"Description; paragraphs are kept."`
 	ISBN        string            `json:"isbn,omitempty" jsonschema:"One valid ISBN-10 or ISBN-13. Written as the isbn identifier."`
-	Identifiers map[string]string `json:"identifiers,omitempty" jsonschema:"Catalogue identifiers to write, by scheme: google, openlibrary, douban or weread. Copy them from a lookup match."`
+	Identifiers map[string]string `json:"identifiers,omitempty" jsonschema:"Catalogue identifiers to write, by scheme: google, openlibrary, goodreads, douban or weread. Copy them from a lookup match."`
 	CoverURL    string            `json:"cover_url,omitempty" jsonschema:"A cover_url from a lookup match. It is downloaded from a trusted catalogue host and embedded. MOBI and AZW3 files can only replace a cover they already have."`
 	Clear       []string          `json:"clear,omitempty" jsonschema:"Fields to empty: title_sort, authors, author_sort, series, publisher, published, languages, tags, rating, description or identifier:<scheme>. The title cannot be cleared."`
 	Rename      bool              `json:"rename,omitempty" jsonschema:"Rename the file from its title and authors, in the user's file name format, after writing. Never replaces another file."`
@@ -151,7 +151,7 @@ type mcpReadMetadataResult struct {
 
 // mcpPlannedChange is one field a match would change in the file.
 type mcpPlannedChange struct {
-	Field    string `json:"field" jsonschema:"title, authors, publisher, languages, tags, published, description, cover or identifier:<scheme>."`
+	Field    string `json:"field" jsonschema:"title, authors, series, publisher, languages, tags, published, description, cover or identifier:<scheme>."`
 	Old      string `json:"old,omitempty" jsonschema:"What the file holds, empty when the field is empty."`
 	New      string `json:"new" jsonschema:"What the match says, as text."`
 	Fill     bool   `json:"fill,omitempty" jsonschema:"True when the file has no value yet."`
@@ -167,6 +167,8 @@ type mcpMetadataCandidate struct {
 	Published            string                 `json:"published,omitempty"`
 	Languages            []string               `json:"languages,omitempty"`
 	Tags                 []string               `json:"tags,omitempty"`
+	Series               string                 `json:"series,omitempty"`
+	SeriesIndex          float64                `json:"series_index,omitempty"`
 	Identifiers          []ebookmeta.Identifier `json:"identifiers,omitempty"`
 	Description          string                 `json:"description,omitempty"`
 	DescriptionTruncated bool                   `json:"description_truncated,omitempty"`
@@ -319,7 +321,7 @@ func handleMCPLookupMetadata(ctx context.Context, _ *mcp.CallToolRequest, in mcp
 			return nil, out, fmt.Errorf("sources: %w", err)
 		}
 		if list == "" {
-			return nil, out, errors.New("sources names none of openlibrary, google, douban or weread")
+			return nil, out, errors.New("sources names none of openlibrary, google, goodreads, douban or weread")
 		}
 		sources = newMetaSourcesFor(strings.Split(list, ","))
 	} else {
@@ -345,7 +347,8 @@ func handleMCPLookupMetadata(ctx context.Context, _ *mcp.CallToolRequest, in mcp
 	for i, c := range res.Candidates {
 		mc := mcpMetadataCandidate{
 			Rank: i + 1, Title: safeText(c.Title), Authors: safeList(c.Authors), Publisher: safeText(c.Publisher), Published: safeText(c.Published),
-			Languages: safeList(c.Languages), Tags: safeList(c.Tags), CoverURL: c.CoverURL, Match: string(c.Match), Score: c.Score,
+			Languages: safeList(c.Languages), Tags: safeList(c.Tags), Series: safeText(c.Series), SeriesIndex: c.SeriesIndex,
+			CoverURL: c.CoverURL, Match: string(c.Match), Score: c.Score,
 			Sources: c.Sources, EditionLevel: c.EditionLevel,
 			SuggestedFileName: metasource.FileNameWith(metaNameLayout(), c.Title, c.Authors, ext),
 		}
@@ -518,7 +521,7 @@ func buildMCPEdit(in mcpEditMetadataInput, cur *ebookmeta.Metadata, format ebook
 		case scheme == "isbn":
 			return req, errors.New("identifiers: set the ISBN with isbn, which checks it")
 		case !metasource.WritableIdentifier(scheme):
-			return req, fmt.Errorf("identifiers: %q cannot be written (use google, openlibrary, douban or weread)", scheme)
+			return req, fmt.Errorf("identifiers: %q cannot be written (use google, openlibrary, goodreads, douban or weread)", scheme)
 		case value == "" || strings.ContainsAny(value, "\r\n"):
 			return req, fmt.Errorf("identifiers: %s needs a one-line value; use clear to remove it", scheme)
 		}
