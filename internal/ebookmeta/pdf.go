@@ -223,7 +223,7 @@ func decodePDFText(b []byte) string {
 	case len(b) >= 2 && b[0] == 0xFE && b[1] == 0xFF:
 		u := make([]uint16, 0, len(b)/2)
 		for i := 2; i+1 < len(b); i += 2 {
-			u = append(u, uint16(b[i])<<8|uint16(b[i+1]))
+			u = append(u, binary.BigEndian.Uint16(b[i:]))
 		}
 		return string(utf16.Decode(u))
 	case len(b) >= 3 && b[0] == 0xEF && b[1] == 0xBB && b[2] == 0xBF:
@@ -231,14 +231,22 @@ func decodePDFText(b []byte) string {
 	}
 	var sb strings.Builder
 	for _, c := range b {
-		if r, ok := pdfDocEncoding[c]; ok {
-			sb.WriteRune(r)
-		} else {
-			sb.WriteRune(rune(c))
-		}
+		sb.WriteRune(pdfDocRunes[c])
 	}
 	return sb.String()
 }
+
+// pdfDocRunes maps every byte of a PDFDocEncoding string to its rune: the
+// bytes in pdfDocEncoding, and Latin-1 for the rest.
+var pdfDocRunes = func() (t [256]rune) {
+	for i := range t {
+		t[i] = rune(i)
+		if r, ok := pdfDocEncoding[byte(i)]; ok {
+			t[i] = r
+		}
+	}
+	return t
+}()
 
 // encodePDFText writes s as a literal string when it is printable ASCII,
 // and as UTF-16BE hex with a byte order mark otherwise.

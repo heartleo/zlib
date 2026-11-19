@@ -181,6 +181,13 @@ func TestPDFTextCodec(t *testing.T) {
 	if got := decodePDFText([]byte{0x93, 'x', 0xA0}); got != "ﬁx€" {
 		t.Errorf("PDFDocEncoding = %q", got)
 	}
+	// Bytes outside the table read as Latin-1, and UTF-16BE keeps every unit.
+	if got := decodePDFText([]byte{'c', 'a', 'f', 0xE9, 0xFF}); got != "caféÿ" {
+		t.Errorf("Latin-1 = %q", got)
+	}
+	if got := decodePDFText([]byte{0xFE, 0xFF, 0x4E, 0x2D, 0x65, 0x87, 0xD8, 0x3D, 0xDC, 0xDA}); got != "中文📚" {
+		t.Errorf("UTF-16BE = %q", got)
+	}
 }
 
 func FuzzReadPDF(f *testing.F) {
