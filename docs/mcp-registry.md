@@ -113,9 +113,10 @@ following `kubernetes-mcp-server` and the usual native-binary launchers:
 
 Release `vX.Y.Z` gives the server version `X.Y.Z` and bundles named
 `zlib_X.Y.Z_<os>_<arch>.mcpb`. A published version cannot change. To fix only the
-entry's metadata (a description, an icon) without a new release, publish a
+entry's metadata (a description, an icon) without a new binary, publish a
 prerelease of the same version, such as `X.Y.Z-1`, which sorts before `X.Y.Z` and
-leaves it the latest. The bundles do not change, so their URLs and hashes stay.
+leaves it the latest. That needs a matching `vX.Y.Z-1` release, whose bundles the
+workflow renders with new names, URLs and hashes.
 
 ## Known limits
 
