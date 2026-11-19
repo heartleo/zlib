@@ -9,6 +9,20 @@ ebooks as tools with structured inputs and outputs. It
 uses the same session (`~/.config/zlib/session.json`) and `.env` settings as the
 CLI.
 
+## Registry and bundles
+
+The server is listed in the [official MCP Registry](https://registry.modelcontextprotocol.io/)
+as `io.github.heartleo/zlib` once a maintainer has published it
+([how](mcp-registry.md)). Each release carries an MCP Bundle (`.mcpb`) per
+platform, `zlib_X.Y.Z_<os>_<arch>.mcpb`, which clients such as Claude Desktop
+install with one click. The bundle holds the `zlib` executable and asks for two
+optional settings, a read-only switch and an allowed folder, which it passes on as
+`ZLIB_MCP_READ_ONLY` and `ZLIB_MCP_ALLOWED_DIR`. It still uses the session of the
+zlib CLI, so install the CLI to run `zlib login`. Clients without bundle support,
+such as Codex and Grok, ignore the manifest: register `zlib mcp` as below, or the
+unpacked bundle's `server/zlib` with `mcp` as its argument. What the server sends where is in
+[Privacy](privacy.md).
+
 ## Requirements
 
 - `zlib` on your `PATH` ([Installation](installation.md)).
@@ -134,6 +148,11 @@ Add flags after `mcp`, for example `"args": ["mcp", "--read-only"]`:
 | `--disable-metadata-edit` | Hide `edit_metadata`; the agent can still read and look up metadata |
 | `--allowed-dir <dir>` | Keep downloads, Kindle attachments, WeRead imports and every metadata tool inside one folder |
 | `--log-level <level>` | `off`, `error`, `warn` (default), `info` or `debug`, to stderr |
+
+Each flag can also be set from the environment as `ZLIB_MCP_<FLAG>`, such as
+`ZLIB_MCP_READ_ONLY=true` or `ZLIB_MCP_ALLOWED_DIR=/books`, for a client that
+configures a server with environment variables. A flag on the command line wins,
+and an empty variable counts as unset.
 
 `--read-only` overrides the individual `--disable-*` flags. `--allowed-dir` also
 rejects paths that leave the folder through symlinks or Windows junctions.

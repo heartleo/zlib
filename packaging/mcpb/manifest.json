@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.3",
+  "name": "zlib",
+  "display_name": "Z-Library",
+  "version": "0.0.0",
+  "description": "Search and download Z-Library books, fix e-book metadata, and send books to Kindle or WeRead.",
+  "long_description": "Runs the zlib CLI as a local MCP server. Search Z-Library, read book details, download books, browse saved books and download history, look up and fix the metadata of local e-books, and send files to a Kindle or a WeRead shelf. It uses the Z-Library session you create with `zlib login` in a terminal (install the zlib CLI to log in); the agent never sees your password.",
+  "author": {
+    "name": "heartleo",
+    "url": "https://github.com/heartleo"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heartleo/zlib"
+  },
+  "homepage": "https://github.com/heartleo/zlib",
+  "documentation": "https://github.com/heartleo/zlib/blob/main/docs/mcp.md",
+  "support": "https://github.com/heartleo/zlib/issues",
+  "license": "MIT",
+  "keywords": ["z-library", "books", "ebook", "epub", "metadata", "kindle", "weread"],
+  "privacy_policies": ["https://github.com/heartleo/zlib/blob/main/docs/privacy.md"],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/zlib",
+    "mcp_config": {
+      "command": "${__dirname}/server/zlib",
+      "args": ["mcp"],
+      "env": {
+        "ZLIB_MCP_READ_ONLY": "${user_config.read_only}",
+        "ZLIB_MCP_ALLOWED_DIR": "${user_config.allowed_directory}"
+      }
+    }
+  },
+  "tools": [
+    {"name": "search_books", "description": "Search Z-Library books with format, language, year and sort filters."},
+    {"name": "get_book", "description": "Fetch a book's details and description by id:hash."},
+    {"name": "get_recommended_books", "description": "List personalized recommendations."},
+    {"name": "get_most_popular_books", "description": "List the most popular books."},
+    {"name": "get_saved_books", "description": "List favorite books."},
+    {"name": "get_download_history", "description": "List download history."},
+    {"name": "get_profile", "description": "Show the account profile and daily quota."},
+    {"name": "check_domains", "description": "Probe Z-Library mirrors for reachable domains."},
+    {"name": "download_book", "description": "Download a book, optionally sending it to Kindle or WeRead."},
+    {"name": "delete_download_history", "description": "Remove an entry from remote download history."},
+    {"name": "send_to_kindle", "description": "Email a local e-book to the configured Kindle address."},
+    {"name": "import_to_weread", "description": "Import a local e-book into the WeRead shelf."},
+    {"name": "read_metadata", "description": "Read a local e-book's metadata."},
+    {"name": "lookup_metadata", "description": "Look a book up in online catalogues and compare matches with a file."},
+    {"name": "edit_metadata", "description": "Write metadata into a local e-book and optionally rename it."}
+  ],
+  "user_config": {
+    "read_only": {
+      "type": "boolean",
+      "title": "Read-only",
+      "description": "Expose only read tools: no downloads, history deletion, Kindle or WeRead delivery, or metadata editing.",
+      "default": false,
+      "required": false
+    },
+    "allowed_directory": {
+      "type": "directory",
+      "title": "Allowed folder",
+      "description": "Keep downloads, Kindle attachments, WeRead imports and the metadata tools inside this folder. Leave empty for no limit.",
+      "required": false
+    }
+  }
+}

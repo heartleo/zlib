@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.heartleo/zlib",
+  "title": "Z-Library",
+  "description": "Search and download Z-Library books, fix e-book metadata, and send books to Kindle or WeRead.",
+  "websiteUrl": "https://github.com/heartleo/zlib/blob/main/docs/mcp.md",
+  "repository": {
+    "url": "https://github.com/heartleo/zlib",
+    "source": "github"
+  },
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/heartleo/zlib/main/site/favicon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"]
+    }
+  ],
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/heartleo/zlib/releases/download/v0.0.0/zlib_0.0.0_linux_x86_64.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ZLIB_MCP_READ_ONLY",
+          "description": "Set to true to expose only read tools: no download, history deletion, Kindle or WeRead delivery, or metadata editing.",
+          "format": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "ZLIB_MCP_ALLOWED_DIR",
+          "description": "A folder to keep downloads, Kindle attachments, WeRead imports and the metadata tools inside. Leave empty for no limit.",
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}

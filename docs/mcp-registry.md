@@ -1,0 +1,132 @@
+# Publishing to the MCP Registry
+
+[README](../README.md) · [MCP server](mcp.md) · [Versioning](versioning.md)
+
+For maintainers. The [official MCP Registry](https://registry.modelcontextprotocol.io/)
+lists MCP servers so clients can find and install them. It is in preview and
+stores metadata only, never code: an entry points at a package the maintainer
+hosts. This page says how zlib is set up for it, and the steps to submit it.
+**Nothing is submitted until a maintainer runs the publish workflow with
+`dry_run` off.**
+
+## What the registry requires
+
+| Area | Rule | zlib |
+| --- | --- | --- |
+| Name | Reverse-DNS, one slash, `^[a-zA-Z0-9.-]+/[a-zA-Z0-9._-]+$`, up to 200 characters. With GitHub authentication it must start with `io.github.<owner>/` | `io.github.heartleo/zlib` |
+| Description | 1 to 100 characters | `Search and download Z-Library books, fix e-book metadata, and send books to Kindle or WeRead.` (93) |
+| Version | One specific version, unique per publication and immutable; semantic versioning recommended; ranges (`^1.2.3`, `1.x`) refused | The release tag without its `v`: `0.0.15` |
+| Package | `npm`, `pypi`, `nuget`, `cargo`, `oci` or `mcpb`. The registry stores no artifacts | `mcpb`, hosted on the GitHub release |
+| Ownership | npm `mcpName`, PyPI and NuGet `mcp-name:` in the README, OCI image label; nothing for `mcpb` beyond the name and the URL | The GitHub OIDC login proves `io.github.heartleo` |
+| MCPB package | `identifier` is the download URL on a GitHub or GitLab release and contains `mcp`; `fileSha256` is the file's SHA-256; clients verify it, the registry does not | `…/releases/download/vX.Y.Z/zlib_X.Y.Z_<os>_<arch>.mcpb` |
+| Extras | `title`, `websiteUrl`, `icons`, `repository`, `environmentVariables`, all optional | Set, in `packaging/mcp/server.json` |
+
+zlib is a Go program distributed as release binaries, Homebrew and winget, which
+the registry has no package type for. An MCP Bundle (`.mcpb`) is the match: a zip
+holding the executable and a `manifest.json`, which Claude Desktop and other
+clients install with one click. The alternatives are an OCI image (the server
+needs your Z-Library session and your files, so it would run with volume mounts
+and the session in the container's home) and an npm wrapper that downloads the
+binary on install (a second package to keep in step). Both are possible later.
+
+## What is in the repository
+
+| File | Purpose |
+| --- | --- |
+| `packaging/mcp/server.json` | The registry entry. Its version and packages are placeholders; the workflow renders the real ones |
+| `packaging/mcpb/manifest.json` | The bundle's manifest: tools, settings, privacy policy |
+| `scripts/mcpb/` | Builds a bundle per platform and renders `server.json` from a release's bundles, with the schema's checks |
+| `.goreleaser.yml` | A post-build hook makes the bundles; they are uploaded with the release and listed in `checksums.txt` |
+| `.github/workflows/mcp-registry.yml` | Manual workflow: renders, validates and, only when asked, publishes |
+| `docs/privacy.md` | The privacy policy the manifest links to, required because the server talks to external services |
+
+`TestRegistryFilesMatchTheServer` keeps the descriptions, the tool list and the
+settings in these files equal to what the server registers and reads, and
+`scripts/mcpb` tests cover the bundle and the registry's rules.
+
+The server reads each flag from `ZLIB_MCP_<FLAG>` too (`ZLIB_MCP_READ_ONLY=true`,
+`ZLIB_MCP_ALLOWED_DIR=/books`), because a registry entry or a bundle configures a
+server with environment variables, not arguments. A flag on the command line
+wins and an empty variable counts as unset.
+
+## Versioning
+
+Release `vX.Y.Z` gives the server version `X.Y.Z` and bundles named
+`zlib_X.Y.Z_<os>_<arch>.mcpb`. A published version cannot change. To fix only the
+entry's metadata (a description, an icon) without a new release, publish a
+prerelease of the same version, such as `X.Y.Z-1`, which sorts before `X.Y.Z` and
+leaves it the latest. The bundles do not change, so their URLs and hashes stay.
+
+## Known limits
+
+- The registry's package schema has no platform or architecture field. Each
+  platform is its own `mcpb` package (six of them), and only the file name says
+  which. MCPB names the operating system in `compatibility.platforms` but has no
+  architecture field. A client that picks by operating system alone may choose
+  the wrong architecture.
+- Only clients that know MCP Bundles install a `.mcpb` and show its two
+  settings. Codex (0.170.0) and Grok (1.0.77) do not: they read neither the
+  manifest nor `${user_config.*}`. A bundle unpacked by hand and registered with
+  its command (`server/zlib mcp`) and the two `ZLIB_MCP_*` environment variables
+  works in both: Codex called `read_metadata` through it and Grok's `mcp doctor`
+  found all 15 tools and called it too. Their users run `zlib mcp` from the CLI
+  as before ([MCP server](mcp.md)).
+- A bundle holds the `zlib` executable, so a user who installs it still needs the
+  CLI on their `PATH` to run `zlib login` (the session is shared). The server
+  cannot log in through the agent.
+- Registry entries are made by hand for now. Automating them on `release:
+  published` is a change to make after a first successful manual publication.
+
+## Before the first submission
+
+These steps need a release that contains the MCP server as it is now, so the
+branch is merged and released first.
+
+1. Release as usual ([Versioning](versioning.md#releasing)) and publish the draft.
+   Check that `zlib_X.Y.Z_<os>_<arch>.mcpb` exists for all six platforms and that
+   `checksums.txt` lists them.
+2. Validate the bundle: `npx @anthropic-ai/mcpb validate manifest.json` on an
+   unpacked bundle, and install one in Claude Desktop through its extensions
+   settings. Check the tools list, the two settings and a search after
+   `zlib login`.
+3. Run the MCP Registry workflow with the tag and `dry_run` on (the default). It
+   renders `server.json`, runs `mcp-publisher validate` and stops. Read the
+   rendered file in the log.
+4. Ask for approval to publish, as below.
+
+## Submit
+
+Only after approval, run the workflow again with `dry_run` off. It signs in with
+GitHub OIDC (`id-token: write`, no secret needed) and runs `mcp-publisher
+publish`. Then check the entry:
+
+```sh
+curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.heartleo/zlib"
+```
+
+It should show the version, `latest` set, and six packages. Failures and their
+fixes:
+
+| Message | Fix |
+| --- | --- |
+| `Registry validation failed for package` | The package does not match the entry: check the bundle URL and that its release is published |
+| `invalid audience` | Bump `MCP_PUBLISHER_VERSION` in the workflow |
+| `You do not have permission to publish this server` | The name must start with `io.github.heartleo/` and the workflow must run in `heartleo/zlib` |
+| `fileSha256` pattern error | A bundle was missing or renamed: the workflow renders one package per platform and fails if one is absent |
+
+## Each release afterwards
+
+Run the workflow for the new tag. Versions are immutable, so a mistake means a
+new release, or a prerelease for metadata only. To take a version down, mark it
+deleted with `mcp-publisher status`; nothing is erased, and `status` can restore
+it.
+
+## Open decisions
+
+- **Package type.** MCPB is recommended. Say if an OCI image or an npm wrapper is
+  wanted as well, or instead.
+- **Architecture.** Six per-platform packages, as above, or only the most common
+  (macOS Apple silicon, Windows x86_64, Linux x86_64) to make a wrong pick less
+  likely.
+- **When to automate.** Keep the manual workflow, or run it on `release:
+  published` once a first publication has gone well.
