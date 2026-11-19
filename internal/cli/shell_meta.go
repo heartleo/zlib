@@ -15,7 +15,7 @@ const metaUsage = "Use /meta or /meta <file>"
 var metaTarget = sendTarget{
 	title:        "Fix metadata",
 	confirmTitle: "Look up metadata?",
-	note:         "Search online catalogues for this book. Nothing changes until you choose fields.",
+	note:         "Search online. Nothing changes until you save.",
 	action:       "Look up",
 	unsupported:  "Unsupported file type. Choose an EPUB, FB2, DOCX, MOBI, AZW3 or PDF file.",
 	allowed:      ebookmeta.Extensions,
