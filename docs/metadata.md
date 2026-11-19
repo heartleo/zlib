@@ -469,8 +469,6 @@ A rejected key is reported as such.
 Lookups and cover downloads use `ZLIB_PROXY` when it is set, otherwise the
 system proxy; the Z-Library session is never sent. The one exception is the
 `weread` source, which follows `ZLIB_WEREAD_PROXY` like the WeRead importer.
-See
-[Metadata lookup research](metadata-research.md).
 
 ## Formats
 

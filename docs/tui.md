@@ -475,7 +475,6 @@ The implementation uses Bubbles v2, Huh v2 and Lip Gloss v2, with interaction pa
 from Crush's `internal/ui/dialog/models.go`, `filepicker.go`, `inline_editor.go`,
 `dialog.go`, `internal/ui/list/list.go` and `internal/ui/model/status.go`.
 Crush internal packages are not imported or copied.
-See [Crush TUI patterns](crush-ui-patterns.md) for the component and layout analysis.
 
 - `tui_layout.go`: terminal-sized screen layout, selected rows and Bubbles help.
 - `tui_form.go`, `tui_inline_form.go`: field lists, masked text input, validation

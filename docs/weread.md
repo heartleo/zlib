@@ -146,9 +146,6 @@ download the book again to retry the import, run `zlib weread import <path>`.
    the book as added, already present, or unreadable. Cancelling at this step
    tells WeRead to abandon the import.
 
-[WeRead import limits](weread-research.md) records the protocol and limits in
-detail.
-
 ## Proxy
 
 `ZLIB_PROXY` does not apply to WeRead (it covers Z-Library and metadata

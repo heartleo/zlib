@@ -145,11 +145,3 @@ definitions follow the mobile endpoints documented in
 and were verified during development against live health endpoints and search
 responses. Upstream may change fields or authentication, or shut domains down.
 Run `zlib doctor` before use, and do not rely on any one domain staying available.
-
-## Android API research
-
-The [initial APK analysis](android-api-research.md) records the reverse
-engineering method; the [deep dive and measurements](android-eapi-deep-dive.md)
-compares the Android endpoint declarations, server responses and the current CLI,
-and lists commands that could be added. Read the conclusions within the dates and
-test scope stated in each document.
