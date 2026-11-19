@@ -30,8 +30,8 @@ zlib meta book.epub --cover cover.jpg
 | `-p`, `--publisher` | Publisher |
 | `-l`, `--language` | Languages, comma-separated (`en,fr`) |
 | `--tags` | Tags, comma-separated |
-| `-s`, `--series`, `-i`, `--index` | Series and position (`2`, `2.5`) |
-| `--isbn`, `--identifier scheme:value` | Identifiers; `--identifier asin:` removes one |
+| `-s`, `--series`, `-i`, `--index` | Series and position (`2`, `2.5`); `--index` needs a series, from the file or from `--series` |
+| `--isbn`, `--identifier scheme:value` | Identifiers; `--identifier asin:` removes one. An ISBN must be valid and is stored as an ISBN-13 |
 | `-d`, `--date` | Publication date (`2024-03-04`) |
 | `-c`, `--comments` | Description |
 | `-r`, `--rating` | Rating, 0 to 5 stars |

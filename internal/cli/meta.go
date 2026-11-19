@@ -146,9 +146,12 @@ func runMeta(cmd *cobra.Command, args []string) error {
 	}
 	stderr := cmd.ErrOrStderr()
 	if !changes.Empty() {
-		_, format, err := ebookmeta.ReadFile(path)
+		cur, format, err := ebookmeta.ReadFile(path)
 		if err != nil {
 			return metaError(path, err)
+		}
+		if err := checkSeriesIndex(cmd, cur, changes); err != nil {
+			return err
 		}
 		if skipped := ebookmeta.DropUnsupported(format, changes); len(skipped) > 0 {
 			lipgloss.Fprintf(stderr, "%s %s files cannot store %s; skipped.\n",
@@ -287,16 +290,32 @@ func metaChangesFromFlags(cmd *cobra.Command) (*ebookmeta.Changes, error) {
 		if !ok || scheme == "" {
 			return nil, &usageError{fmt.Errorf("--identifier %q: use scheme:value, e.g. isbn:9780000000002", id)}
 		}
+		scheme, value = strings.ToLower(scheme), strings.TrimSpace(value)
+		if scheme == "isbn" && value != "" {
+			n, err := metaISBN("--identifier", value)
+			if err != nil {
+				return nil, err
+			}
+			value = n
+		}
 		if c.Identifiers == nil {
 			c.Identifiers = map[string]string{}
 		}
-		c.Identifiers[strings.ToLower(scheme)] = strings.TrimSpace(value)
+		c.Identifiers[scheme] = value
 	}
 	if v := str("isbn"); v != nil {
+		isbn := strings.TrimSpace(*v)
+		if isbn != "" {
+			n, err := metaISBN("--isbn", isbn)
+			if err != nil {
+				return nil, err
+			}
+			isbn = n
+		}
 		if c.Identifiers == nil {
 			c.Identifiers = map[string]string{}
 		}
-		c.Identifiers["isbn"] = strings.TrimSpace(*v)
+		c.Identifiers["isbn"] = isbn
 	}
 	if p, _ := flags.GetString("cover"); p != "" {
 		data, err := readLimited(p, 64<<20)
@@ -309,6 +328,34 @@ func metaChangesFromFlags(cmd *cobra.Command) (*ebookmeta.Changes, error) {
 		c.Cover = &ebookmeta.Cover{Data: data}
 	}
 	return c, nil
+}
+
+// metaISBN returns s as a valid ISBN-13, the form the TUI editor and the MCP
+// tool write, or a usage error naming the flag. An empty value is not passed
+// here: it clears the identifier.
+func metaISBN(flag, s string) (string, error) {
+	n := metasource.NormalizeISBN(s)
+	if n == "" {
+		return "", &usageError{fmt.Errorf("%s %q is not a valid ISBN: check the digits and the check digit", flag, s)}
+	}
+	return n, nil
+}
+
+// checkSeriesIndex refuses --index when neither the file nor --series gives
+// the book a series to number, as edit_metadata does. Without it the file would
+// be rewritten with nothing changed.
+func checkSeriesIndex(cmd *cobra.Command, cur *ebookmeta.Metadata, c *ebookmeta.Changes) error {
+	if !cmd.Flags().Changed("index") {
+		return nil
+	}
+	name := cur.Series
+	if c.Series != nil {
+		name = *c.Series
+	}
+	if name == "" {
+		return &usageError{errors.New("--index: the file has no series, so name one with --series")}
+	}
+	return nil
 }
 
 // parseMetaNumber parses a non-negative number up to limit; "" means 0.

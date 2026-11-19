@@ -132,6 +132,76 @@ func TestMetaCommandJSONAndClear(t *testing.T) {
 	}
 }
 
+// The flags check an ISBN the way the terminal editor and edit_metadata do:
+// a bad one is refused and nothing is written, a valid one is stored as an
+// ISBN-13.
+func TestMetaCommandChecksISBN(t *testing.T) {
+	for _, args := range [][]string{
+		{"--isbn", "banana"},
+		{"--isbn", "9780000000001"}, // wrong check digit
+		{"--identifier", "isbn:banana"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			p := writeTestEPUB(t)
+			before, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = runMetaForTest(t, append([]string{p}, args...)...)
+			var usage *usageError
+			if !errors.As(err, &usage) || !strings.Contains(err.Error(), "not a valid ISBN") {
+				t.Fatalf("err = %v, want a usage error about the ISBN", err)
+			}
+			if after, _ := os.ReadFile(p); !bytes.Equal(before, after) {
+				t.Fatal("the file was rewritten")
+			}
+		})
+	}
+
+	for _, args := range [][]string{{"--isbn", "978-0-00-000000-2"}, {"--identifier", "ISBN:9780000000002"}} {
+		p := writeTestEPUB(t)
+		out, err := runMetaForTest(t, append([]string{p}, args...)...)
+		if err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if plain := ansi.Strip(out); !strings.Contains(plain, "isbn:9780000000002") {
+			t.Errorf("%v: output:\n%s", args, plain)
+		}
+	}
+}
+
+// --index needs a series to number. With none, the command says so and leaves
+// the file alone instead of rewriting it and exiting 0.
+func TestMetaCommandIndexNeedsSeries(t *testing.T) {
+	p := writeTestEPUB(t)
+	before, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"--index", "2"}, {"--series", "", "--index", "2"}} {
+		_, err := runMetaForTest(t, append([]string{p}, args...)...)
+		var usage *usageError
+		if !errors.As(err, &usage) || !strings.Contains(err.Error(), "no series") {
+			t.Fatalf("%v: err = %v, want a usage error about the series", args, err)
+		}
+		if after, _ := os.ReadFile(p); !bytes.Equal(before, after) {
+			t.Fatalf("%v: the file was rewritten", args)
+		}
+	}
+
+	// Naming a series in the same command, or numbering one the file has, works.
+	if _, err := runMetaForTest(t, p, "--series", "Saga", "--index", "2"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runMetaForTest(t, p, "--index", "3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain := ansi.Strip(out); !strings.Contains(plain, "Saga #3") {
+		t.Errorf("output:\n%s", plain)
+	}
+}
+
 func TestMetaCommandUsageErrors(t *testing.T) {
 	p := writeTestEPUB(t)
 	for _, args := range [][]string{
