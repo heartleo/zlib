@@ -88,6 +88,37 @@ func TestToolUpdateShowsVersionChange(t *testing.T) {
 	}
 }
 
+func TestBrewFailureExplainsTheRename(t *testing.T) {
+	failing := func(string, []string, io.Writer) error { return errors.New("exit status 1") }
+
+	t.Run("brew failure points to zlib-cli", func(t *testing.T) {
+		stubToolUpdate(t, failing, "", false)
+		var errOut bytes.Buffer
+		if err := runToolUpdate(t.Context(), nil, io.Discard, &errOut, updateBrew, "/x/zlib", "v0.0.13"); err == nil {
+			t.Fatal("expected an error")
+		}
+		text := ansi.Strip(errOut.String())
+		for _, want := range []string{
+			"renamed from zlib to zlib-cli",
+			"brew update && brew upgrade heartleo/tap/zlib-cli",
+			"brew install heartleo/tap/zlib-cli",
+		} {
+			if !strings.Contains(text, want) {
+				t.Errorf("stderr lacks %q:\n%s", want, text)
+			}
+		}
+	})
+
+	t.Run("other package managers get no notice", func(t *testing.T) {
+		stubToolUpdate(t, failing, "", false)
+		var errOut bytes.Buffer
+		_ = runToolUpdate(t.Context(), nil, io.Discard, &errOut, updateGo, "/x/zlib", "v0.0.13")
+		if errOut.Len() != 0 {
+			t.Errorf("unexpected stderr: %q", errOut.String())
+		}
+	})
+}
+
 func TestToolUpdateAlreadyCurrent(t *testing.T) {
 	stubToolUpdate(t, printingTool("Warning: heartleo/tap/zlib-cli 0.0.14 already installed"), "v0.0.14", true)
 
