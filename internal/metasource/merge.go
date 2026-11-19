@@ -34,6 +34,11 @@ var noiseTags = map[string]bool{
 // Pooling: candidates sharing an ISBN are one book. Candidates without a
 // shared ISBN are pooled when their title and first author agree, unless
 // that would join two different ISBNs, since two ISBNs are two editions.
+//
+// It pools whatever it is given, including the answers of several sources. Lookup
+// gives it one source's answers at a time, because the answers of different
+// sources are never merged: a pool there holds one source's duplicates, names one
+// source, and gets no bonus for agreeing sources.
 func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candidate {
 	parent := make([]int, len(in))
 	for i := range parent {
@@ -157,7 +162,7 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 			// A perfect title and author match is at the score cap whichever
 			// edition it is, so the edition the file agrees with goes first.
 			cmp.Compare(editionBonus(q, b), editionBonus(q, a)),
-			cmp.Compare(len(b.Sources), len(a.Sources)),
+			cmp.Compare(len(b.Sources), len(a.Sources)), // more sources first; equal for a lookup
 			cmp.Compare(completeness(b), completeness(a)),
 			strings.Compare(a.Title, b.Title),
 		)
@@ -173,7 +178,8 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 // same record as the hint). An ISBN match whose title disagrees with the
 // wanted one scores 0.5: files often carry the ISBN of another book, so the
 // result is kept but flagged. Otherwise the title (65%) and authors (35%)
-// decide, with a small bonus for each further source that agrees.
+// decide, with a small bonus for each further source that agrees. A candidate
+// that Lookup returns names one source, so it gets no such bonus.
 func scoreCandidate(q Query, c Candidate) (Match, float64) {
 	if isbn := c.ISBN(); isbn != "" && slices.Contains(q.ISBNs, isbn) {
 		need := minTitleSimilarity

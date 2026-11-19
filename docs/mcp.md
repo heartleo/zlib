@@ -257,7 +257,9 @@ page, one step at a time ([Metadata](metadata.md)). A good run:
    `check edition`; an ISBN match whose title differs says `may be another
    book`. Pass `title`, `authors` or `isbn` to search for something other than
    what was read, and `sources` to ask other catalogues (`weread` sends the
-   title to Tencent under the user's account, so name it only when asked).
+   title to Tencent under the user's account, so name it only when asked;
+   `goodreads` and `douban` are off unless the user turned them on, so leave them
+   out unless the user wants those catalogues).
 3. `edit_metadata` with the fields the user chose. Authors, languages and tags
    are lists; `cover_url` takes a match's cover URL (only https URLs on a
    catalogue's cover host are fetched); `identifiers` takes catalogue

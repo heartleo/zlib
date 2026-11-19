@@ -39,7 +39,7 @@ type mcpLookupMetadataInput struct {
 	Title    string   `json:"title,omitempty" jsonschema:"Title to search for, in place of the one read from the file."`
 	Authors  []string `json:"authors,omitempty" jsonschema:"Authors to search for, in place of the ones read from the file."`
 	ISBN     string   `json:"isbn,omitempty" jsonschema:"ISBN-10 or ISBN-13 to search for. An ISBN gives the exact edition."`
-	Sources  []string `json:"sources,omitempty" jsonschema:"Catalogues to ask: openlibrary, google, goodreads, douban or weread. Leave unset to use the user's configuration. weread sends the title to Tencent under the user's account, so name it only when the user asked."`
+	Sources  []string `json:"sources,omitempty" jsonschema:"Catalogues to ask: openlibrary, google, goodreads, douban or weread. Leave unset to use the user's configuration. weread sends the title to Tencent under the user's account, so name it only when the user asked. goodreads and douban are off unless the user turned them on, so leave them out unless the user wants those catalogues."`
 }
 
 type mcpEditMetadataInput struct {

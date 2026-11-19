@@ -200,8 +200,12 @@ func isAuthorRole(role string) bool {
 
 // goodreadsAuthors are the contributors in the Author role. The translator, the
 // narrator and the like are left out. A Chinese edition lists an author's name in
-// Latin and in Han script as two contributors of one person, so for it the Han
-// names are kept when there are any.
+// Latin script and, right after it, the same name in Han script, as two
+// contributors of one person: that pair is one author, and the Han name is kept.
+// Every other name stays as it is, so a co-author with no Han form is not lost.
+// Only a pair that is next to each other counts, and only for an edition in
+// Chinese: where Goodreads gives no such shape, or the edition's language is
+// missing or wrong, an author may be listed twice, which loses nothing.
 func goodreadsAuthors(state map[string]json.RawMessage, b *goodreadsPageBook, chinese bool) []string {
 	var names []string
 	for i, e := range append([]goodreadsEdge{b.Primary}, b.Secondary...) {
@@ -219,18 +223,17 @@ func goodreadsAuthors(state map[string]json.RawMessage, b *goodreadsPageBook, ch
 		}
 	}
 	names = cleanList(names)
-	if chinese {
-		var han []string
-		for _, n := range names {
-			if hasHan(n) {
-				han = append(han, n)
-			}
-		}
-		if len(han) > 0 {
-			return han
-		}
+	if !chinese {
+		return names
 	}
-	return names
+	out := names[:0:0]
+	for i, n := range names {
+		if !hasHan(n) && i+1 < len(names) && hasHan(names[i+1]) {
+			continue // the Latin form of the Han name that follows
+		}
+		out = append(out, n)
+	}
+	return out
 }
 
 // goodreadsDate writes a publication time given in milliseconds since the epoch

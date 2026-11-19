@@ -36,6 +36,8 @@ cannot be combined with the field options.
 `weread`) for one run. Without it a lookup follows `ZLIB_METADATA_SOURCES`, or asks Douban for
 a Chinese book and Open Library for any other, plus Google Books when a key is
 set. `weread` sends the title to Tencent, so name it only when the user asked.
+`goodreads` and `douban` are off unless the user turned them on: leave them out
+unless the user wants those catalogues.
 
 Exit codes: `1` nothing matched, `2` an invalid option, `4` every source was
 unreachable.

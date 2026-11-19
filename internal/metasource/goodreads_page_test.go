@@ -160,6 +160,42 @@ func TestGoodreadsKeepsTheHanNamesOfAChineseEdition(t *testing.T) {
 	}
 }
 
+// Only a Latin name followed by its Han form is one author. A co-author with no
+// Han form is kept, wherever it stands, and an edition that Goodreads does not
+// give a language (or gives a wrong one) keeps both forms: that lists a person
+// twice, and loses no one.
+func TestGoodreadsCollapsesOnlyTheNeighbouringLatinAndHanPair(t *testing.T) {
+	authors := func(language string, names ...string) []string {
+		t.Helper()
+		var list [][2]string
+		for _, n := range names {
+			list = append(list, [2]string{n, "Author"})
+		}
+		c, err := mapGoodreadsPage([]byte(grPage(t, grPageOpts{id: "7", language: language, authors: list})), "7")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c.Authors
+	}
+	for name, tc := range map[string]struct {
+		language string
+		names    []string
+		want     []string
+	}{
+		"the pair first, then a co-author": {"Chinese", []string{"Ada Writer", "艾达·作家", "Bo Coauthor"}, []string{"艾达·作家", "Bo Coauthor"}},
+		"a co-author first, then the pair": {"Chinese", []string{"Bo Coauthor", "Ada Writer", "艾达·作家"}, []string{"Bo Coauthor", "艾达·作家"}},
+		"two pairs":                        {"Chinese", []string{"Ada Writer", "艾达·作家", "Bo Coauthor", "波·合著者"}, []string{"艾达·作家", "波·合著者"}},
+		"Han names alone":                  {"Chinese", []string{"艾达·作家", "波·合著者"}, []string{"艾达·作家", "波·合著者"}},
+		"Latin names alone":                {"Chinese", []string{"Ada Writer", "Bo Coauthor"}, []string{"Ada Writer", "Bo Coauthor"}},
+		"no language given":                {"", []string{"Ada Writer", "艾达·作家"}, []string{"Ada Writer", "艾达·作家"}},
+		"another language":                 {"English", []string{"Ada Writer", "艾达·作家"}, []string{"Ada Writer", "艾达·作家"}},
+	} {
+		if got := authors(tc.language, tc.names...); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: authors = %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
 func TestGoodreadsPageVariations(t *testing.T) {
 	read := func(o grPageOpts) *Candidate {
 		t.Helper()

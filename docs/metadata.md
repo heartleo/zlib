@@ -287,9 +287,10 @@ that book is read. So a row from a page is an edition, with its own ISBN, and a
 result found by title that came from a page carries the edition's ISBN too. A
 Goodreads edition is one book ID, which is also the `goodreads` identifier that
 is written. The page names the translator as well as the author: only the
-author is taken, and for a Chinese edition that lists the author's name in both
-Latin and Han script, the Han name. The publication date is the day Goodreads
-holds, whatever precision the edition really has.
+author is taken. A Chinese edition may list an author's name in Latin script and,
+right after it, in Han script; that pair is one author and the Han name is kept,
+and every other author is kept as listed. The publication date is the day
+Goodreads holds, whatever precision the edition really has.
 
 Goodreads sometimes answers a page with a bot check instead of the page, and
 zlib does not answer it. The source then uses the suggestion for that book, with
