@@ -1,0 +1,117 @@
+name: MCP Registry
+
+# Publishes a released version of the zlib MCP server to the official MCP
+# Registry (docs/mcp-registry.md). It never runs by itself: a maintainer starts
+# it by hand, after the release is published, and the default is a dry run that
+# renders and validates server.json and stops before logging in.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release to list, such as v0.0.15"
+        required: true
+        type: string
+      dry_run:
+        description: "Only render and validate server.json; do not publish"
+        required: true
+        type: boolean
+        default: true
+
+# A job's permissions replace the workflow's, so the job lists what it needs.
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # GitHub OIDC login to the registry
+      contents: read
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      # Pinned and verified with cosign below. A registry that answers "invalid
+      # audience" needs a newer publisher: bump this, do not use releases/latest.
+      MCP_PUBLISHER_VERSION: v1.8.9
+    steps:
+      - name: Check the release
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v[0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "::error::tag must look like v0.0.15"; exit 1 ;;
+          esac
+          if [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" != "false" ]; then
+            echo "::error::$TAG is a draft: publish the release first, so the bundles can be downloaded"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Download the bundles
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern '*.mcpb' --dir dist/mcpb
+
+      # The hashes in server.json come from the downloaded files, so check the
+      # files are the ones GoReleaser built and checksummed at release time.
+      - name: Check the bundles against checksums.txt
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern checksums.txt --dir dist
+          cd dist/mcpb
+          grep -F '.mcpb' ../checksums.txt | sha256sum --check --strict -
+
+      # The official MCPB validator, pinned. Clients refuse a bundle whose
+      # manifest does not pass it.
+      - name: Validate the bundle manifests
+        env:
+          MCPB_VERSION: 2.1.2
+        run: |
+          set -euo pipefail
+          for bundle in dist/mcpb/*.mcpb; do
+            dir="$(mktemp -d)"
+            unzip -q "$bundle" -d "$dir"
+            npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" validate "$dir/manifest.json"
+          done
+
+      - name: Render server.json
+        run: |
+          go run ./scripts/mcpb server --version "${TAG#v}" --assets dist/mcpb --out server.json
+          cat server.json
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          arch="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          archive="mcp-publisher_${os}_${arch}.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate
+
+      - name: Authenticate to the MCP Registry
+        if: ${{ !inputs.dry_run }}
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to the MCP Registry
+        if: ${{ !inputs.dry_run }}
+        run: ./mcp-publisher publish

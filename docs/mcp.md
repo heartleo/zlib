@@ -9,6 +9,20 @@ ebooks as tools with structured inputs and outputs. It
 uses the same session (`~/.config/zlib/session.json`) and `.env` settings as the
 CLI.
 
+## Registry and bundles
+
+The server is listed in the [official MCP Registry](https://registry.modelcontextprotocol.io/)
+as `io.github.heartleo/zlib` once a maintainer has published it
+([how](mcp-registry.md)). Each release carries an MCP Bundle (`.mcpb`) per
+platform, `zlib_X.Y.Z_<os>_<arch>.mcpb`, which clients such as Claude Desktop
+install with one click. The bundle holds the `zlib` executable and asks for two
+optional settings, a read-only switch and an allowed folder, which it passes on as
+`ZLIB_MCP_READ_ONLY` and `ZLIB_MCP_ALLOWED_DIR`. It still uses the session of the
+zlib CLI, so install the CLI to run `zlib login`. Clients without bundle support,
+such as Codex and Grok, ignore the manifest: register `zlib mcp` as below, or the
+unpacked bundle's `server/zlib` with `mcp` as its argument. What the server sends where is in
+[Privacy](privacy.md).
+
 ## Requirements
 
 - `zlib` on your `PATH` ([Installation](installation.md)).
@@ -65,6 +79,25 @@ Or add to `~/.codex/config.toml`:
 command = "zlib"
 args = ["mcp"]
 ```
+
+### Grok
+
+```sh
+grok mcp add zlib -- zlib mcp
+grok mcp doctor zlib
+```
+
+`grok mcp add` writes `~/.grok/config.toml`; add `--scope project` to write
+`.grok/config.toml` of the current folder instead, which Grok starts only after
+you trust the folder. `grok mcp doctor` starts the server and lists its tools.
+
+### Plugins
+
+The Claude Code, Codex and Grok [plugins](agents.md#plugins) carry this server
+too: installing one registers `zlib mcp` next to the skills, with nothing else to
+configure. `zlib` must be on `PATH` and recent enough to have the tools you
+want, since the plugin runs the installed CLI. Grok starts a plugin's MCP server
+only once the plugin is trusted (`grok plugin install zlib --trust`).
 
 ### Gemini CLI
 
@@ -135,6 +168,11 @@ Add flags after `mcp`, for example `"args": ["mcp", "--read-only"]`:
 | `--allowed-dir <dir>` | Keep downloads, Kindle attachments, WeRead imports and every metadata tool inside one folder |
 | `--log-level <level>` | `off`, `error`, `warn` (default), `info` or `debug`, to stderr |
 
+Each flag can also be set from the environment as `ZLIB_MCP_<FLAG>`, such as
+`ZLIB_MCP_READ_ONLY=true` or `ZLIB_MCP_ALLOWED_DIR=/books`, for a client that
+configures a server with environment variables. A flag on the command line wins,
+and an empty variable counts as unset.
+
 `--read-only` overrides the individual `--disable-*` flags. `--allowed-dir` also
 rejects paths that leave the folder through symlinks or Windows junctions.
 Downloads without a `dir` go to `ZLIB_DOWNLOAD_DIR` when it lies inside that
@@ -143,7 +181,9 @@ and failures, never arguments.
 
 ## Permissions and results
 
-Downloads can replace same-named files. `edit_metadata` rewrites a local file in
+`--read-only`, the `--disable-*` flags and `--allowed-dir` are guardrails, not a
+sandbox: the real limits are your Z-Library account, your file permissions and
+the approval your client asks for. Downloads can replace same-named files. `edit_metadata` rewrites a local file in
 place and can rename it; it keeps the file readable but does not keep a copy, so
 require client approval for it, and use `dry_run` first. Lookups send the book's
 title and authors to online catalogues. Kindle delivery reads a local file and

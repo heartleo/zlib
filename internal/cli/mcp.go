@@ -15,7 +15,15 @@ import (
 	zlib "github.com/heartleo/zlib/internal/zlib"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
+
+// mcpServerDescription is the server's one-line description, in the MCP
+// handshake and in the registry entry (server.json, at most 100 characters).
+const mcpServerDescription = "Search and download Z-Library books, fix e-book metadata, and send books to Kindle or WeRead."
+
+// mcpWebsiteURL is where the server is documented.
+const mcpWebsiteURL = "https://github.com/heartleo/zlib/blob/main/docs/mcp.md"
 
 const mcpServerInstructions = "Z-Library MCP server. " +
 	"Book IDs use the composite id:hash format returned in the id field of search, feed, saved, and history results; always pass the complete id:hash string to get_book and download_book. " +
@@ -32,6 +40,9 @@ var mcpCmd = &cobra.Command{
 	Long:  "Run a Model Context Protocol (MCP) server over standard input and output for AI agents such as Claude Code and Codex.",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := applyMCPEnv(cmd); err != nil {
+			return &usageError{err}
+		}
 		readOnly, _ := cmd.Flags().GetBool("read-only")
 		disableDownload, _ := cmd.Flags().GetBool("disable-download")
 		disableDelete, _ := cmd.Flags().GetBool("disable-history-delete")
@@ -66,15 +77,46 @@ var mcpCmd = &cobra.Command{
 }
 
 func init() {
-	mcpCmd.Flags().Bool("read-only", false, "Expose only read-only tools (disable download, history delete, Kindle and WeRead delivery, and metadata editing)")
-	mcpCmd.Flags().Bool("disable-download", false, "Disable book downloads")
-	mcpCmd.Flags().Bool("disable-history-delete", false, "Disable remote history deletion")
-	mcpCmd.Flags().Bool("disable-kindle", false, "Disable Kindle delivery, including delivery after a download")
-	mcpCmd.Flags().Bool("disable-weread", false, "Disable WeRead import, including import after a download")
-	mcpCmd.Flags().Bool("disable-metadata-edit", false, "Disable writing and renaming local files through edit_metadata")
-	mcpCmd.Flags().String("allowed-dir", "", "Confine downloads, Kindle attachments, WeRead imports and metadata tools to this directory")
-	mcpCmd.Flags().String("log-level", "warn", "Log level for stderr: off, error, warn, info or debug")
+	addMCPFlags(mcpCmd)
 	rootCmd.AddCommand(mcpCmd)
+}
+
+// addMCPFlags declares the server's flags on cmd.
+func addMCPFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("read-only", false, "Expose only read-only tools (disable download, history delete, Kindle and WeRead delivery, and metadata editing)")
+	cmd.Flags().Bool("disable-download", false, "Disable book downloads")
+	cmd.Flags().Bool("disable-history-delete", false, "Disable remote history deletion")
+	cmd.Flags().Bool("disable-kindle", false, "Disable Kindle delivery, including delivery after a download")
+	cmd.Flags().Bool("disable-weread", false, "Disable WeRead import, including import after a download")
+	cmd.Flags().Bool("disable-metadata-edit", false, "Disable writing and renaming local files through edit_metadata")
+	cmd.Flags().String("allowed-dir", "", "Confine downloads, Kindle attachments, WeRead imports and metadata tools to this directory")
+	cmd.Flags().String("log-level", "warn", "Log level for stderr: off, error, warn, info or debug")
+}
+
+// mcpEnvName is the environment variable that sets the flag name: ZLIB_MCP_
+// and the flag in upper case, with underscores, such as ZLIB_MCP_READ_ONLY.
+func mcpEnvName(flag string) string {
+	return "ZLIB_MCP_" + strings.ToUpper(strings.ReplaceAll(flag, "-", "_"))
+}
+
+// applyMCPEnv lets every flag be set from the environment, for clients that
+// configure a server with environment variables (a registry entry, a bundle's
+// settings) and not with arguments. A flag given on the command line wins, and
+// an empty variable counts as unset: a client passes an empty one for a setting
+// the user left blank.
+func applyMCPEnv(cmd *cobra.Command) error {
+	var err error
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		name := mcpEnvName(f.Name)
+		value := strings.TrimSpace(os.Getenv(name))
+		if err != nil || f.Changed || value == "" || f.Name == "help" {
+			return
+		}
+		if setErr := cmd.Flags().Set(f.Name, value); setErr != nil {
+			err = fmt.Errorf("%s=%q: %w", name, value, setErr)
+		}
+	})
+	return err
 }
 
 type mcpServerOptions struct {
@@ -204,9 +246,16 @@ func newMCPServer(opts mcpServerOptions) *mcp.Server {
 		opts.logger = slog.New(slog.DiscardHandler)
 	}
 	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "zlib",
-		Title:   "Z-Library",
-		Version: zlib.Version,
+		Name:        "zlib",
+		Title:       "Z-Library",
+		Description: mcpServerDescription,
+		Version:     zlib.Version,
+		WebsiteURL:  mcpWebsiteURL,
+		Icons: []mcp.Icon{{
+			Source:   "https://raw.githubusercontent.com/heartleo/zlib/main/site/favicon.svg",
+			MIMEType: "image/svg+xml",
+			Sizes:    []string{"any"},
+		}},
 	}, &mcp.ServerOptions{
 		Instructions: mcpServerInstructions,
 		Logger:       opts.logger,

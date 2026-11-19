@@ -131,7 +131,7 @@ zlib download "id:hash"
 
 ## Agent 接入
 
-可安装 Agent 插件，或直接注册 MCP 服务（`zlib mcp`）。没有 `zlib` 时，插件首次使用会自行安装。登录请自己运行 `zlib login`，密码不要发到对话里。
+可安装 Agent 插件，或直接注册 MCP 服务（`zlib mcp`）。插件同时带来 skills 和 MCP 服务。没有 `zlib` 时，skills 首次使用会自行安装；MCP 服务则要求 `zlib` 已在 `PATH` 中。登录请自己运行 `zlib login`，密码不要发到对话里。
 
 ### Claude Code
 
@@ -151,6 +151,15 @@ codex plugin marketplace add heartleo/zlib
 codex plugin add zlib@zlib
 ```
 
+### Grok
+
+安装插件：
+
+```sh
+grok plugin marketplace add heartleo/zlib
+grok plugin install zlib --trust
+```
+
 ### MCP 服务
 
 把 `zlib mcp` 注册为本地 stdio 服务。需已安装 `zlib` 并完成登录：
@@ -161,6 +170,9 @@ claude mcp add -s user zlib -- zlib mcp
 
 # Codex
 codex mcp add zlib -- zlib mcp
+
+# Grok
+grok mcp add zlib -- zlib mcp
 ```
 
 在 `mcp` 后加 `--read-only` 可禁用下载、删除历史、发送到 Kindle 和导入微信读书。其他客户端、参数和工具列表见

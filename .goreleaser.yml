@@ -30,6 +30,11 @@ builds:
     ldflags:
       # {{.Version}} drops the tag's v; zlib reports versions as vX.Y.Z.
       - -s -w -X github.com/heartleo/zlib/internal/zlib.Version=v{{.Version}} -X github.com/heartleo/zlib/internal/zlib.Commit={{.Commit}} -X github.com/heartleo/zlib/internal/zlib.Date={{.CommitDate}}
+    hooks:
+      post:
+        # One MCP Bundle per platform, uploaded with the release. The MCP
+        # Registry entry (docs/mcp-registry.md) points at these files.
+        - cmd: go run ./scripts/mcpb bundle --binary "{{ .Path }}" --os {{ .Os }} --arch {{ .Arch }} --version {{ .Version }} --out dist/mcpb
 
 archives:
   - id: zlib
@@ -51,6 +56,8 @@ archives:
 
 checksum:
   name_template: checksums.txt
+  extra_files:
+    - glob: dist/mcpb/*.mcpb
 
 brews:
   # Named zlib-cli because homebrew/core already ships a zlib formula; the
@@ -130,4 +137,6 @@ changelog:
 release:
   draft: true
   replace_existing_draft: true
+  extra_files:
+    - glob: dist/mcpb/*.mcpb
 

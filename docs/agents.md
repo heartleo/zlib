@@ -5,8 +5,10 @@
 The shared [zlib](../.agents/skills/zlib/SKILL.md),
 [metadata](../.agents/skills/metadata/SKILL.md) and
 [Kindle](../.agents/skills/kindle/SKILL.md) skills live in `.agents/skills/`.
-The Claude Code and Codex plugins bundle these skills. They call the locally
-installed CLI through the agent's shell; there is no separate API server to start.
+The Claude Code, Codex and Grok plugins bundle these skills and register the
+[MCP server](mcp.md) (`zlib mcp`). The skills call the locally installed CLI
+through the agent's shell, and the MCP server is that same CLI, so there is no
+separate API server to start.
 
 Codex [discovers `.agents/skills/`](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills)
 when working in this repository. Other clients
@@ -14,6 +16,25 @@ can load or install the skill folders using their supported Agent Skills mechani
 the [format specification](https://agentskills.io/specification) does not prescribe
 one shared discovery path. The plugin
 installation in the README remains available for use outside this checkout.
+
+## Plugins
+
+One plugin package, `plugins/zlib/`, serves three clients. It holds the skills
+(generated from `.agents/skills/`) and `.mcp.json`, which registers `zlib mcp` as a
+stdio server. Each client reads it through its own manifest:
+
+| Client | Install | What it reads |
+| --- | --- | --- |
+| Claude Code | `/plugin marketplace add heartleo/zlib`, `/plugin install zlib@zlib-plugin-cc` | `.claude-plugin/plugin.json`; `.mcp.json` at the plugin root is found on its own |
+| Codex | `codex plugin marketplace add heartleo/zlib`, `codex plugin add zlib@zlib` | `.codex-plugin/plugin.json`, whose `mcpServers` points at `.mcp.json` |
+| Grok | `grok plugin marketplace add heartleo/zlib`, `grok plugin install zlib --trust` | The `.claude-plugin/` manifests, and `.mcp.json` at the root. The MCP server stays off until the plugin is trusted |
+
+The plugin does not ship the binary: the server runs the `zlib` on the agent's
+`PATH`, so install and update the CLI separately (the skills install it on first
+use). A CLI that predates a tool does not offer it, so update the CLI to get new
+tools, such as the metadata tools. To run the server with options, such as
+`--read-only`, register it yourself as described in [MCP server](mcp.md) instead
+of installing the plugin's copy.
 
 ## Prepare the agent's environment
 
