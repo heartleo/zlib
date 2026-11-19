@@ -113,10 +113,17 @@ following `kubernetes-mcp-server` and the usual native-binary launchers:
 
 Release `vX.Y.Z` gives the server version `X.Y.Z` and bundles named
 `zlib_X.Y.Z_<os>_<arch>.mcpb`. A published version cannot change. To fix only the
-entry's metadata (a description, an icon) without a new binary, publish a
-prerelease of the same version, such as `X.Y.Z-1`, which sorts before `X.Y.Z` and
-leaves it the latest. That needs a matching `vX.Y.Z-1` release, whose bundles the
-workflow renders with new names, URLs and hashes.
+entry's metadata (a description, an icon) without a new binary, the registry
+needs a version it sorts higher.
+
+The registry marks the highest semantic version as `latest`, and sorts a
+prerelease such as `X.Y.Z-1` before `X.Y.Z`. A `X.Y.Z-1` published after `X.Y.Z`
+is therefore never `latest`, and clients that read `latest` keep the old entry.
+Use a prerelease of the same version only to correct the metadata before `X.Y.Z`
+is published. Afterwards, publish a higher version: the next patch release, or a
+prerelease of it such as `X.Y.(Z+1)-0`, which sorts after `X.Y.Z`. Each needs its
+own `v` release, because the workflow renders `server.json` from that release's
+bundles, with new names, URLs and hashes.
 
 ## Known limits
 
