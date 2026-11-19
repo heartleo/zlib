@@ -64,9 +64,18 @@ so the script is the single source. No provider key or personal model
 subscription is required for a repository with an active OSS grant. Keep the
 grant enabled and select only funded models to use the program.
 
-New issues, including those from non-collaborators, receive analysis, related
-issue checks and plans when actionable. Automatic labeling is off; the issue
-forms already apply the `bug`, `enhancement` and `question` labels.
+New issues, including those from non-collaborators, receive one short reply:
+a duplicate and related-issue check, a brief diagnosis and a suggested
+direction. Issue replies are written for users: English only, whatever language
+the author wrote in, about 120 words at most, and with no source paths, line
+numbers or internal names. The agent still traces the source and tests before
+naming a cause; it just does not show that work in a public thread. Replies
+that Pullfrog posts on a security-sensitive report point to the private route in
+[SECURITY.md](../.github/SECURITY.md) and leave the details out. Pull request
+reviews keep file and line evidence and state which checks ran. Pullfrog adds its
+own footer (model name, run link, an "Implement a fix" link) to comments; the
+prompts cannot remove it. Automatic labeling is off; the issue forms already
+apply the `bug`, `enhancement` and `question` labels.
 New PRs receive comment-only reviews, with re-reviews on new commits. Maintainer
 mentions can request additional analysis; outside mentions cannot start runs.
 Automatic implementation, CI fixes, approvals and merging are disabled. Code
