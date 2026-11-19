@@ -39,6 +39,22 @@ func (m metaPageModel) openPrepare() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// backToPrepare is Esc on the results, or on the page that says nothing was
+// found: the step before them, the prepare page, with the terms and the sources
+// as they were searched. Enter there searches again. Unlike s, it keeps nothing
+// to return to, so Esc on the prepare page leaves, as it does the first time the
+// page opens. A page built with no sources to choose from has no prepare page to
+// go back to, and Esc leaves.
+func (m metaPageModel) backToPrepare() (tea.Model, tea.Cmd) {
+	if len(m.sources) == 0 || m.lookupFor == nil {
+		m.cancelled = true
+		return m, tea.Quit
+	}
+	m.draft = append([]metaSourceChoice(nil), m.sources...)
+	m.stage, m.sourceCursor, m.message, m.prev = metaPrepare, 0, "", nil
+	return m, nil
+}
+
 // prepareKey handles a key on the prepare page. It is not a text input, so q
 // leaves like Esc.
 func (m metaPageModel) prepareKey(k string) (tea.Model, tea.Cmd) {

@@ -356,7 +356,11 @@ nothing while a search or a write runs:
   `[x]` or `[ ]` and why it cannot be turned on (WeRead without
   `ZLIB_WEREAD_API_KEY` says so, and the key is only reported as set or not
   set, never shown). Esc there returns to these results with the choice as it
-  was. A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first
+  was. Esc on the results (or on the page that says nothing was found) itself
+  goes back a step, to the same prepare page with the terms and sources as they
+  were searched; Enter there searches again and Esc leaves, as the first time.
+  Unlike `s`, it keeps the results from being brought back. `q` and Ctrl+C
+  leave from the results at once. A source listed in `ZLIB_METADATA_SOURCES` shows as on, as the first
   search used it, even when its key is missing and it can only report that; it
   can be turned off but not back on without the key. While a search runs, Esc
   returns to the page it started from. The choice applies to this session and

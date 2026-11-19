@@ -438,7 +438,8 @@ per-source `errors`.
 Exit codes, for redirected output and `--json`: `1` when nothing matched, `2`
 when the file has nothing to search with or `--isbn` is not a valid ISBN, `4`
 when every source was unreachable. On a terminal the interactive page reports
-these cases itself: leaving it with Esc exits `0`, and a file with nothing to
+these cases itself: leaving it exits `0` (Esc on the results goes back to the
+search page first, and Esc there leaves; `q` leaves at once), and a file with nothing to
 search with opens the search editor, so you can type a title, author or ISBN
 (leaving without searching exits `0`).
 

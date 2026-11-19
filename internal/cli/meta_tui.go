@@ -366,7 +366,9 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case metaFailed:
 		switch k {
-		case "esc", "ctrl+c", "q":
+		case "esc":
+			return m.backToPrepare()
+		case "ctrl+c", "q":
 			m.cancelled = true
 			return m, tea.Quit
 		case "e":
@@ -380,7 +382,9 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	case metaCandidates:
 		switch k {
-		case "esc", "ctrl+c", "q":
+		case "esc":
+			return m.backToPrepare()
+		case "ctrl+c", "q":
 			m.cancelled = true
 			return m, tea.Quit
 		case "e":
