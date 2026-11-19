@@ -42,7 +42,7 @@ is ever replaced.
 
 On a terminal, zlib meta with no file (or only --fetch) opens a file picker,
 then a page that reads the file name and the file, lets you choose the sources
-(Open Library, Google Books, Douban, WeRead; by default Douban for a Chinese
+(Open Library, Google Books, Goodreads, Douban, WeRead; by default Douban for a Chinese
 book, else Open Library, plus Google Books with a key) and searches when you
 press Enter,
 so you can review, edit and write its metadata. --fetch --source picks the
@@ -110,7 +110,7 @@ func addMetaFlags(cmd *cobra.Command) {
 	f.String("to-opf", "", "Save the metadata to this OPF file")
 	f.String("from-opf", "", "Apply the metadata in this OPF file")
 	f.Bool("fetch", false, "Look the book up in online catalogues; on a terminal pick a match and apply it, otherwise list matches (-t, -a and --isbn set what to search for and list matches)")
-	f.StringSlice("source", nil, "With --fetch, the catalogues to ask: openlibrary, google, douban, weread (comma-separated or repeated); overrides "+metaSourcesEnv)
+	f.StringSlice("source", nil, "With --fetch, the catalogues to ask: openlibrary, google, goodreads, douban, weread (comma-separated or repeated); overrides "+metaSourcesEnv)
 	f.Bool("rename", false, "Rename the file to \"Title - Authors.ext\" (or the format in ZLIB_FILENAME_FORMAT) from the title and authors a lookup would search for, after any change above")
 	f.String("rename-to", "", "Rename the file to this name; the extension is kept and characters a file system rejects are replaced")
 	f.Bool("json", false, "Print the metadata as JSON")

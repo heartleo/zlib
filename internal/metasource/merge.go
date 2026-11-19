@@ -48,7 +48,7 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 		return i
 	}
 	// editionsOf returns the identifiers in the pool that name one edition, by
-	// scheme: an ISBN, a Douban subject ID and a WeRead book ID. Two pools that hold different
+	// scheme: an ISBN, a Goodreads, Douban or WeRead book ID. Two pools that hold different
 	// values of the same scheme are two editions and are never joined; pools
 	// that share no scheme say nothing against each other.
 	editionsOf := func(root int) map[string]string {
@@ -58,7 +58,7 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 				continue
 			}
 			for _, id := range in[i].Identifiers {
-				if (id.Scheme == "isbn" || id.Scheme == "douban" || id.Scheme == "weread") && id.Value != "" && out[id.Scheme] == "" {
+				if (id.Scheme == "isbn" || id.Scheme == "goodreads" || id.Scheme == "douban" || id.Scheme == "weread") && id.Value != "" && out[id.Scheme] == "" {
 					out[id.Scheme] = id.Value
 				}
 			}

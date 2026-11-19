@@ -337,7 +337,7 @@ nothing while a search or a write runs:
   when the title searched agrees closely with the result's, so typing the
   title of the book the hint names is how you say the file is that book, while
   a different title leaves the match flagged. `s` goes back to the prepare page to
-  change the sources: Open Library, Google Books, Douban and WeRead, each with
+  change the sources: Open Library, Google Books, Goodreads, Douban and WeRead, each with
   `[x]` or `[ ]` and why it cannot be turned on (WeRead without
   `ZLIB_WEREAD_API_KEY` says so, and the key is only reported as set or not
   set, never shown). Esc there returns to these results with the choice as it

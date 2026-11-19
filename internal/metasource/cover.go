@@ -26,8 +26,9 @@ const (
 
 // coverHosts are the hosts a cover may be fetched from: Open Library's cover
 // server and the Internet Archive hosts it redirects to, Google Books, and
-// Douban's image servers (imgN.doubanio.com).
-var coverHosts = hostPolicy{"covers.openlibrary.org", ".archive.org", "books.google.com", ".doubanio.com"}
+// Douban's image servers (imgN.doubanio.com), and Goodreads' image server
+// (i.gr-assets.com, which answers a cover directly, without a redirect).
+var coverHosts = hostPolicy{"covers.openlibrary.org", ".archive.org", "books.google.com", ".doubanio.com", goodreadsCoverHost}
 
 // doubanCoverReferer is sent to Douban's image servers, which answer HTTP 418
 // to a request without a Referer on a Douban site. Other hosts get none.

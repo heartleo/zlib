@@ -65,7 +65,8 @@ allow-listed host re-checked on every redirect (Open Library covers can
 redirect to Internet Archive hosts), at most 10 MiB, a real JPEG, PNG, GIF or
 WebP image, and at least 50 pixels on each side. Douban's image hosts
 (`img<N>.doubanio.com`) are on the list too; they answer a request without a
-Douban `Referer` with HTTP 418, so one is sent to those hosts only.
+Douban `Referer` with HTTP 418, so one is sent to those hosts only. So is
+Goodreads' image host (`i.gr-assets.com`), which needs no `Referer`.
 
 For a book downloaded through zlib, the Z-Library record's own ISBN is added
 to the lookup. The record is validated like any other ISBN, and its title and
@@ -145,6 +146,47 @@ subject's HTML page would need page scraping, which zlib does not do.
 
 Not measured: whether Douban accepts zlib's own `User-Agent` (the
 measurements used the `curl` default), and its throttling limits.
+
+## Goodreads
+
+Studied revision: `bookorbit/bookorbit` at
+`c1dd6b4f1947ff50843a155e12e70f1e7d15f0c7`, the Goodreads provider of its
+metadata fetch (the provider, mapper and types files). zlib's source is written
+in Go from the behaviour below and the measurements, and shares no code with it.
+
+| Behaviour | What zlib does |
+| --- | --- |
+| Search the suggestion endpoint first, because the HTML pages are gated by a bot challenge | Uses only the suggestion endpoint and the ISBN redirect; it never reads a book page |
+| A bot challenge is a 202 with a script, not a block status; a plain request cannot pass it, and carrying on only keeps it up | The 202 is reported as the source failing, once, and the lookup carries on with the other sources. zlib does not solve the challenge or imitate a browser to avoid it: the browser-like request headers BookOrbit sends are not sent |
+| The book page's embedded state is the only source of a full description, a publisher, a date, a language and an ISBN | Not used, since the page is not read. The suggestion blurb is kept only when it is not marked as cut short |
+| The suggestion list for an ISBN is searched and its hit is mapped | The ISBN is first resolved through the redirect, and only the hit whose book ID is the redirect's is taken, so another book in the list cannot be mistaken for the ISBN's |
+| A short pause and a few retries for the 503 that Goodreads answers with under load | One retry after a short wait for 502, 503 or 504, ended by the lookup's own timeout. 500 is never retried |
+| Results are scored by title, author, rating count and a penalty for summaries and study guides | The lookup's own ranking and title similarity decide. The live endpoint returned a study-guide hit for a one-word title, and its title did not reach the similarity threshold, so no separate filter was added |
+
+zlib's requests carry its own `User-Agent`, no cookie and no login. Live
+measurements, status codes and key names only:
+
+| Request | Result |
+| --- | --- |
+| `GET /book/auto_complete?format=json&q=<isbn>` | 200, `application/json`, a list of one hit |
+| `GET /book/auto_complete?format=json&q=<title and author>` | 200, a list of up to five hits |
+| A hit | `bookId` (a string), `workId`, `bookUrl` (a path ending `/book/show/<id>` and a slug, after `-` or `.`), `title` (with a ` (Series, #n)` suffix when it is in one), `bookTitleBare`, `author` (an object: `id`, `name`, `isGoodreadsAuthor`, `profileUrl`, `worksListUrl`), `numPages` (a number), `avgRating` (a string), `ratingsCount` (a number), `imageUrl`, `description` (an object: `html`, `truncated`, `fullContentUrl`), `qid`, `rank`, `from_search`, `from_srp`, `kcrPreviewUrl` |
+| `description.truncated` | `true` in every hit measured |
+| `GET /book/isbn/<isbn>` | 301 with an absolute `Location` of `/book/show/<id>-<slug>` on the same host. The ID is the one the suggestion list gives for the same ISBN |
+| `GET /book/show/<id>` | 202, `text/html`, a few kilobytes: a script and the markers `awsWafCookieDomainList` and `challenge-container`, and none of the page's data. A browser-like `User-Agent` was not measured and is not planned |
+| `GET` of a hit's `imageUrl` | 200, `image/jpeg`, 50 by 75 pixels (a thumbnail, with a `._SY75_` size token in the name) |
+| `GET` of the same URL without the size token | 200, `image/jpeg`, 1000 by 1500 pixels, no redirect, on `i.gr-assets.com` |
+
+Consequences: Goodreads adds a title, authors, a cover, a series name inside
+the title text and a Goodreads ID, and nothing that names an edition. A title
+hit is a work-level candidate, so its edition fields start unselected like any
+title match, and an ISBN hit is edition level and carries the ISBN that was
+asked for. The cover host `i.gr-assets.com` is on the cover allow-list with
+no `Referer`, and a URL for the "no photo" placeholder is not offered.
+
+The endpoints are not an API Goodreads documents, and Goodreads has ended its
+public API, so they can change without notice. A change shows as the source
+failing, never as a wrong write: a hit with no usable ID or title is skipped.
 
 ## WeRead
 

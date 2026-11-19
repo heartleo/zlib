@@ -116,6 +116,7 @@ func cmpDefault(v, def time.Duration) time.Duration {
 const (
 	NameOpenLibrary = "openlibrary"
 	NameGoogle      = "google"
+	NameGoodreads   = "goodreads"
 	NameDouban      = "douban"
 	NameWeRead      = "weread"
 )
@@ -158,7 +159,7 @@ func ChineseBook(languages []string, title string, authors []string) bool {
 }
 
 // KnownSourceNames lists the built-in sources in the order they are offered.
-var KnownSourceNames = []string{NameOpenLibrary, NameGoogle, NameDouban, NameWeRead}
+var KnownSourceNames = []string{NameOpenLibrary, NameGoogle, NameGoodreads, NameDouban, NameWeRead}
 
 // NormalizeSourceList checks a comma-separated source list and returns it in
 // the canonical order, without duplicates. An unknown name is an error, so a
@@ -241,6 +242,10 @@ func NewSources(names []string, cfg SourceConfig) []Source {
 			s := NewGoogleBooks(cfg.Transport, cfg.GoogleKey)
 			s.limit = cfg.MaxResults
 			out = append(out, s)
+		case NameGoodreads:
+			s := NewGoodreads(cfg.Transport)
+			s.limit = cfg.MaxResults
+			out = append(out, s)
 		case NameDouban:
 			s := NewDouban(cfg.Transport)
 			s.limit = cfg.MaxResults
@@ -261,7 +266,7 @@ type unknownSource struct{ name string }
 
 func (u unknownSource) Name() string { return u.name }
 func (u unknownSource) Identify(context.Context, Query) ([]Candidate, error) {
-	return nil, errors.New("unknown source (use openlibrary, google, douban or weread)")
+	return nil, errors.New("unknown source (use openlibrary, google, goodreads, douban or weread)")
 }
 
 // ErrorSummary joins the per-source errors into one line.

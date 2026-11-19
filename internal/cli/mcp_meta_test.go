@@ -117,9 +117,9 @@ func TestMCPLookupMetadata(t *testing.T) {
 	}
 
 	for args, want := range map[string]string{
-		"":                                    "give file_path",
-		`"isbn":"123"`:                        "not a valid ISBN",
-		`"title":"x","sources":["goodreads"]`: "unknown source",
+		"":                                       "give file_path",
+		`"isbn":"123"`:                           "not a valid ISBN",
+		`"title":"x","sources":["librarything"]`: "unknown source",
 	} {
 		in := map[string]any{}
 		switch args {
@@ -127,7 +127,7 @@ func TestMCPLookupMetadata(t *testing.T) {
 		case `"isbn":"123"`:
 			in["isbn"] = "123"
 		default:
-			in["title"], in["sources"] = "x", []string{"goodreads"}
+			in["title"], in["sources"] = "x", []string{"librarything"}
 		}
 		if msg := toolErrorText(t, session, "lookup_metadata", in); !strings.Contains(msg, want) {
 			t.Errorf("%v: %q, want %q", in, msg, want)

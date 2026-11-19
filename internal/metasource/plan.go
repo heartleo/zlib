@@ -26,7 +26,7 @@ const (
 
 // writableIdentifiers are the schemes a lookup may add. A uuid names one
 // particular file and is never taken from a catalogue.
-var writableIdentifiers = []string{"isbn", "google", "openlibrary", "douban", "weread"}
+var writableIdentifiers = []string{"isbn", "google", "openlibrary", "goodreads", "douban", "weread"}
 
 // WritableIdentifier reports whether a lookup, or an agent acting on one, may
 // write an identifier of this scheme. A uuid names one file and never can.

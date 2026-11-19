@@ -259,7 +259,7 @@ page, one step at a time ([Metadata](metadata.md)). A good run:
 3. `edit_metadata` with the fields the user chose. Authors, languages and tags
    are lists; `cover_url` takes a match's cover URL (only https URLs on a
    catalogue's cover host are fetched); `identifiers` takes catalogue
-   identifiers (`google`, `openlibrary`, `douban`, `weread`); `clear` empties
+   identifiers (`google`, `openlibrary`, `goodreads`, `douban`, `weread`); `clear` empties
    fields. Values are checked as the terminal editor checks them, a refused
    value is an error naming the field, and nothing is written when any value is
    refused. `rename` names the file from its title and authors in the user's

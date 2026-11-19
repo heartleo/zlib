@@ -159,7 +159,7 @@ for instead of what the file says. To use a match, copy the values into the
 field options above; the terminal interface applies a match for you.
 
 `--source` picks the catalogues for that run: `openlibrary`, `google`,
-`douban` and `weread`, comma-separated or repeated. It needs `--fetch`, it
+`goodreads`, `douban` and `weread`, comma-separated or repeated. It needs `--fetch`, it
 beats `ZLIB_METADATA_SOURCES`, and an unknown name is a usage error (exit `2`).
 It is never saved. Without it a lookup asks the sources in
 `ZLIB_METADATA_SOURCES`, or the default sources for the book when that is unset.
@@ -176,8 +176,8 @@ With no list chosen, the sources follow the book's language:
 A book is Chinese when its language is Chinese, or when its title, first author
 or file name (or, for a download, the Z-Library record) is written in Han
 characters: a Chinese book is often tagged with the wrong language. Kana and
-hangul rule it out, so a Japanese or Korean book is not Chinese. WeRead is
-never a default. A list in `ZLIB_METADATA_SOURCES` or `--source` replaces the
+hangul rule it out, so a Japanese or Korean book is not Chinese. Goodreads and
+WeRead are never defaults. A list in `ZLIB_METADATA_SOURCES` or `--source` replaces the
 defaults for every book; the prepare page shows which sources are on and lets
 you change them, and Ctrl+D saves the choice as that list.
 
@@ -260,6 +260,37 @@ download record.
   and PDF text is compressed and is not read. This is how books downloaded
   before the download recorded an ISBN get an exact match.
 
+### Goodreads
+
+Goodreads knows most English-language books, with their series and a cover. It
+is off by default, because it sends the title, authors or ISBN to a third
+party. List it to ask it, alone or with other sources:
+
+```sh
+zlib meta book.epub --fetch --source openlibrary,goodreads
+ZLIB_METADATA_SOURCES=openlibrary,goodreads zlib meta book.epub --fetch
+```
+
+zlib uses two Goodreads addresses, with no cookie or login and its own
+`User-Agent`. A title, or a title and the first author, is searched through
+Goodreads' suggestion list, which returns a few books as JSON: title, author,
+cover and a blurb. An ISBN is resolved through Goodreads' ISBN address, which
+redirects to the book; zlib reads the redirect and does not follow it, and picks
+that book from the suggestions. A result found by an ISBN carries that ISBN
+and the Goodreads book ID.
+
+Goodreads' book pages sit behind a bot challenge that a plain request cannot
+pass, and zlib does not try to solve it or to look like a browser. It never
+reads a book page, so Goodreads gives no publisher, publication date, language
+or ISBN of its own: a result found by title is a `title match` that names no
+edition, and its ID is the only identifier it adds. The suggestion list cuts
+long blurbs short, and a cut-short blurb is not offered as a description, so
+it never replaces a whole one from another source. The cover is the full-size
+image from Goodreads' image server (`i.gr-assets.com`). If Goodreads asks for the
+challenge, or refuses a request, the source is reported as failing like any
+other and the rest of the lookup carries on; a request it answers with 502, 503
+or 504 is tried once more.
+
 ### Douban
 
 Douban Books covers Chinese editions that Open Library and Google Books lack,
@@ -273,7 +304,7 @@ ZLIB_METADATA_SOURCES=douban,openlibrary,google zlib meta book.epub --fetch
 
 Add the line to `.env` to keep it, or press Ctrl+D on the prepare page of the
 terminal interface, which writes it for you. The names are `openlibrary`, `google`,
-`douban` and `weread`; with `--fetch` an unknown name is reported as a failing
+`goodreads`, `douban` and `weread`; with `--fetch` an unknown name is reported as a failing
 source, and the prepare page leaves it out. An ISBN is resolved
 through Douban's ISBN address and a title through its mobile search, then up
 to ten entries are read (as many as the result limit, at most 10). Editions of one title stay separate results, so you
@@ -374,7 +405,7 @@ is written:
 | `a` | Fields | Take the match's value for every field it proposes, or for none |
 | `?` | Any page but a search or a write in progress | List every key of the page |
 | `n` | Prepare, candidates, no match, fields | Rename the file: choose a name from the search terms, the file's own title or the selected match, or type one. Takes effect at once and never replaces another file |
-| `s` | Candidates, or no match | Go back to the prepare page to change the sources: Open Library, Google Books, Douban, WeRead. A source whose key is missing says so |
+| `s` | Candidates, or no match | Go back to the prepare page to change the sources: Open Library, Google Books, Goodreads, Douban, WeRead. A source whose key is missing says so |
 | `e` | Fields | Type a value for the focused field (title, title sort, authors, author sort, series, publisher, languages, tags, date, ISBN, rating, description, cover image). An invalid value is refused with the reason |
 
 Each candidate row ends with the sources behind it in brackets, and the
@@ -385,8 +416,8 @@ and `-t`, `-a` or `--isbn` print the list instead.
 
 A match that has a cover adds a `Cover` row. Selecting it downloads the image
 when you apply: if the download fails, nothing is written and the page says
-why. A cover is only fetched from Open Library, the Internet Archive, Google Books
-and Douban, must be a JPEG, PNG, GIF or WebP image of at least 50 by 50 pixels, and
+why. A cover is only fetched from Open Library, the Internet Archive, Google Books,
+Goodreads and Douban, must be a JPEG, PNG, GIF or WebP image of at least 50 by 50 pixels, and
 is capped at 10 MiB. A MOBI or AZW3 file can only have an existing cover
 replaced, so the row is not offered for one without a cover.
 
