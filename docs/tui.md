@@ -257,8 +257,9 @@ WeRead file pickers open in the default download directory.
 Z-Library login. It opens a file picker listing folders and the formats
 `zlib meta` reads, or takes a path (`/meta "<file>"`). The page does not search
 at once: it moves through a prepare step, a lookup, candidates, fields and
-writing. The subtitle says which of the three steps you are on (`Step 2 of 3:
-Choose a match`, or `2/3` when the terminal is narrow), and `?` on any page
+writing. The subtitle says which of the three steps you are on (`Step 1 of 3:
+Search`, `Step 2 of 3: Choose a match`, or `2/3` when the terminal is narrow),
+and `?` on any page
 lists every key it takes, including those the footer has no room for, and
 leaves out keys that do nothing there; the list scrolls when the terminal is
 short. `?`, Esc, `q` or Enter close it. In an editor `?` is text, and it does
@@ -324,9 +325,15 @@ nothing while a search or a write runs:
   five-cell marker: `ISBN` for an ISBN match, `ISBN?` when the ISBN matches but
   the title is different or nothing independent vouches for it, or a percentage for a title match. The pane under the
   list shows the selected match's details. Each row ends with the sources that
-  agreed on it in brackets, such as `[WeRead]` or `[Google Books+Open Library]`,
-  and the details name the ISBN, or say `no ISBN listed` for an edition without
-  one, which is then a guess by title. A source that failed while others
+  agreed on it in brackets, such as `[WeRead]` or `[Google Books+Open Library]`.
+  The sources column is as wide as the longest label of any match, so a label is
+  never cut and the column does not move as the list scrolls; the title and the
+  authors share what is left. When the full names would leave them less than 34
+  cells (80 columns with a merge of three catalogues), every row uses two-letter
+  names instead (`OL` Open Library, `GB` Google Books, `GR` Goodreads, `DB`
+  Douban, `WR` WeRead), and the details and the match's panel still name the
+  catalogues in full. The details name the ISBN, or say `no ISBN listed` for an
+  edition without one, which is then a guess by title. A source that failed while others
   answered is named on the status line. `e` edits what is searched for: the
   title, authors (separated by `&`) and ISBNs (separated by commas), then
   Enter searches again, Tab moves between the fields and Esc cancels. This

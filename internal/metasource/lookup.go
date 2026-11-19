@@ -121,6 +121,25 @@ const (
 	NameWeRead      = "weread"
 )
 
+// ShortSourceName is a source's display name (Source.Name) in two letters, for
+// a list too narrow to name every source of a merged result in full. A name it
+// does not know is returned as it is.
+func ShortSourceName(name string) string {
+	switch name {
+	case sourceOL:
+		return "OL"
+	case sourceGoogle:
+		return "GB"
+	case sourceGoodreads:
+		return "GR"
+	case sourceDouban:
+		return "DB"
+	case sourceWeRead:
+		return "WR"
+	}
+	return name
+}
+
 // DefaultSourceNames are the sources used for a book that is not Chinese when
 // none are chosen and no Google Books key is set. See DefaultSourceNamesFor.
 var DefaultSourceNames = []string{NameOpenLibrary}

@@ -406,7 +406,7 @@ func (m metaPageModel) prepareTerms(width int, compact bool) []string {
 	}
 	lines := []string{sectionHeader("Search for", "m edit file · i details", width)}
 	if q.Empty() {
-		return append(lines, "    "+colorFaint(ansi.Truncate("Nothing to search with yet: press e to enter a title, an author or an ISBN.", max(1, width-4), "…")))
+		return append(lines, "    "+colorFaint(ansi.Truncate("Nothing to search yet. Press e to enter a title, author or ISBN.", max(1, width-4), "…")))
 	}
 	title, note := q.Title, prepareFrom(x.TitleFrom)
 	if title == "" {

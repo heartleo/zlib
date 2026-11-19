@@ -654,7 +654,8 @@ func (m metaPageModel) matchCoverCmd(url string) tea.Cmd {
 const (
 	benchCoverCols = 16
 	benchCoverRows = 9
-	benchLabelW    = 12
+	benchLabelW    = 12 // the least width of the label column
+	benchLabelMax  = 16 // and the most, so a very long identifier name cannot take the panel
 )
 
 // benchWide reports whether the two panels fit: wide and tall enough for every
@@ -680,7 +681,7 @@ func (m metaPageModel) fieldsHeaderLines() []string {
 	if m.manual {
 		return append([]string{ansi.Truncate("  "+colorFaint("Editing the file's own metadata. Nothing is looked up."), width, "…")}, file...)
 	}
-	lines := []string{ansi.Truncate("  "+colorFaint("Match: ")+safeText(m.cand.Title)+colorFaint(" · "+safeText(strings.Join(m.cand.Sources, ", "))+" · "+metaMatchLabel(m.cand)), width, "…")}
+	lines := []string{ansi.Truncate("  "+colorFaint("Match: ")+safeText(m.cand.Title)+colorFaint(" · "+strings.TrimSuffix(strings.TrimPrefix(metaSourceLabel(m.cand, false), "["), "]")+" · "+metaMatchLabel(m.cand)), width, "…")}
 	lines = append(lines, file...)
 	warn := lipgloss.NewStyle().Foreground(currentTheme.Warning)
 	switch {
@@ -768,6 +769,7 @@ func (m metaPageModel) benchPanelsWith(rows []benchRow, covers bool) []string {
 // what will be written, the match's side what it says. With covers, the first
 // rows leave room for the image on the left.
 func (m metaPageModel) panelLines(rows []benchRow, file bool, w int, block []string) []string {
+	labelW := benchLabelWidth(rows)
 	n := len(rows)
 	covers := len(block) > 0
 	if covers {
@@ -788,7 +790,7 @@ func (m metaPageModel) panelLines(rows []benchRow, file bool, w int, block []str
 			continue
 		}
 		r := rows[i]
-		text := m.panelCell(r, file, max(10, w-indent))
+		text := m.panelCell(r, file, max(10, w-indent), labelW)
 		if i == m.focus {
 			text = lipgloss.NewStyle().Background(currentTheme.Surface).Bold(true).Render(ansi.Strip(text))
 		}
@@ -797,8 +799,20 @@ func (m metaPageModel) panelLines(rows []benchRow, file bool, w int, block []str
 	return out
 }
 
+// benchLabelWidth is the width of the label column for rows: the widest field
+// label and a gap, never less than benchLabelW, so a long label such as
+// "ID openlibrary" does not run into its value or lose its end. A label longer
+// than the cap is cut with an ellipsis.
+func benchLabelWidth(rows []benchRow) int {
+	w := benchLabelW
+	for _, r := range rows {
+		w = max(w, ansi.StringWidth(metaFieldLabel(r.field))+1)
+	}
+	return min(w, benchLabelMax)
+}
+
 // panelCell is one field in a panel: a mark, the label and the value, w cells.
-func (m metaPageModel) panelCell(r benchRow, file bool, w int) string {
+func (m metaPageModel) panelCell(r benchRow, file bool, w, labelW int) string {
 	value, origin := m.pending(r)
 	mark := "  "
 	if file {
@@ -826,8 +840,8 @@ func (m metaPageModel) panelCell(r benchRow, file bool, w int) string {
 	if shown == "" {
 		shown = colorFaint("—")
 	}
-	label := colorFaint(padCell(metaFieldLabel(r.field), benchLabelW))
-	cell := mark + label + ansi.Truncate(shown, max(1, w-2-benchLabelW), "…")
+	label := colorFaint(padCell(metaFieldLabel(r.field), labelW))
+	cell := mark + label + ansi.Truncate(shown, max(1, w-2-labelW), "…")
 	return cell + strings.Repeat(" ", max(0, w-ansi.StringWidth(cell)))
 }
 
@@ -863,11 +877,12 @@ func (m metaPageModel) benchTable(rows []benchRow, header int) []string {
 	room := max(1, m.height-6-header-1-4) // the column titles and a short detail
 	shown := min(n, room)
 	top := min(max(0, m.focus-shown/2), max(0, n-shown))
-	colW := max(8, (width-4-benchLabelW-4)/2)
+	labelW := benchLabelWidth(rows)
+	colW := max(8, (width-4-labelW-4)/2)
 	if m.manual {
-		colW = max(8, width-4-benchLabelW-2)
+		colW = max(8, width-4-labelW-2)
 	}
-	head := "    " + padCell("Field", benchLabelW) + padCell("This file", colW)
+	head := "    " + padCell("Field", labelW) + padCell("This file", colW)
 	if !m.manual {
 		head += "  Match"
 	}
@@ -888,7 +903,7 @@ func (m metaPageModel) benchTable(rows []benchRow, header int) []string {
 		if v == "" {
 			v = "—"
 		}
-		label := mark + padCell(metaFieldLabel(r.field), benchLabelW) + padCell(v, colW)
+		label := mark + padCell(metaFieldLabel(r.field), labelW) + padCell(v, colW)
 		if !m.manual {
 			mv := shownValue(r.field, r.match)
 			if mv == "" {

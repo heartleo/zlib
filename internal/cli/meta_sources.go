@@ -89,7 +89,7 @@ func metaSourceChoices(listed []string) []metaSourceChoice {
 	wereadNote := "key set"
 	switch {
 	case wereadKey == "":
-		wereadNote = "needs " + wereadAPIKeyEnv + " (not set)"
+		wereadNote = "needs " + wereadAPIKeyEnv
 	case !wereadOK:
 		wereadNote = wereadAPIKeyEnv + " is not a valid key"
 	}
