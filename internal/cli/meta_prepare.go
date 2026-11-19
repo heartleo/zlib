@@ -430,6 +430,9 @@ func (m metaPageModel) prepareTerms(width int, compact bool) []string {
 		lines = append(lines, row("Other", x.AltTitle, "press t to use it"))
 	}
 	lines = append(lines, row("Authors", authors, prepareFrom(x.AuthorsFrom)))
+	if len(q.ISBNs) == 0 {
+		return lines // a row that only says "none" is a line the card can use
+	}
 	return append(lines, row("ISBN", isbnLine(q, x.ISBNFrom), ""))
 }
 
@@ -454,8 +457,10 @@ func (m metaPageModel) prepareSources(width int) []string {
 	if m.wereadOn() {
 		lines = append(lines, "  "+colorFaint(ansi.Truncate("WeRead sends each title to Tencent under your account.", max(1, width-4), "…")))
 	}
-	if note := m.titleNote(); note != "" {
-		lines = append(lines, "  "+colorFaint(ansi.Truncate(note, max(1, width-4), "…")))
+	for _, note := range []string{m.titleNote(), m.goodreadsNote()} {
+		if note != "" {
+			lines = append(lines, "  "+colorFaint(ansi.Truncate(note, max(1, width-4), "…")))
+		}
 	}
 	return lines
 }

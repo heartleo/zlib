@@ -166,6 +166,23 @@ func (m metaPageModel) wereadOn() bool {
 	return false
 }
 
+// goodreadsNote says what a lookup that asks only Goodreads can give. Goodreads'
+// book pages sit behind a bot challenge that zlib does not answer, so it
+// supplies a title, authors, a series and a cover, and never a publisher, a
+// date or an ISBN: another source has to fill those. It is a note of the
+// prepare page, not part of the source's own row, which the settings list shows
+// too.
+func (m metaPageModel) goodreadsNote() string {
+	choices := m.sources
+	if m.stage == metaPrepare {
+		choices = m.draft
+	}
+	if on := enabledMetaSources(choices); len(on) == 1 && on[0] == metasource.NameGoodreads {
+		return "Goodreads alone gives no publisher, date or ISBN: add Open Library to fill them."
+	}
+	return ""
+}
+
 // titleNote warns that WeRead cannot search without a title: it has no lookup
 // by ISBN, so a title-less search would quietly return nothing from it.
 func (m metaPageModel) titleNote() string {

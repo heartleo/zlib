@@ -384,9 +384,9 @@ func (m metaPageModel) nameVerdict(c renameChoice) string {
 
 // fileNameLine is the line the lookup pages show for the file's name: the name
 // now and, when the title and authors would give it another, that name too, so
-// the user sees at a glance whether the file is named by its book and that n
-// (or F2) renames it. It gives up the arrow, then the hint, before it cuts a
-// name.
+// the user sees at a glance whether the file is named by its book. The key that
+// renames it (n, or F2) is in the footer of every page, so it is not repeated
+// here. It gives up the arrow before it cuts a name.
 func (m metaPageModel) fileNameLine(indent string, width int, title string, authors []string) string {
 	current := safeText(filepath.Base(m.path))
 	proposal := metasource.FileNameWith(m.nameLayout, title, authors, bookExt(m.path))
@@ -395,12 +395,7 @@ func (m metaPageModel) fileNameLine(indent string, width int, title string, auth
 	var variants []variant
 	if proposal != "" && proposal != filepath.Base(m.path) {
 		p := safeText(proposal)
-		variants = []variant{
-			{current + " → " + p + "  n renames", current + " " + colorFaint("→") + " " + colorBold(p) + "  " + colorFaint("n renames")},
-			{current + " → " + p, current + " " + colorFaint("→") + " " + colorBold(p)},
-		}
-	} else {
-		variants = []variant{{current + "  n renames", current + "  " + colorFaint("n renames")}}
+		variants = []variant{{current + " → " + p, current + " " + colorFaint("→") + " " + colorBold(p)}}
 	}
 	variants = append(variants, variant{current, current})
 	for _, v := range variants {

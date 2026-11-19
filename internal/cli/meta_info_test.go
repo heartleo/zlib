@@ -40,6 +40,19 @@ func richPage(t *testing.T) (metaPageModel, *[]metasource.Query) {
 	return m, queries
 }
 
+// searchTerms is the part of a prepare screen between the "Search for" rule and
+// the sources: the rows that say what will be searched.
+func searchTerms(screen string) string {
+	start := strings.Index(screen, "Search for")
+	if start < 0 {
+		return ""
+	}
+	if end := strings.Index(screen[start:], "\nSources"); end >= 0 {
+		return screen[start : start+end]
+	}
+	return screen[start:]
+}
+
 // The page shows what the file already holds, field by field, before anything
 // is asked of a catalogue.
 func TestMetaPagePrepareShowsTheFilesOwnMetadataBeforeAnySearch(t *testing.T) {
@@ -50,11 +63,22 @@ func TestMetaPagePrepareShowsTheFilesOwnMetadataBeforeAnySearch(t *testing.T) {
 	screen := metaScreen(m)
 	for _, want := range []string{
 		"Dune", "Frank Herbert & Brian Herbert", "EPUB", "Ace Books", "1990-09-01", "Dune Chronicles #1", "Fiction, Classics", "A desert planet.",
-		"ISBN", "m edit file",
+		"m edit file",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Errorf("the page lacks %q:\n%s", want, screen)
 		}
+	}
+	// With no ISBN to search by there is no ISBN row to say "none"; with one,
+	// the row says where it came from.
+	if strings.Contains(screen, "(none)") || strings.Contains(searchTerms(screen), "ISBN") {
+		t.Errorf("the terms have an ISBN row for a search without an ISBN:\n%s", screen)
+	}
+	withISBN := m
+	withISBN.query.ISBNs = []string{"9780441013593"}
+	withISBN.extraction.ISBNFrom = []string{"embedded"}
+	if terms := searchTerms(metaScreen(withISBN)); !strings.Contains(terms, "ISBN") || !strings.Contains(terms, "9780441013593") {
+		t.Errorf("the terms lack the ISBN row:\n%s", terms)
 	}
 	// The card with the book comes first, then what will be searched; nothing
 	// has been sent.

@@ -275,8 +275,12 @@ nothing while a search or a write runs:
   the rows are too few the fields are packed into dotted lines instead of being
   dropped. The shortcuts for editing the file's fields (`m`) and for all its
   details (`i`) are on the `Search for` rule under the card. Under the card is what will be searched and where each part
-  came from, read from the file name first and then the file; under that the
-  sources to ask. Nothing has been sent yet. On a short terminal the card
+  came from, read from the file name first and then the file (an ISBN row only
+  when there is an ISBN to search by); under that the sources to ask. When
+  Goodreads is the only source on, a line under them says it gives no
+  publisher, date or ISBN and that adding Open Library fills them. Nothing has
+  been sent yet. The `File` line under the card does not repeat the rename key:
+  `n` is in the footer at every width. On a short terminal the card
   gives up lines first, then the search terms shrink to one line, and a very
   short one drops the card, so the sources are never the part that is cut.
   `i` opens `File details` with everything in the file, the description wrapped, in a view that
@@ -309,7 +313,11 @@ nothing while a search or a write runs:
 - **Candidates** list the merged matches, best first. On a terminal 100
   columns wide or more the page puts the file beside the highlighted match
   under the list, in the same two panels as the workbench (read only, and only
-  the fields either side has), so you compare before choosing. Where the
+  the fields either side has), so you compare before choosing. One line between
+  the list and the panels sums it up: the fields the match adds by name, then
+  how many more it offers to check (`≠` in the panel, not selected), and what
+  the format cannot store. It gives up names, then words, before it would cut
+  one off. Where the
   terminal can draw images each panel starts with its cover, the file's on the
   left and the match's on the right. The match's cover place is always there:
   it says `loading…` while the image downloads (once per match, as soon as the

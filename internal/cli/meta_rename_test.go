@@ -613,12 +613,17 @@ func TestSaveNameLayoutWritesTheSetting(t *testing.T) {
 }
 
 // The prepare and fields pages say what the file is called and what its title
-// and authors would call it, and that n renames.
+// and authors would call it. The key that renames is in the footer, not
+// repeated on the line.
 func TestMetaPagesShowTheFileNameAndTheNameItWouldGet(t *testing.T) {
 	m, _, _ := renameFixture(t)
 	m = sized(t, m, 100, 30)
-	if screen := metaScreen(m); !strings.Contains(screen, "File  Whatever (Nobody).epub → Whatever - Nobody.epub  n renames") {
-		t.Errorf("the prepare page lacks the file line:\n%s", screen)
+	screen := metaScreen(m)
+	if !strings.Contains(screen, "File  Whatever (Nobody).epub → Whatever - Nobody.epub") || strings.Contains(screen, "n renames") {
+		t.Errorf("the prepare page lacks the file line, or repeats the key:\n%s", screen)
+	}
+	if !strings.Contains(footer(screen), "n rename") {
+		t.Errorf("the footer does not offer the rename key:\n%s", footer(screen))
 	}
 	m, _ = metaStep(t, m, key("m")) // edit the file's own metadata
 	if screen := metaScreen(m); !strings.Contains(screen, "File  Whatever (Nobody).epub → Dune - Frank Herbert.epub") {
