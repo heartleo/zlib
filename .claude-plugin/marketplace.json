@@ -10,7 +10,7 @@
     {
       "name": "zlib",
       "source": "./plugins/zlib",
-      "description": "Search and download books from Z-Library through the zlib CLI.",
+      "description": "Search and download books, send to Kindle, look up and edit e-book metadata.",
       "category": "productivity"
     }
   ]

@@ -20,7 +20,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:               "zlib",
-	Short:             "Search, download, and send Z-Library books to Kindle",
+	Short:             "Search, download, and send Z-Library books to Kindle; look up and edit e-book metadata",
 	Version:           zlib.Version,
 	SilenceUsage:      true,
 	SilenceErrors:     true,
