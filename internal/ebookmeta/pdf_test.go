@@ -3,6 +3,7 @@ package ebookmeta
 import (
 	"bytes"
 	"compress/zlib"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -89,6 +90,51 @@ func streamPDF() []byte {
 	b.Write(xs)
 	fmt.Fprintf(&b, "\nendstream\nendobj\nstartxref\n%d\n%%%%EOF", off5)
 	return b.Bytes()
+}
+
+// The object number in an object header comes from the file. One that does not
+// fit the 31 bits a PDF allows must be refused, not narrowed to an int, which
+// would make a huge number look like a small, valid one on a 32-bit build.
+func TestPDFObjectNumberIsBounded(t *testing.T) {
+	open := func(header string) *pdfFile {
+		data := []byte(header + "\n<</A 1>>\nendobj\n")
+		return &pdfFile{src: bytes.NewReader(data), size: int64(len(data))}
+	}
+	for _, header := range []string{"4294967299 0 obj", "2147483648 0 obj", "-1 0 obj"} {
+		if _, _, err := open(header).indirect(0); !errors.Is(err, ErrMalformed) {
+			t.Errorf("%q: got %v, want ErrMalformed", header, err)
+		}
+	}
+	num, _, err := open("7 0 obj").indirect(0)
+	if err != nil || num != 7 {
+		t.Fatalf("a normal object header: num %d, err %v", num, err)
+	}
+}
+
+// An object stream lists "number offset" pairs. A listed number that only
+// matches the wanted one after narrowing must not be accepted.
+func TestPDFObjectStreamNumberMustMatch(t *testing.T) {
+	const header = "5 0 "
+	s := &objStream{data: []byte(header + "<</A 1>>"), n: 1, first: int64(len(header))}
+	if _, err := s.object(5, 0); err != nil {
+		t.Fatalf("the listed object: %v", err)
+	}
+	wide := &objStream{data: []byte("4294967301 0 <</A 1>>"), n: 1, first: int64(len("4294967301 0 "))}
+	if _, err := wide.object(5, 0); !errors.Is(err, ErrMalformed) {
+		t.Fatalf("a number that wraps to the wanted one: got %v, want ErrMalformed", err)
+	}
+}
+
+// An object's offset inside its stream comes from the file. One near the top of
+// int64 must not wrap the sum with "first" to a negative slice index.
+func TestPDFObjectStreamOffsetCannotOverflow(t *testing.T) {
+	for _, off := range []string{"9223372036854775807", "9223372036854775800", "-1", "99999"} {
+		header := "5 " + off + " "
+		s := &objStream{data: []byte(header + "<</A 1>>"), n: 1, first: int64(len(header))}
+		if _, err := s.object(5, 0); !errors.Is(err, ErrMalformed) {
+			t.Errorf("offset %s: got %v, want ErrMalformed", off, err)
+		}
+	}
 }
 
 func TestReadPDF(t *testing.T) {
