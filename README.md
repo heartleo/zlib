@@ -28,7 +28,9 @@ English | [简体中文](README.zh.md)
 
 🔍 **Search** — filter by year, language, and format; sort results\
 📚 **Browse** — favorites, recommendations, popular books, and download history\
-📥 **Download** — view book details and [covers](docs/covers.md), choose a download directory\
+📥 **Download** — view book details, choose a download directory\
+🖼️ **Covers** — show book [covers](docs/covers.md) in the terminal\
+🏷️ **Metadata** — look up and edit e-book [metadata](docs/metadata.md)\
 📖 **Send to Kindle** — deliver files to your [Kindle address](docs/kindle.md)\
 🌏 **Send to WeRead** — import books into your [WeRead](docs/weread.md) shelf\
 🕒 **Profile** — check your daily download quota\
@@ -45,8 +47,8 @@ brew install heartleo/tap/zlib-cli
 ```
 
 > [!IMPORTANT]
-> The Homebrew formula was renamed from `zlib` to **`zlib-cli`**. Use the
-> command above. The installed command is still `zlib`.
+> The Homebrew formula was renamed from `zlib` to **`zlib-cli`**.  
+> Use the command above. The installed command is still `zlib`.
 
 macOS / Linux with the install script (installs to `/usr/local/bin`, may ask for `sudo`):
 
@@ -97,7 +99,7 @@ these cover a first session:
 
 | Key            | Action                                                                       |
 | -------------- | ---------------------------------------------------------------------------- |
-| `/`            | Open the command list: search, favorites, history, profile, settings, themes |
+| `/`            | Open the command list: search, favorites, history, profile, metadata, settings, themes |
 | `↑/↓` or `j/k` | Select a book                                                                |
 | `←/→`          | Previous or next page of results                                             |
 | `Enter`        | Download the selected book, after a confirmation                             |
@@ -105,7 +107,13 @@ these cover a first session:
 | `Esc`          | Go back                                                                      |
 | `/quit`        | Exit                                                                         |
 
-Settings live under `/config` (network, downloads, search formats, Kindle, WeRead). See
+On a terminal with Kitty graphics or Sixel support, at least 100 columns by 20
+rows, the selected book's card shows its cover; other terminals show text only
+([Book covers](docs/covers.md)). `/meta` opens a file picker, then looks the
+chosen e-book up online and lets you review each field before writing it. It
+needs no login ([E-book metadata](docs/metadata.md)).
+
+Settings live under `/config` (network, downloads, search formats, metadata, Kindle, WeRead). See
 [Terminal interface](docs/tui.md) for every screen and key.
 
 ## Commands
@@ -126,6 +134,9 @@ zlib search "dune" --ext epub --json --count 10
 | Check account and quota          | `zlib profile`                 |
 | Send to [Kindle](docs/kindle.md) | `zlib kindle send ./book.epub` |
 | Send to [WeRead](docs/weread.md) | `zlib weread import ./book.epub` |
+| Show a file's [metadata](docs/metadata.md) | `zlib meta book.epub` |
+| Look up a file's metadata | `zlib meta book.epub --fetch` |
+| Edit a file's metadata | `zlib meta book.epub -t "Dune" -a "Frank Herbert" --rename` |
 
 To download, replace `id:hash` with a book's complete `id` from
 the results:
@@ -187,7 +198,7 @@ grok mcp add zlib -- zlib mcp
 ```
 
 Add `--read-only` after `mcp` to hide download, history deletion, Kindle
-delivery and WeRead import. See [MCP server](docs/mcp.md) for other clients, flags, and tools.
+delivery, WeRead import and metadata editing. See [MCP server](docs/mcp.md) for other clients, flags, and tools.
 
 ## Documentation
 
@@ -197,6 +208,7 @@ delivery and WeRead import. See [MCP server](docs/mcp.md) for other clients, fla
 | [Usage](docs/usage.md)                     | Search, downloads, favorites, history          |
 | [Terminal interface](docs/tui.md)          | Commands and keyboard controls                 |
 | [Book covers](docs/covers.md)              | Supported terminals, limits and cache          |
+| [E-book metadata](docs/metadata.md)        | Lookup sources, editing, renaming, formats     |
 | [Configuration](docs/configuration.md)     | Domains, proxies, folders, configuration paths |
 | [Themes](docs/themes.md)                   | Available palettes and preview controls        |
 | [Kindle](docs/kindle.md)                   | SMTP setup and delivery                        |
