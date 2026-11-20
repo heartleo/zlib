@@ -200,7 +200,9 @@ func isOldFormulaKeg(path string) bool {
 // brewRenameNotice tells a copy installed from the retired zlib formula how to
 // move to zlib-cli. Homebrew cannot do it: the upgrade names zlib-cli, which is
 // not installed. Anyone else gets nothing, because "brew uninstall zlib" would
-// remove homebrew/core's library for a zlib-cli user who also has it.
+// remove homebrew/core's library for a zlib-cli user who also has it. The grep
+// keeps the same command safe when both kegs share the zlib rack: brew list then
+// shows only the library's files, and a bare uninstall would remove the library.
 func brewRenameNotice(executable string) string {
 	if !isOldFormulaKeg(executable) {
 		return ""
@@ -210,7 +212,7 @@ func brewRenameNotice(executable string) string {
 		"    %s\n"+
 		"    %s\n\n",
 		colorBold(symbolInfo+" The Homebrew formula was renamed from zlib to zlib-cli."),
-		colorCyan("brew uninstall zlib"),
+		colorCyan("brew list zlib | grep -q bin/zlib && brew uninstall zlib"),
 		colorCyan("brew install heartleo/tap/zlib-cli"))
 }
 

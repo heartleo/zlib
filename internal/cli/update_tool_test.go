@@ -101,7 +101,9 @@ func TestBrewFailureExplainsTheRename(t *testing.T) {
 		text := ansi.Strip(errOut.String())
 		for _, want := range []string{
 			"renamed from zlib to zlib-cli",
-			"brew uninstall zlib",
+			// Guarded: with homebrew/core's zlib in the same rack a bare
+			// "brew uninstall zlib" removes the library, not this copy.
+			"brew list zlib | grep -q bin/zlib && brew uninstall zlib",
 			"brew install heartleo/tap/zlib-cli",
 		} {
 			if !strings.Contains(text, want) {
