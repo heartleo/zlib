@@ -80,7 +80,7 @@ func runToolUpdate(ctx context.Context, in io.Reader, out, errOut io.Writer, met
 	start := time.Now()
 	if err := runUpdateCommand(ctx, in, out, errOut, name, args); err != nil {
 		if method == updateBrew {
-			lipgloss.Fprint(errOut, brewRenameNotice())
+			lipgloss.Fprint(errOut, brewRenameNotice(executable))
 		}
 		return fmt.Errorf("%s update failed: %w", name, err)
 	}
@@ -190,17 +190,29 @@ func isHomebrewKeg(path string) bool {
 	return strings.Contains(p, "/cellar/zlib-cli/") || strings.Contains(p, "/cellar/zlib/")
 }
 
-// brewRenameNotice explains the zlib -> zlib-cli formula rename. A tap that has
-// not been refreshed makes brew report a missing formula, so it leads with the
-// fix.
-func brewRenameNotice() string {
+// isOldFormulaKeg reports whether path is inside the keg of the retired zlib
+// formula. homebrew/core's zlib is a library with no zlib executable, so a copy
+// of this program in that keg always comes from the old formula.
+func isOldFormulaKeg(path string) bool {
+	return strings.Contains(strings.ToLower(strings.ReplaceAll(path, `\`, "/")), "/cellar/zlib/")
+}
+
+// brewRenameNotice tells a copy installed from the retired zlib formula how to
+// move to zlib-cli. Homebrew cannot do it: the upgrade names zlib-cli, which is
+// not installed. Anyone else gets nothing, because "brew uninstall zlib" would
+// remove homebrew/core's library for a zlib-cli user who also has it. The grep
+// keeps the same command safe when both kegs share the zlib rack: brew list then
+// shows only the library's files, and a bare uninstall would remove the library.
+func brewRenameNotice(executable string) string {
+	if !isOldFormulaKeg(executable) {
+		return ""
+	}
 	return fmt.Sprintf("\n%s\n"+
-		"  If brew said the formula is missing or not installed, refresh the tap and upgrade:\n"+
+		"  This copy comes from the old formula, which Homebrew no longer updates. Replace it:\n"+
 		"    %s\n"+
-		"  New install:\n"+
 		"    %s\n\n",
 		colorBold(symbolInfo+" The Homebrew formula was renamed from zlib to zlib-cli."),
-		colorCyan("brew update && brew upgrade heartleo/tap/zlib-cli"),
+		colorCyan("brew list zlib | grep -q bin/zlib && brew uninstall zlib"),
 		colorCyan("brew install heartleo/tap/zlib-cli"))
 }
 
