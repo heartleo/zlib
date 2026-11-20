@@ -386,6 +386,10 @@ func (f *pdfFile) indirect(off int64) (num int, obj any, err error) {
 		if err != nil {
 			return err
 		}
+		// The same bound as an "n g R" reference, so the int below cannot wrap.
+		if n < 0 || n >= 1<<31 {
+			return fmt.Errorf("%w: bad object number %d", ErrMalformed, n)
+		}
 		if _, err := p.int(); err != nil {
 			return err
 		}
@@ -515,6 +519,11 @@ func (f *pdfFile) section(off int64) (*pdfDict, bool, error) {
 				kind, err := p.token()
 				if err != nil {
 					return err
+				}
+				// Nothing reads the generation of a table entry; keep a bad one in
+				// range instead of rejecting a file that otherwise parses.
+				if g < 0 || g > 65535 {
+					g = 0
 				}
 				e := xrefEntry{off: o, gen: int(g)}
 				if kind == "n" {
@@ -708,10 +717,12 @@ func (s *objStream) object(num, idx int) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if int(i) != idx {
+		if i != int64(idx) {
 			continue
 		}
-		if int(on) != num || first+off > int64(len(data)) || off < 0 {
+		// first is within data (checked above), so this subtraction cannot wrap,
+		// unlike first+off for an off near the top of int64.
+		if on != int64(num) || off < 0 || off > int64(len(data))-first {
 			return nil, fmt.Errorf("%w: object stream index mismatch", ErrMalformed)
 		}
 		q := &pdfParser{b: data[first+off:], full: true}
