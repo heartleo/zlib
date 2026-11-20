@@ -91,21 +91,40 @@ func TestToolUpdateShowsVersionChange(t *testing.T) {
 func TestBrewFailureExplainsTheRename(t *testing.T) {
 	failing := func(string, []string, io.Writer) error { return errors.New("exit status 1") }
 
-	t.Run("brew failure points to zlib-cli", func(t *testing.T) {
+	t.Run("a copy from the old formula is told to replace it", func(t *testing.T) {
 		stubToolUpdate(t, failing, "", false)
 		var errOut bytes.Buffer
-		if err := runToolUpdate(t.Context(), nil, io.Discard, &errOut, updateBrew, "/x/zlib", "v0.0.13"); err == nil {
+		old := "/opt/homebrew/Cellar/zlib/0.0.13/bin/zlib"
+		if err := runToolUpdate(t.Context(), nil, io.Discard, &errOut, updateBrew, old, "v0.0.13"); err == nil {
 			t.Fatal("expected an error")
 		}
 		text := ansi.Strip(errOut.String())
 		for _, want := range []string{
 			"renamed from zlib to zlib-cli",
-			"brew update && brew upgrade heartleo/tap/zlib-cli",
+			"brew uninstall zlib",
 			"brew install heartleo/tap/zlib-cli",
 		} {
 			if !strings.Contains(text, want) {
 				t.Errorf("stderr lacks %q:\n%s", want, text)
 			}
+		}
+		// brew upgrade names zlib-cli, which this copy is not, so it only fails again.
+		if strings.Contains(text, "brew upgrade") {
+			t.Errorf("stderr suggests an upgrade that cannot work:\n%s", text)
+		}
+	})
+
+	t.Run("a zlib-cli copy is never told to uninstall zlib", func(t *testing.T) {
+		// Such a user may also have homebrew/core's zlib library, which other
+		// packages need.
+		stubToolUpdate(t, failing, "", false)
+		var errOut bytes.Buffer
+		current := "/opt/homebrew/Cellar/zlib-cli/0.0.14/bin/zlib"
+		if err := runToolUpdate(t.Context(), nil, io.Discard, &errOut, updateBrew, current, "v0.0.14"); err == nil {
+			t.Fatal("expected an error")
+		}
+		if errOut.Len() != 0 {
+			t.Errorf("unexpected stderr: %q", errOut.String())
 		}
 	})
 

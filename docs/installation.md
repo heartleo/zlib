@@ -14,18 +14,22 @@ brew install heartleo/tap/zlib-cli
 ```
 
 The formula is named `zlib-cli` because Homebrew's own `zlib` library already
-uses the name `zlib`; the command it installs is still `zlib`. If you installed
-the earlier `heartleo/tap/zlib` formula, refresh the tap and upgrade. Homebrew
-moves the installed version to the new formula, and the old install and upgrade
-commands keep working through the tap's `formula_renames.json`:
+uses the name `zlib`; the command it installs is still `zlib`.
+
+Homebrew does not move an installation of the earlier `heartleo/tap/zlib`
+formula to the new name, and `brew upgrade` never updates it. Replace it once.
+The first command removes `zlib` only when it is the old command, never
+Homebrew's own library:
 
 ```bash
-brew update && brew upgrade heartleo/tap/zlib-cli
+brew list zlib | grep -q bin/zlib && brew uninstall zlib
+brew install heartleo/tap/zlib-cli
 ```
 
-Maintainers: keep that rename mapping in the root of `heartleo/homebrew-tap`
-and keep GoReleaser's formula name set to `zlib-cli`. See Homebrew's
-[formula rename guidance](https://docs.brew.sh/Rename-A-Formula).
+Maintainers: keep GoReleaser's formula name set to `zlib-cli`, and do not add a
+`formula_renames.json` that maps `zlib` to `zlib-cli` to `heartleo/homebrew-tap`.
+Homebrew would treat a Homebrew-installed `zlib` library as the old name and
+fail to install or upgrade `zlib-cli` next to it.
 
 Windows (PowerShell):
 
