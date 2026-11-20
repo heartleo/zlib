@@ -353,7 +353,6 @@ type pdfFile struct {
 type xrefEntry struct {
 	typ      byte // 0 free, 1 in file, 2 in an object stream
 	off      int64
-	gen      int
 	stm, idx int
 }
 
@@ -512,20 +511,16 @@ func (f *pdfFile) section(off int64) (*pdfDict, bool, error) {
 				if err != nil {
 					return err
 				}
-				g, err := p.int()
-				if err != nil {
+				// The generation is read and dropped: nothing uses it, and a bad
+				// one must not reject a file that otherwise parses.
+				if _, err := p.int(); err != nil {
 					return err
 				}
 				kind, err := p.token()
 				if err != nil {
 					return err
 				}
-				// Nothing reads the generation of a table entry; keep a bad one in
-				// range instead of rejecting a file that otherwise parses.
-				if g < 0 || g > 65535 {
-					g = 0
-				}
-				e := xrefEntry{off: o, gen: int(g)}
+				e := xrefEntry{off: o}
 				if kind == "n" {
 					e.typ = 1
 				}
@@ -631,7 +626,7 @@ func (f *pdfFile) loadXrefStream(s *pdfStream) error {
 			case 0:
 				f.add(num, xrefEntry{typ: 0})
 			case 1:
-				f.add(num, xrefEntry{typ: 1, off: a, gen: int(b)})
+				f.add(num, xrefEntry{typ: 1, off: a})
 			case 2:
 				f.add(num, xrefEntry{typ: 2, stm: int(a), idx: int(b)})
 			}
