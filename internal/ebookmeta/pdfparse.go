@@ -511,8 +511,9 @@ func (f *pdfFile) section(off int64) (*pdfDict, bool, error) {
 				if err != nil {
 					return err
 				}
-				// The generation is read and dropped: nothing uses it, and a bad
-				// one must not reject a file that otherwise parses.
+				// The generation is read only to advance past it: nothing uses
+				// the value, so any integer is accepted. A value that is not an
+				// integer still fails, as it did before.
 				if _, err := p.int(); err != nil {
 					return err
 				}
