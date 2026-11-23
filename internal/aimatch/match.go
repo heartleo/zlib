@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -158,7 +159,7 @@ func validate(text string, pool []metasource.Candidate, evidence map[string]bool
 		seen[r.ID] = true
 		var cites []string
 		for _, u := range r.Evidence {
-			if u = strings.TrimSpace(u); evidence[u] && !slices.Contains(cites, u) {
+			if u = safeEvidenceURL(u); u != "" && evidence[u] && !slices.Contains(cites, u) {
 				cites = append(cites, u)
 			}
 		}
@@ -229,15 +230,32 @@ func (p searchPlan) queries(base metasource.Query) []metasource.Query {
 	return out
 }
 
-// evidenceSet is the pages the model's web search cited, https only.
+// evidenceSet is the pages the model's web search cited, as safeEvidenceURL
+// accepts them.
 func (p searchPlan) evidenceSet() map[string]bool {
 	set := map[string]bool{}
 	for _, e := range p.Evidence {
-		if u := strings.TrimSpace(e.URL); strings.HasPrefix(u, "https://") {
+		if u := safeEvidenceURL(e.URL); u != "" {
 			set[u] = true
 		}
 	}
 	return set
+}
+
+// safeEvidenceURL returns raw re-serialized when it is a plain https URL with
+// a host, and "" otherwise. Model text reaches a terminal, so a URL that holds
+// a control or bidi character (CleanLine would change it) or whitespace is
+// refused rather than repaired.
+func safeEvidenceURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || ebookmeta.CleanLine(raw) != raw || strings.ContainsAny(raw, " \t\r\n") {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil {
+		return ""
+	}
+	return u.String()
 }
 
 func dedupe(in []metasource.Candidate) []metasource.Candidate {

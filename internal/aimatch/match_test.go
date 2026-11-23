@@ -131,6 +131,31 @@ func TestEvidenceMustBeAPageTheWebSearchFound(t *testing.T) {
 	}
 }
 
+func TestEvidenceURLsWithControlOrBidiCharactersAreRefused(t *testing.T) {
+	for _, raw := range []string{
+		"https://example.com/a\x1b[31m",
+		"https://example.com/a‮b",
+		"https://exa mple.com/",
+		"https://user:pw@example.com/",
+		"https:///nohost",
+		"http://example.com/",
+		"javascript:alert(1)",
+		"",
+	} {
+		if got := safeEvidenceURL(raw); got != "" {
+			t.Errorf("safeEvidenceURL(%q) = %q, want it refused", raw, got)
+		}
+	}
+	if got := safeEvidenceURL("  https://example.com/book?id=1  "); got != "https://example.com/book?id=1" {
+		t.Errorf("a plain https URL was changed: %q", got)
+	}
+	// A dirty URL in the plan never enters the evidence set, so it cannot be cited.
+	p := parsePlan(`{"evidence":[{"url":"https://example.com/a\u001b[31m","note":"x"}]}`)
+	if len(p.evidenceSet()) != 0 {
+		t.Fatalf("evidence set = %v", p.evidenceSet())
+	}
+}
+
 func TestExplanationIsCleanedAndShort(t *testing.T) {
 	a := cand("openlibrary", "The Trial", "", "")
 	m := &fakeModel{plan: `{}`, judge: `{"ranking":[{"id":"c1","relation":"same_work","confidence":0.8,"explanation":"\u001b[31mred ` + strings.Repeat("x", 500) + `"}]}`}
