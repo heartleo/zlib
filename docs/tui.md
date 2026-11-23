@@ -321,14 +321,16 @@ nothing while a search or a write runs:
   page for that catalogue row, and Esc there returns to the recommendations;
   Esc again returns to the untouched results. Everything the model said passes
   through `safeText`. The AI model page is `zlib config ai` / `/config ai`. With nothing
-  configured it runs a guided setup headed `Step n of N`: provider (a filterable
-  list), then for a custom endpoint the protocol and base URL, then the API key
+  configured it runs a guided setup headed `Step n of N`: protocol
+  (OpenAI-compatible or Anthropic-compatible), then the base URL (offered as the
+  protocol's official address, any compatible endpoint allowed), then the API key
   (masked, empty editor; skipped for a local endpoint), then the model (a
   filterable list from the endpoint that starts on the current one, a typed name
   offered as `Use "…"`), and it ends by testing the connection. Esc pauses the
-  setup and keeps what was saved. Afterwards the page is six rows (provider,
-  model, API key, web search, test, remove); changing the key, model or web
-  search tests again by itself. Every edit saves at once and the saved
+  setup and keeps what was saved. Afterwards the page is seven rows (protocol,
+  base URL, API key, model, web search, test, remove); changing the key, model
+  or web search tests again by itself, and a new base URL or protocol drops the
+  key and model and runs the setup again. Every edit saves at once and the saved
   verification goes stale on any change.
 - **Candidates** list the matches of every source, best first. The answers of
   different sources are not merged: each source has its own row or rows, so the

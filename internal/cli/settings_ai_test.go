@@ -91,29 +91,35 @@ func configured(srv *httptest.Server) aimatch.Settings {
 	return aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: srv.URL + "/v1", APIKey: aiKeyForTest, Model: "m"}
 }
 
+// aiSetURL replaces the base URL the editor offers with url and presses Enter.
+func aiSetURL(t *testing.T, m aiPageModel, url string) aiPageModel {
+	t.Helper()
+	m.input.SetValue("")
+	return aiPress(t, aiType(m, url), "enter")
+}
+
 func TestAIFirstRunWalksThroughTheSetupAndVerifiesAtTheEnd(t *testing.T) {
 	srv := aiServer(t, "model-b", "model-a")
 	m := aiPageFor(t, aimatch.Settings{})
-	if m.mode != aiPick || !m.wizard || m.field != fieldProvider {
-		t.Fatalf("first run must open on the provider list: mode=%v wizard=%v", m.mode, m.wizard)
+	if m.mode != aiPick || !m.wizard || m.field != fieldProtocol {
+		t.Fatalf("first run must open on the protocol list: mode=%v wizard=%v", m.mode, m.wizard)
 	}
-	if !strings.Contains(ansi.Strip(m.view().Content), "Step 1 of 3") {
-		t.Fatalf("no step label:\n%s", ansi.Strip(m.view().Content))
-	}
-	// A custom endpoint adds a protocol and a base URL step.
-	m = aiType(m, "Custom")
-	m = aiPress(t, m, "enter")
-	if m.field != fieldProtocol || !strings.Contains(ansi.Strip(m.view().Content), "Step 2 of 5") {
-		t.Fatalf("field=%v\n%s", m.field, ansi.Strip(m.view().Content))
+	screen := ansi.Strip(m.view().Content)
+	for _, want := range []string{"Step 1 of 4", "OpenAI-compatible", "Anthropic-compatible"} {
+		if !strings.Contains(screen, want) {
+			t.Fatalf("screen lacks %q:\n%s", want, screen)
+		}
 	}
 	m = aiPress(t, m, "enter") // OpenAI-compatible
-	if m.mode != aiEdit || m.field != fieldURL {
-		t.Fatalf("mode=%v field=%v", m.mode, m.field)
+	if m.mode != aiEdit || m.field != fieldURL || m.input.Value() != "https://api.openai.com/v1" {
+		t.Fatalf("the URL step must offer the protocol's own address: mode=%v value=%q", m.mode, m.input.Value())
 	}
-	m = aiType(m, srv.URL+"/v1")
-	m = aiPress(t, m, "enter") // loopback: no key step, straight to the models
+	m = aiSetURL(t, m, srv.URL+"/v1") // loopback: no key step, straight to the models
 	if m.mode != aiPick || m.field != fieldModel || len(m.pickAll) != 2 {
 		t.Fatalf("mode=%v field=%v models=%v message=%q", m.mode, m.field, m.pickAll, m.message)
+	}
+	if !strings.Contains(ansi.Strip(m.view().Content), "Step 3 of 3") {
+		t.Fatalf("a local endpoint has no key step:\n%s", ansi.Strip(m.view().Content))
 	}
 	m = aiType(m, "model-a")
 	m = aiPress(t, m, "enter") // choosing the last step tests the connection
@@ -125,44 +131,59 @@ func TestAIFirstRunWalksThroughTheSetupAndVerifiesAtTheEnd(t *testing.T) {
 	}
 }
 
-func TestAIPresetProviderAsksForTheKeyThenTheModel(t *testing.T) {
+func TestAIAnthropicProtocolOffersItsAddressThenAsksForTheKey(t *testing.T) {
 	m := aiPageFor(t, aimatch.Settings{})
 	m = aiType(m, "Anthropic")
 	m = aiPress(t, m, "enter")
-	if m.mode != aiEdit || m.field != fieldKey || m.s.BaseURL != "https://api.anthropic.com" || m.s.Protocol != aimatch.ProtocolAnthropic {
-		t.Fatalf("mode=%v field=%v settings=%v", m.mode, m.field, m.s)
+	if m.mode != aiEdit || m.field != fieldURL || m.input.Value() != "https://api.anthropic.com" || m.s.Protocol != aimatch.ProtocolAnthropic {
+		t.Fatalf("mode=%v field=%v value=%q", m.mode, m.field, m.input.Value())
 	}
-	if !strings.Contains(ansi.Strip(m.view().Content), "Step 2 of 3") {
-		t.Fatalf("no step label:\n%s", ansi.Strip(m.view().Content))
+	m = aiPress(t, m, "enter") // keep the official address
+	if m.mode != aiEdit || m.field != fieldKey || !strings.Contains(ansi.Strip(m.view().Content), "Step 3 of 4") {
+		t.Fatalf("mode=%v field=%v\n%s", m.mode, m.field, ansi.Strip(m.view().Content))
 	}
 }
 
-func TestAIChangingProviderClearsTheOldModelAndKey(t *testing.T) {
+func TestAIChangingTheURLDropsTheOldModelAndKeyAndAsksAgain(t *testing.T) {
 	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://api.example.com/v1", APIKey: aiKeyForTest, Model: "old"})
 	if m.mode != aiRows {
 		t.Fatalf("a configured page opens on the summary, mode=%v", m.mode)
 	}
-	m.cursor = int(actProvider)
+	m.cursor = int(actURL)
 	m = aiPress(t, m, "enter")
-	m = aiType(m, "Anthropic")
-	m = aiPress(t, m, "enter")
-	if m.s.Model != "" || m.s.APIKey != "" || m.provider() != "Anthropic" {
+	m = aiSetURL(t, m, "https://other.example.com/v1")
+	if m.s.Model != "" || m.s.APIKey != "" || m.s.BaseURL != "https://other.example.com/v1" {
 		t.Fatalf("settings = %v", m.s)
 	}
-	if m.mode != aiEdit || m.field != fieldKey {
+	if m.mode != aiEdit || m.field != fieldKey || !m.wizard {
 		t.Fatalf("the key step did not follow: mode=%v field=%v", m.mode, m.field)
+	}
+}
+
+func TestAIChangingTheProtocolSwapsTheOfficialAddressButKeepsACustomOne(t *testing.T) {
+	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: aimatch.DefaultBaseURL(aimatch.ProtocolOpenAI), APIKey: aiKeyForTest, Model: "m"})
+	m.cursor = int(actProtocol)
+	m = aiPress(t, aiType(aiPress(t, m, "enter"), "Anthropic"), "enter")
+	if m.s.BaseURL != "https://api.anthropic.com" || m.s.Model != "" || m.s.APIKey != "" {
+		t.Fatalf("settings = %v", m.s)
+	}
+	custom := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://gateway.example.com/v1", APIKey: aiKeyForTest, Model: "m"})
+	custom.cursor = int(actProtocol)
+	custom = aiPress(t, aiType(aiPress(t, custom, "enter"), "Anthropic"), "enter")
+	if custom.s.BaseURL != "https://gateway.example.com/v1" || custom.s.Protocol != aimatch.ProtocolAnthropic {
+		t.Fatalf("a custom address was replaced: %v", custom.s)
 	}
 }
 
 func TestAIEscPausesTheSetupAndKeepsWhatWasSaved(t *testing.T) {
 	m := aiPageFor(t, aimatch.Settings{})
 	m = aiType(m, "Anthropic")
-	m = aiPress(t, m, "enter", "esc") // Esc in the key step
+	m = aiPress(t, m, "enter", "esc") // Esc in the URL step
 	if m.mode != aiRows || m.wizard || !strings.Contains(m.message, "paused") {
 		t.Fatalf("mode=%v wizard=%v message=%q", m.mode, m.wizard, m.message)
 	}
-	if saved, _ := config.LoadAI(); saved.BaseURL != "https://api.anthropic.com" {
-		t.Fatalf("the provider step was not kept: %v", saved)
+	if saved, _ := config.LoadAI(); saved.Protocol != aimatch.ProtocolAnthropic {
+		t.Fatalf("the protocol step was not kept: %v", saved)
 	}
 	m = aiPress(t, m, "esc")
 	if !m.done {
@@ -310,11 +331,9 @@ func TestAIKeyIsMaskedEverywhereKeptOnEmptyEnterAndTestedWhenReplaced(t *testing
 
 func TestAIRejectsAnInsecureBaseURL(t *testing.T) {
 	m := aiPageFor(t, aimatch.Settings{})
-	m = aiType(m, "Custom")
-	m = aiPress(t, m, "enter", "enter")
-	m = aiType(m, "http://api.example.com/v1")
-	m = aiPress(t, m, "enter")
-	if m.mode != aiEdit || m.s.BaseURL != "" || !strings.Contains(m.message, "https") {
+	m = aiPress(t, m, "enter") // OpenAI-compatible
+	m = aiSetURL(t, m, "http://api.example.com/v1")
+	if m.mode != aiEdit || m.field != fieldURL || !strings.Contains(m.message, "https") {
 		t.Fatalf("mode=%v url=%q message=%q", m.mode, m.s.BaseURL, m.message)
 	}
 }
@@ -379,11 +398,11 @@ func TestSettingsHomeOpensTheAIPageAndReturnsToIt(t *testing.T) {
 func TestAIPagesFitCompactTerminals(t *testing.T) {
 	srv := aiServer(t, "model-a")
 	pages := map[string]aiPageModel{
-		"summary": aiPageFor(t, configured(srv)),
-		"wizard":  aiPageFor(t, aimatch.Settings{}),
+		"summary":  aiPageFor(t, configured(srv)),
+		"protocol": aiPageFor(t, aimatch.Settings{}),
 	}
 	key := aiPageFor(t, aimatch.Settings{})
-	key = aiPress(t, aiType(key, "Anthropic"), "enter")
+	key = aiPress(t, aiType(key, "Anthropic"), "enter", "enter")
 	pages["key step"] = key
 	for name, m := range pages {
 		for _, size := range [][2]int{{80, 24}, {60, 12}, {40, 8}} {

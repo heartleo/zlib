@@ -64,8 +64,7 @@ func aiSettingValue() settingValue {
 type aiField int
 
 const (
-	fieldProvider aiField = iota
-	fieldProtocol
+	fieldProtocol aiField = iota
 	fieldURL
 	fieldKey
 	fieldModel
@@ -75,18 +74,17 @@ const (
 type aiAction int
 
 const (
-	actProvider aiAction = iota
-	actModel
+	actProtocol aiAction = iota
+	actURL
 	actKey
+	actModel
 	actSearch
 	actTest
 	actRemove
 	actCount
 )
 
-var aiActionLabels = [actCount]string{"Provider", "Model", "API key", "Web search", "Test connection", "Remove settings"}
-
-const aiCustomProvider = "Custom endpoint"
+var aiActionLabels = [actCount]string{"Protocol", "Base URL", "API key", "Model", "Web search", "Test connection", "Remove settings"}
 
 type aiMode int
 
@@ -116,10 +114,9 @@ type aiPageModel struct {
 	cursor int
 	input  textinput.Model
 	// field is what the open editor or list is for. wizard is set while the
-	// guided setup runs, and custom when its provider is a custom endpoint.
+	// guided setup runs.
 	field         aiField
 	wizard        bool
-	custom        bool
 	resetKey      bool
 	pickAll       []string
 	pickCursor    int
@@ -153,26 +150,13 @@ func newAIPage(ctx context.Context, width, height int) aiPageModel {
 	m.resize()
 	if !m.s.Configured() && err == nil {
 		m.wizard = true
-		m = m.openProviderPick() // nothing to summarise yet: start the setup
+		m = m.openProtocolPick() // nothing to summarise yet: start the setup
 	}
 	return m
 }
 
 func (m *aiPageModel) resize() {
 	m.input.SetWidth(max(1, min(56, m.width-ansi.StringWidth(m.input.Prompt)-4)))
-}
-
-// provider names the preset the settings match, else the custom endpoint.
-func (m aiPageModel) provider() string {
-	for _, p := range aimatch.Providers {
-		if p.BaseURL == m.s.BaseURL && p.Protocol == m.s.Protocol {
-			return p.Name
-		}
-	}
-	if m.s.BaseURL == "" {
-		return "Not set"
-	}
-	return aiCustomProvider
 }
 
 // save writes the settings; a failure is shown and the page goes on.
@@ -280,9 +264,11 @@ func (m aiPageModel) key(msg tea.KeyPressMsg) (aiPageModel, tea.Cmd) {
 func (m aiPageModel) activate() (aiPageModel, tea.Cmd) {
 	m.message = ""
 	switch aiAction(m.cursor) {
-	case actProvider:
-		m.wizard = true
-		return m.openProviderPick(), nil
+	case actProtocol:
+		m.wizard = true // a new protocol means a new endpoint: run the setup again
+		return m.openProtocolPick(), nil
+	case actURL:
+		return m.openEdit(fieldURL, m.s.BaseURL, false)
 	case actModel:
 		return m.toModel()
 	case actKey:
@@ -303,12 +289,10 @@ func (m aiPageModel) activate() (aiPageModel, tea.Cmd) {
 
 // --- Steps ------------------------------------------------------------------
 
-// steps lists the fields the setup visits for the provider chosen.
+// steps lists the fields the setup visits: protocol, base URL, the key unless
+// the endpoint is local, and the model.
 func (m aiPageModel) steps() []aiField {
-	steps := []aiField{fieldProvider}
-	if m.custom {
-		steps = append(steps, fieldProtocol, fieldURL)
-	}
+	steps := []aiField{fieldProtocol, fieldURL}
 	if !m.s.KeyOptional() || m.s.BaseURL == "" {
 		steps = append(steps, fieldKey)
 	}
@@ -340,11 +324,6 @@ func (m aiPageModel) advance(from aiField) (aiPageModel, tea.Cmd) {
 		return m, nil
 	}
 	switch from {
-	case fieldProvider:
-		if m.custom {
-			return m.openProtocolPick(), nil
-		}
-		return m.toKey()
 	case fieldProtocol:
 		return m.openEdit(fieldURL, m.s.BaseURL, false)
 	case fieldURL:
@@ -374,17 +353,6 @@ func (m aiPageModel) toModel() (aiPageModel, tea.Cmd) {
 		return m, nil
 	}
 	return m.discover()
-}
-
-func (m aiPageModel) openProviderPick() aiPageModel {
-	m.field = fieldProvider
-	m.pickAll = nil
-	for _, p := range aimatch.Providers {
-		m.pickAll = append(m.pickAll, p.Name)
-	}
-	m.pickAll = append(m.pickAll, aiCustomProvider)
-	m = m.openPick()
-	return m
 }
 
 func (m aiPageModel) openProtocolPick() aiPageModel {
@@ -443,6 +411,12 @@ func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 				m.message = err.Error()
 				return m, nil
 			}
+			if v != m.s.BaseURL {
+				// Another endpoint has other models, and the key belongs to the old
+				// one: neither is sent to the new address. Ask for them again.
+				m.s.Model, m.s.APIKey = "", ""
+				m.wizard = true
+			}
 			m.s.BaseURL = v
 		case fieldKey:
 			if v == "" && !m.resetKey {
@@ -488,8 +462,6 @@ func (m aiPageModel) current() string {
 	switch m.field {
 	case fieldModel:
 		return m.s.Model
-	case fieldProvider:
-		return m.provider()
 	case fieldProtocol:
 		return m.s.Protocol.Label()
 	}
@@ -561,25 +533,15 @@ func (m aiPageModel) choose(value string) (aiPageModel, tea.Cmd) {
 		m.save()
 	case fieldProtocol:
 		for _, p := range aimatch.Protocols {
-			if p.Label() == value {
-				m.s.Protocol = p
+			if p.Label() != value || p == m.s.Protocol {
+				continue
 			}
-		}
-		m.s.Model = ""
-		m.save()
-	case fieldProvider:
-		prev := m.s
-		m.custom = value == aiCustomProvider
-		for _, p := range aimatch.Providers {
-			if p.Name == value {
-				m.s.Protocol, m.s.BaseURL = p.Protocol, p.BaseURL
+			// The old address is replaced by the new protocol's own when it was the
+			// other one's; a custom address stays.
+			if m.s.BaseURL == "" || m.s.BaseURL == aimatch.DefaultBaseURL(m.s.Protocol) {
+				m.s.BaseURL = aimatch.DefaultBaseURL(p)
 			}
-		}
-		if m.custom && m.s.Protocol == "" {
-			m.s.Protocol = aimatch.ProtocolOpenAI
-		}
-		if m.s.BaseURL != prev.BaseURL || m.s.Protocol != prev.Protocol {
-			// Another endpoint has other models, and the old key belongs to the old one.
+			m.s.Protocol = p
 			m.s.Model, m.s.APIKey = "", ""
 		}
 		m.save()
@@ -672,7 +634,7 @@ func (m aiPageModel) view() tea.View {
 		return settingsCompactView(w, h, m.stepTitle(what), "", lines, m.message, controls)
 	case aiPick:
 		labels, _ := m.pickRows()
-		name := map[aiField]string{fieldProvider: "Provider", fieldProtocol: "Protocol", fieldModel: "Model"}[m.field]
+		name := map[aiField]string{fieldProtocol: "Protocol", fieldModel: "Model"}[m.field]
 		lines := []string{m.input.View(), ""}
 		visible := max(1, h-10)
 		start := max(0, m.pickCursor-visible+1)
@@ -692,10 +654,15 @@ func (m aiPageModel) view() tea.View {
 	for i := range actCount {
 		value := ""
 		switch i {
-		case actProvider:
-			value = m.provider()
-			if value == aiCustomProvider {
-				value += " · " + m.s.BaseURL
+		case actProtocol:
+			value = m.s.Protocol.Label()
+			if m.s.Protocol == "" {
+				value = "Not set"
+			}
+		case actURL:
+			value = m.s.BaseURL
+			if value == "" {
+				value = "Not set"
 			}
 		case actModel:
 			value = m.s.Model

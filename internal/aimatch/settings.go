@@ -153,19 +153,14 @@ func isLoopbackURL(raw string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-// Provider is a preset for the model picker; Custom lets the user type a URL.
-type Provider struct {
-	Name     string
-	Protocol Protocol
-	BaseURL  string
-}
-
-// Providers are the presets offered before a custom endpoint. Models are not
-// listed: they change too often, so they come from discovery or are typed.
-var Providers = []Provider{
-	{"OpenAI", ProtocolOpenAI, "https://api.openai.com/v1"},
-	{"Anthropic", ProtocolAnthropic, "https://api.anthropic.com"},
-	{"OpenRouter", ProtocolOpenAI, "https://openrouter.ai/api/v1"},
-	{"DeepSeek", ProtocolOpenAI, "https://api.deepseek.com/v1"},
-	{"Ollama (local)", ProtocolOpenAI, "http://127.0.0.1:11434/v1"},
+// DefaultBaseURL is the official address of a protocol, offered as the first
+// value of the base URL step; the user can change it to any compatible endpoint.
+func DefaultBaseURL(p Protocol) string {
+	switch p {
+	case ProtocolOpenAI:
+		return "https://api.openai.com/v1"
+	case ProtocolAnthropic:
+		return "https://api.anthropic.com"
+	}
+	return ""
 }

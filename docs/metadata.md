@@ -481,14 +481,16 @@ The standard lookup works the same with or without it, and a failure of the mode
 stays on the AI page (Esc returns to the untouched results).
 
 Set the model up in `zlib config ai` (or `/config ai`). The first time it
-walks you through provider, API key and model one step at a time and tests
-the connection at the end; afterwards it is a short list, and changing the key,
-the model or web search tests again by itself. What it holds:
+walks you through protocol, base URL, API key and model one step at a time and
+tests the connection at the end; afterwards it is a short list, and changing the
+key, the model or web search tests again by itself. Only two kinds of API are
+supported, and any endpoint that speaks one of them works. What it holds:
 
-- **Provider**: a preset (OpenAI, Anthropic, OpenRouter, DeepSeek, a local Ollama)
-  or a custom endpoint. The protocol is OpenAI-compatible or
-  Anthropic-compatible; the base URL must be `https`, except `localhost` and
-  other loopback addresses for a local server.
+- **Protocol**: OpenAI-compatible or Anthropic-compatible.
+- **Base URL**: offered as the protocol's official address, and yours to
+  change to any compatible endpoint. It must be `https`, except `localhost` and
+  other loopback addresses for a local server. Changing it drops the saved key
+  and model, so a key is never sent to an address you did not give it for.
 - **API key**, shown masked everywhere and kept in `ai.json` in the config
   directory, readable only by you. It is never written to a log or an error.
 - **Model**: listed from the endpoint when it offers a model list, with a
