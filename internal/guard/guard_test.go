@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -76,5 +77,43 @@ func TestEveryHTTPClientDecidesRedirects(t *testing.T) {
 			}
 			return true
 		})
+	}
+}
+
+// A command returns its error and Execute turns it into an exit code (see
+// docs/usage.md#exit-codes). An os.Exit deeper down skips deferred cleanup such
+// as removing a .part file and bypasses the code table.
+func TestOnlyExecuteExits(t *testing.T) {
+	for path, f := range goFiles(t) {
+		if path == "cli/root.go" {
+			continue
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			if call, ok := n.(*ast.CallExpr); ok && (isSelector(call.Fun, "os", "Exit") || isSelector(call.Fun, "log", "Fatal") || isSelector(call.Fun, "log", "Fatalf")) {
+				t.Errorf("%s: exits the process directly. Return the error from RunE and let cli.Execute pick the exit code", path)
+			}
+			return true
+		})
+	}
+}
+
+// The binary entry must stay anchored: a bare "zlib" would also ignore
+// plugins/zlib/, the generated plugin the marketplace installs.
+func TestGitignoreAnchorsTheBinary(t *testing.T) {
+	data, err := os.ReadFile("../../.gitignore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var anchored bool
+	for _, line := range strings.Split(string(data), "\n") {
+		switch strings.TrimSpace(line) {
+		case "zlib", "zlib/", "**/zlib":
+			t.Errorf(".gitignore has %q, which also ignores plugins/zlib/. Write /zlib", strings.TrimSpace(line))
+		case "/zlib":
+			anchored = true
+		}
+	}
+	if !anchored {
+		t.Error(".gitignore has no /zlib entry for the built binary")
 	}
 }
