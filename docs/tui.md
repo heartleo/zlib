@@ -320,11 +320,16 @@ nothing while a search or a write runs:
   rows, with a note when it is another edition. Enter opens the usual fields
   page for that catalogue row, and Esc there returns to the recommendations;
   Esc again returns to the untouched results. Everything the model said passes
-  through `safeText`. The AI model page is `zlib config ai` / `/config ai`: a
-  list of provider, protocol, base URL, API key (masked, empty editor, Ctrl+R
-  to remove), model (filterable list from the endpoint; a typed name offered as
-  `Use "…"`), web search and the connection test; every edit saves at once and
-  the saved verification goes stale on any change.
+  through `safeText`. The AI model page is `zlib config ai` / `/config ai`. With nothing
+  configured it runs a guided setup headed `Step n of N`: provider (a filterable
+  list), then for a custom endpoint the protocol and base URL, then the API key
+  (masked, empty editor; skipped for a local endpoint), then the model (a
+  filterable list from the endpoint that starts on the current one, a typed name
+  offered as `Use "…"`), and it ends by testing the connection. Esc pauses the
+  setup and keeps what was saved. Afterwards the page is six rows (provider,
+  model, API key, web search, test, remove); changing the key, model or web
+  search tests again by itself. Every edit saves at once and the saved
+  verification goes stale on any change.
 - **Candidates** list the matches of every source, best first. The answers of
   different sources are not merged: each source has its own row or rows, so the
   same book from three catalogues is three adjacent rows, each with only what

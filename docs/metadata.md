@@ -480,7 +480,10 @@ by itself: you start it with `a` on the results page or on the no-match page.
 The standard lookup works the same with or without it, and a failure of the model
 stays on the AI page (Esc returns to the untouched results).
 
-Set the model up in `zlib config ai` (or `/config ai`):
+Set the model up in `zlib config ai` (or `/config ai`). The first time it
+walks you through provider, API key and model one step at a time and tests
+the connection at the end; afterwards it is a short list, and changing the key,
+the model or web search tests again by itself. What it holds:
 
 - **Provider**: a preset (OpenAI, Anthropic, OpenRouter, DeepSeek, a local Ollama)
   or a custom endpoint. The protocol is OpenAI-compatible or

@@ -55,6 +55,7 @@ func aiType(m aiPageModel, text string) aiPageModel {
 	return m
 }
 
+// aiPageFor opens the page over saved settings (none: the first-run setup).
 func aiPageFor(t *testing.T, s aimatch.Settings) aiPageModel {
 	t.Helper()
 	isolateConfigHome(t)
@@ -63,8 +64,7 @@ func aiPageFor(t *testing.T, s aimatch.Settings) aiPageModel {
 			t.Fatal(err)
 		}
 	}
-	m := newAIPage(t.Context(), 100, 30)
-	return m
+	return newAIPage(t.Context(), 100, 30)
 }
 
 func aiServer(t *testing.T, models ...string) *httptest.Server {
@@ -87,49 +87,122 @@ func aiServer(t *testing.T, models ...string) *httptest.Server {
 	return srv
 }
 
-func TestAIPageConfiguresTestsAndVerifies(t *testing.T) {
-	srv := aiServer(t, "model-b", "model-a")
-	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: srv.URL + "/v1", APIKey: aiKeyForTest})
+func configured(srv *httptest.Server) aimatch.Settings {
+	return aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: srv.URL + "/v1", APIKey: aiKeyForTest, Model: "m"}
+}
 
-	// Model: discovery lists the endpoint's models; the filter narrows them.
-	m.cursor = int(aiRowModel)
+func TestAIFirstRunWalksThroughTheSetupAndVerifiesAtTheEnd(t *testing.T) {
+	srv := aiServer(t, "model-b", "model-a")
+	m := aiPageFor(t, aimatch.Settings{})
+	if m.mode != aiPick || !m.wizard || m.field != fieldProvider {
+		t.Fatalf("first run must open on the provider list: mode=%v wizard=%v", m.mode, m.wizard)
+	}
+	if !strings.Contains(ansi.Strip(m.view().Content), "Step 1 of 3") {
+		t.Fatalf("no step label:\n%s", ansi.Strip(m.view().Content))
+	}
+	// A custom endpoint adds a protocol and a base URL step.
+	m = aiType(m, "Custom")
+	m = aiPress(t, m, "enter")
+	if m.field != fieldProtocol || !strings.Contains(ansi.Strip(m.view().Content), "Step 2 of 5") {
+		t.Fatalf("field=%v\n%s", m.field, ansi.Strip(m.view().Content))
+	}
+	m = aiPress(t, m, "enter") // OpenAI-compatible
+	if m.mode != aiEdit || m.field != fieldURL {
+		t.Fatalf("mode=%v field=%v", m.mode, m.field)
+	}
+	m = aiType(m, srv.URL+"/v1")
+	m = aiPress(t, m, "enter") // loopback: no key step, straight to the models
+	if m.mode != aiPick || m.field != fieldModel || len(m.pickAll) != 2 {
+		t.Fatalf("mode=%v field=%v models=%v message=%q", m.mode, m.field, m.pickAll, m.message)
+	}
+	m = aiType(m, "model-a")
+	m = aiPress(t, m, "enter") // choosing the last step tests the connection
+	if m.wizard || !m.s.Verified() || !strings.Contains(m.message, "works") {
+		t.Fatalf("wizard=%v verified=%v message=%q", m.wizard, m.s.Verified(), m.message)
+	}
+	if saved, _ := config.LoadAI(); !saved.Verified() || saved.Model != "model-a" {
+		t.Fatalf("saved = %v", saved)
+	}
+}
+
+func TestAIPresetProviderAsksForTheKeyThenTheModel(t *testing.T) {
+	m := aiPageFor(t, aimatch.Settings{})
+	m = aiType(m, "Anthropic")
+	m = aiPress(t, m, "enter")
+	if m.mode != aiEdit || m.field != fieldKey || m.s.BaseURL != "https://api.anthropic.com" || m.s.Protocol != aimatch.ProtocolAnthropic {
+		t.Fatalf("mode=%v field=%v settings=%v", m.mode, m.field, m.s)
+	}
+	if !strings.Contains(ansi.Strip(m.view().Content), "Step 2 of 3") {
+		t.Fatalf("no step label:\n%s", ansi.Strip(m.view().Content))
+	}
+}
+
+func TestAIChangingProviderClearsTheOldModelAndKey(t *testing.T) {
+	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://api.example.com/v1", APIKey: aiKeyForTest, Model: "old"})
+	if m.mode != aiRows {
+		t.Fatalf("a configured page opens on the summary, mode=%v", m.mode)
+	}
+	m.cursor = int(actProvider)
+	m = aiPress(t, m, "enter")
+	m = aiType(m, "Anthropic")
+	m = aiPress(t, m, "enter")
+	if m.s.Model != "" || m.s.APIKey != "" || m.provider() != "Anthropic" {
+		t.Fatalf("settings = %v", m.s)
+	}
+	if m.mode != aiEdit || m.field != fieldKey {
+		t.Fatalf("the key step did not follow: mode=%v field=%v", m.mode, m.field)
+	}
+}
+
+func TestAIEscPausesTheSetupAndKeepsWhatWasSaved(t *testing.T) {
+	m := aiPageFor(t, aimatch.Settings{})
+	m = aiType(m, "Anthropic")
+	m = aiPress(t, m, "enter", "esc") // Esc in the key step
+	if m.mode != aiRows || m.wizard || !strings.Contains(m.message, "paused") {
+		t.Fatalf("mode=%v wizard=%v message=%q", m.mode, m.wizard, m.message)
+	}
+	if saved, _ := config.LoadAI(); saved.BaseURL != "https://api.anthropic.com" {
+		t.Fatalf("the provider step was not kept: %v", saved)
+	}
+	m = aiPress(t, m, "esc")
+	if !m.done {
+		t.Fatal("Esc on the summary did not leave")
+	}
+}
+
+func TestAIChoosingAModelTestsAtOnce(t *testing.T) {
+	srv := aiServer(t, "model-b", "model-a")
+	s := configured(srv)
+	s.Model = "old-model"
+	m := aiPageFor(t, s)
+	m.cursor = int(actModel)
 	m = aiPress(t, m, "enter")
 	if m.mode != aiPick || len(m.pickAll) != 2 {
 		t.Fatalf("mode=%v models=%v message=%q", m.mode, m.pickAll, m.message)
 	}
 	m = aiType(m, "model-a")
 	m = aiPress(t, m, "enter")
-	if m.s.Model != "model-a" {
-		t.Fatalf("model = %q", m.s.Model)
-	}
-	if m.s.Verified() {
-		t.Fatal("verified before any test")
-	}
-
-	// Test connection verifies exactly these settings and saves that.
-	m.cursor = int(aiRowTest)
-	m = aiPress(t, m, "enter")
-	if !m.s.Verified() || !strings.Contains(m.message, "works") {
-		t.Fatalf("verified=%v message=%q", m.s.Verified(), m.message)
-	}
-	saved, _ := config.LoadAI()
-	if !saved.Verified() || saved.Model != "model-a" {
-		t.Fatalf("saved = %v", saved)
-	}
-
-	// Any later edit makes AI Match unavailable again.
-	m.cursor = int(aiRowSearch)
-	m = aiPress(t, m, "enter")
-	saved, _ = config.LoadAI()
-	if saved.Verified() || !saved.WebSearch {
-		t.Fatalf("toggling web search kept the verification: %v", saved)
+	if m.s.Model != "model-a" || !m.s.Verified() {
+		t.Fatalf("model=%q verified=%v message=%q", m.s.Model, m.s.Verified(), m.message)
 	}
 }
 
-func TestAIPageTypedModelNameIsOfferedWhenNotListed(t *testing.T) {
+func TestAIModelListStartsOnTheCurrentModel(t *testing.T) {
+	srv := aiServer(t, "aaa", "current", "zzz")
+	s := configured(srv)
+	s.Model = "current"
+	m := aiPageFor(t, s)
+	m.cursor = int(actModel)
+	m = aiPress(t, m, "enter")
+	if m.pickCursor != 1 || !strings.Contains(ansi.Strip(m.view().Content), "current  ✓ current") {
+		t.Fatalf("cursor=%d\n%s", m.pickCursor, ansi.Strip(m.view().Content))
+	}
+}
+
+func TestAITypedModelNameIsOfferedWhenNotListed(t *testing.T) {
 	srv := aiServer(t, "listed")
-	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: srv.URL + "/v1", APIKey: aiKeyForTest})
-	m.cursor = int(aiRowModel)
+	m := aiPageFor(t, configured(srv))
+	m.cursor = int(actModel)
 	m = aiPress(t, m, "enter")
 	m = aiType(m, "my-private-model")
 	labels, _ := m.pickRows()
@@ -142,11 +215,11 @@ func TestAIPageTypedModelNameIsOfferedWhenNotListed(t *testing.T) {
 	}
 }
 
-func TestAIPageModelListFailureStillAllowsAManualName(t *testing.T) {
+func TestAIModelListFailureStillAllowsAManualName(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler()) // no /models endpoint
 	t.Cleanup(srv.Close)
-	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: srv.URL + "/v1", APIKey: aiKeyForTest})
-	m.cursor = int(aiRowModel)
+	m := aiPageFor(t, configured(&httptest.Server{URL: srv.URL}))
+	m.cursor = int(actModel)
 	m = aiPress(t, m, "enter")
 	if m.mode != aiPick || !strings.Contains(m.message, "Type a model name") {
 		t.Fatalf("mode=%v message=%q", m.mode, m.message)
@@ -156,16 +229,39 @@ func TestAIPageModelListFailureStillAllowsAManualName(t *testing.T) {
 	if m.s.Model != "typed" {
 		t.Fatalf("model = %q", m.s.Model)
 	}
+	if m.s.Verified() {
+		t.Fatal("verified although the test could not pass")
+	}
 }
 
-func TestAIPageFailedTestLeavesAIMatchOff(t *testing.T) {
+func TestAIWebSearchToggleTestsAgainAndFailsWhereUnsupported(t *testing.T) {
+	srv := aiServer(t) // chat works, the Responses route does not exist
+	s := configured(srv)
+	s.MarkVerified()
+	m := aiPageFor(t, s)
+	m.cursor = int(actSearch)
+	m = aiPress(t, m, "enter")
+	if !m.s.WebSearch || m.s.Verified() || !strings.Contains(m.message, "web search") {
+		t.Fatalf("search=%v verified=%v message=%q", m.s.WebSearch, m.s.Verified(), m.message)
+	}
+	if saved, _ := config.LoadAI(); saved.Verified() {
+		t.Fatal("a failed test left the old verification in place")
+	}
+	m = aiPress(t, m, "enter") // off again: the plain test passes
+	if m.s.WebSearch || !m.s.Verified() {
+		t.Fatalf("search=%v verified=%v message=%q", m.s.WebSearch, m.s.Verified(), m.message)
+	}
+}
+
+func TestAIFailedTestLeavesAIMatchOff(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"error":{"message":"bad key `+aiKeyForTest+`"}}`)
 	}))
 	t.Cleanup(srv.Close)
-	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: srv.URL + "/v1", APIKey: aiKeyForTest, Model: "m"})
-	m.cursor = int(aiRowTest)
+	s := aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: srv.URL + "/v1", APIKey: aiKeyForTest, Model: "m"}
+	m := aiPageFor(t, s)
+	m.cursor = int(actTest)
 	m = aiPress(t, m, "enter")
 	if m.s.Verified() || !strings.Contains(m.message, "401") {
 		t.Fatalf("verified=%v message=%q", m.s.Verified(), m.message)
@@ -175,14 +271,15 @@ func TestAIPageFailedTestLeavesAIMatchOff(t *testing.T) {
 	}
 }
 
-func TestAIPageKeyIsMaskedEverywhereAndKeptOnEmptyEnter(t *testing.T) {
-	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://api.example.com/v1", APIKey: aiKeyForTest, Model: "m"})
+func TestAIKeyIsMaskedEverywhereKeptOnEmptyEnterAndTestedWhenReplaced(t *testing.T) {
+	srv := aiServer(t)
+	m := aiPageFor(t, configured(srv))
 	for _, v := range []string{ansi.Strip(m.view().Content), settingsValueText(aiSettingValue())} {
 		if strings.Contains(v, aiKeyForTest) {
 			t.Fatalf("key shown: %q", v)
 		}
 	}
-	m.cursor = int(aiRowKey)
+	m.cursor = int(actKey)
 	m = aiPress(t, m, "enter")
 	if m.mode != aiEdit || m.input.Value() != "" {
 		t.Fatalf("the editor must open empty: mode=%v value=%q", m.mode, m.input.Value())
@@ -199,7 +296,10 @@ func TestAIPageKeyIsMaskedEverywhereAndKeptOnEmptyEnter(t *testing.T) {
 	if m.s.APIKey != "pasted" || strings.Contains(ansi.Strip(m.view().Content), "pasted") {
 		t.Fatalf("key = %q", m.s.APIKey)
 	}
-	m.cursor = int(aiRowKey)
+	if !m.s.Verified() {
+		t.Fatalf("replacing the key did not test again: %q", m.message)
+	}
+	m.cursor = int(actKey)
 	m = aiPress(t, m, "enter")
 	m, _ = aiStep(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
 	m = aiPress(t, m, "enter")
@@ -208,10 +308,10 @@ func TestAIPageKeyIsMaskedEverywhereAndKeptOnEmptyEnter(t *testing.T) {
 	}
 }
 
-func TestAIPageRejectsAnInsecureBaseURL(t *testing.T) {
+func TestAIRejectsAnInsecureBaseURL(t *testing.T) {
 	m := aiPageFor(t, aimatch.Settings{})
-	m.cursor = int(aiRowURL)
-	m = aiPress(t, m, "enter")
+	m = aiType(m, "Custom")
+	m = aiPress(t, m, "enter", "enter")
 	m = aiType(m, "http://api.example.com/v1")
 	m = aiPress(t, m, "enter")
 	if m.mode != aiEdit || m.s.BaseURL != "" || !strings.Contains(m.message, "https") {
@@ -219,21 +319,7 @@ func TestAIPageRejectsAnInsecureBaseURL(t *testing.T) {
 	}
 }
 
-func TestAIPageProviderPresetSetsEndpointAndClearsTheOldModelAndKey(t *testing.T) {
-	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://api.example.com/v1", APIKey: aiKeyForTest, Model: "old"})
-	m.cursor = int(aiRowProvider)
-	m = aiPress(t, m, "enter")
-	m = aiType(m, "Anthropic")
-	m = aiPress(t, m, "enter")
-	if m.s.Protocol != aimatch.ProtocolAnthropic || m.s.BaseURL != "https://api.anthropic.com" || m.s.Model != "" || m.s.APIKey != "" {
-		t.Fatalf("settings = %v", m.s)
-	}
-	if m.provider() != "Anthropic" {
-		t.Fatalf("provider = %q", m.provider())
-	}
-}
-
-func TestAIPageEscCancelsABusyTestAndLateAnswersAreDropped(t *testing.T) {
+func TestAIEscCancelsABusyTestAndLateAnswersAreDropped(t *testing.T) {
 	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://api.example.com/v1", APIKey: aiKeyForTest, Model: "m"})
 	m.busy, m.gen = true, 3
 	m, _ = aiStep(m, key("esc"))
@@ -246,9 +332,9 @@ func TestAIPageEscCancelsABusyTestAndLateAnswersAreDropped(t *testing.T) {
 	}
 }
 
-func TestAIPageEscLeavesAndRemoveNeedsConfirmation(t *testing.T) {
+func TestAIEscLeavesAndRemoveNeedsConfirmation(t *testing.T) {
 	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://api.example.com/v1", APIKey: aiKeyForTest, Model: "m"})
-	m.cursor = int(aiRowRemove)
+	m.cursor = int(actRemove)
 	m = aiPress(t, m, "enter", "n")
 	if saved, _ := config.LoadAI(); !saved.Configured() {
 		t.Fatal("settings removed without a yes")
@@ -281,6 +367,8 @@ func TestSettingsHomeOpensTheAIPageAndReturnsToIt(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.View().Content), "AI model") {
 		t.Fatal("the AI page is not drawn")
 	}
+	next, _ = m.Update(key("esc")) // pauses the first-run setup
+	m = next.(settingsModel)
 	next, _ = m.Update(key("esc"))
 	m = next.(settingsModel)
 	if m.page != "home" || m.aiPage != nil {
@@ -288,14 +376,23 @@ func TestSettingsHomeOpensTheAIPageAndReturnsToIt(t *testing.T) {
 	}
 }
 
-func TestAIPageFitsCompactTerminals(t *testing.T) {
-	m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: "https://api.example.com/v1", APIKey: aiKeyForTest, Model: "m"})
-	for _, size := range [][2]int{{80, 24}, {60, 12}, {40, 8}} {
-		m.width, m.height = size[0], size[1]
-		m.resize()
-		for line := range strings.SplitSeq(ansi.Strip(m.view().Content), "\n") {
-			if w := ansi.StringWidth(line); w > size[0] {
-				t.Errorf("%dx%d: line is %d wide: %q", size[0], size[1], w, line)
+func TestAIPagesFitCompactTerminals(t *testing.T) {
+	srv := aiServer(t, "model-a")
+	pages := map[string]aiPageModel{
+		"summary": aiPageFor(t, configured(srv)),
+		"wizard":  aiPageFor(t, aimatch.Settings{}),
+	}
+	key := aiPageFor(t, aimatch.Settings{})
+	key = aiPress(t, aiType(key, "Anthropic"), "enter")
+	pages["key step"] = key
+	for name, m := range pages {
+		for _, size := range [][2]int{{80, 24}, {60, 12}, {40, 8}} {
+			m.width, m.height = size[0], size[1]
+			m.resize()
+			for line := range strings.SplitSeq(ansi.Strip(m.view().Content), "\n") {
+				if w := ansi.StringWidth(line); w > size[0] {
+					t.Errorf("%s %dx%d: line is %d wide: %q", name, size[0], size[1], w, line)
+				}
 			}
 		}
 	}

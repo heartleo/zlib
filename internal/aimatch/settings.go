@@ -91,6 +91,9 @@ func (s Settings) String() string {
 
 func (s Settings) GoString() string { return s.String() }
 
+// KeyOptional reports whether the endpoint needs no API key: a local server.
+func (s Settings) KeyOptional() bool { return isLoopbackURL(s.BaseURL) }
+
 // ValidateEndpoint checks the protocol, URL and key: what is needed to reach
 // the endpoint, for example to list its models.
 func (s Settings) ValidateEndpoint() error {

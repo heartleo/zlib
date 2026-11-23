@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	keys "charm.land/bubbles/v2/key"
@@ -50,6 +51,43 @@ func aiSettingValue() settingValue {
 	return v
 }
 
+// The AI model page is a guided setup followed by a short summary. The first
+// time (nothing configured) it walks through the steps by itself: provider,
+// then, for a custom endpoint, protocol and base URL, then the API key, then
+// the model, and it ends with the connection test, so a working setup needs
+// only choices and a pasted key. Afterwards the page is six rows, and changing
+// the key, the model or web search tests the connection again by itself.
+// Every edit is saved at once; the saved verification goes stale on any change
+// (Settings.Verified), so AI Match is on only for settings that passed.
+
+// aiField is what a step or a list edits.
+type aiField int
+
+const (
+	fieldProvider aiField = iota
+	fieldProtocol
+	fieldURL
+	fieldKey
+	fieldModel
+)
+
+// aiAction is a row of the summary page.
+type aiAction int
+
+const (
+	actProvider aiAction = iota
+	actModel
+	actKey
+	actSearch
+	actTest
+	actRemove
+	actCount
+)
+
+var aiActionLabels = [actCount]string{"Provider", "Model", "API key", "Web search", "Test connection", "Remove settings"}
+
+const aiCustomProvider = "Custom endpoint"
+
 type aiMode int
 
 const (
@@ -58,25 +96,6 @@ const (
 	aiPick
 	aiConfirmRemove
 )
-
-// aiRow is a row of the AI model page.
-type aiRow int
-
-const (
-	aiRowProvider aiRow = iota
-	aiRowProtocol
-	aiRowURL
-	aiRowKey
-	aiRowModel
-	aiRowSearch
-	aiRowTest
-	aiRowRemove
-	aiRowCount
-)
-
-var aiRowLabels = [aiRowCount]string{"Provider", "Protocol", "Base URL", "API key", "Model", "Web search", "Test connection", "Remove settings"}
-
-const aiCustomProvider = "Custom endpoint"
 
 type (
 	aiModelsMsg struct {
@@ -90,23 +109,23 @@ type (
 	}
 )
 
-// aiPageModel is the AI model page: provider, endpoint, key, model, web search
-// and the connection test. Every edit is saved at once; the saved verification
-// goes stale by itself (Settings.Verified), so AI Match stays off until a test
-// passes for exactly these settings.
 type aiPageModel struct {
-	ctx           context.Context
-	s             aimatch.Settings
-	mode          aiMode
-	cursor        int
-	input         textinput.Model
-	editRow       aiRow
+	ctx    context.Context
+	s      aimatch.Settings
+	mode   aiMode
+	cursor int
+	input  textinput.Model
+	// field is what the open editor or list is for. wizard is set while the
+	// guided setup runs, and custom when its provider is a custom endpoint.
+	field         aiField
+	wizard        bool
+	custom        bool
 	resetKey      bool
-	pickKind      aiRow
 	pickAll       []string
 	pickCursor    int
 	spinner       spinner.Model
 	busy          bool
+	busyNote      string
 	gen           int
 	cancel        context.CancelFunc
 	message       string
@@ -132,6 +151,10 @@ func newAIPage(ctx context.Context, width, height int) aiPageModel {
 	input.SetStyles(styles)
 	m.input = input
 	m.resize()
+	if !m.s.Configured() && err == nil {
+		m.wizard = true
+		m = m.openProviderPick() // nothing to summarise yet: start the setup
+	}
 	return m
 }
 
@@ -189,6 +212,7 @@ func (m aiPageModel) update(msg tea.Msg) (aiPageModel, tea.Cmd) {
 			return m, nil
 		}
 		m.pickAll, m.message = msg.ids, ""
+		m.pickCursor = m.currentIndex()
 	case aiTestMsg:
 		if msg.gen != m.gen {
 			return m, nil
@@ -200,9 +224,7 @@ func (m aiPageModel) update(msg tea.Msg) (aiPageModel, tea.Cmd) {
 		}
 		m.s.MarkVerified()
 		m.save()
-		if m.message == "" {
-			m.message = "✓ The connection works. AI Match is available in the metadata lookup."
-		}
+		m.message = "✓ The connection works. AI Match is available in the metadata lookup."
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	default:
@@ -223,6 +245,7 @@ func (m aiPageModel) key(msg tea.KeyPressMsg) (aiPageModel, tea.Cmd) {
 			if m.mode == aiPick {
 				m.mode = aiRows
 			}
+			m.wizard = false
 			m.message = "Cancelled"
 		}
 		return m, nil
@@ -247,7 +270,7 @@ func (m aiPageModel) key(msg tea.KeyPressMsg) (aiPageModel, tea.Cmd) {
 	case "esc", "ctrl+c", "q":
 		m.done = true
 	case "up", "k", "shift+tab", "down", "j", "tab", "home", "end":
-		m.cursor = listCursor(k, m.cursor, int(aiRowCount), 1)
+		m.cursor = listCursor(k, m.cursor, int(actCount), 1)
 	case "enter", "space":
 		return m.activate()
 	}
@@ -256,91 +279,185 @@ func (m aiPageModel) key(msg tea.KeyPressMsg) (aiPageModel, tea.Cmd) {
 
 func (m aiPageModel) activate() (aiPageModel, tea.Cmd) {
 	m.message = ""
-	switch aiRow(m.cursor) {
-	case aiRowProvider:
-		m.pickKind = aiRowProvider
-		m.pickAll = []string{aiCustomProvider}
-		for _, p := range aimatch.Providers {
-			m.pickAll = append(m.pickAll, p.Name)
-		}
-		return m.openPick(), nil
-	case aiRowProtocol:
-		if m.s.Protocol == aimatch.ProtocolOpenAI {
-			m.s.Protocol = aimatch.ProtocolAnthropic
-		} else {
-			m.s.Protocol = aimatch.ProtocolOpenAI
-		}
-		m.s.Model = ""
-		m.save()
-		m.message = "Protocol changed; pick a model again"
-	case aiRowURL:
-		return m.openEdit(aiRowURL, m.s.BaseURL, false)
-	case aiRowKey:
-		return m.openEdit(aiRowKey, "", true)
-	case aiRowModel:
-		m.pickKind, m.pickAll = aiRowModel, nil
-		m = m.openPick()
-		if err := m.s.ValidateEndpoint(); err != nil {
-			m.message = safeText(err.Error()) + ". Type a model name to use it."
-			return m, nil
-		}
-		return m.discover()
-	case aiRowSearch:
+	switch aiAction(m.cursor) {
+	case actProvider:
+		m.wizard = true
+		return m.openProviderPick(), nil
+	case actModel:
+		return m.toModel()
+	case actKey:
+		return m.openEdit(fieldKey, "", true)
+	case actSearch:
 		m.s.WebSearch = !m.s.WebSearch
 		m.save()
-		m.message = "Web search changed; run the connection test again"
-	case aiRowTest:
+		if m.s.Configured() {
+			return m.test() // the test covers web search when it is on
+		}
+	case actTest:
 		return m.test()
-	case aiRowRemove:
+	case actRemove:
 		m.mode = aiConfirmRemove
 	}
 	return m, nil
 }
 
-func (m aiPageModel) openEdit(row aiRow, value string, secret bool) (aiPageModel, tea.Cmd) {
-	m.mode, m.editRow, m.resetKey = aiEdit, row, false
+// --- Steps ------------------------------------------------------------------
+
+// steps lists the fields the setup visits for the provider chosen.
+func (m aiPageModel) steps() []aiField {
+	steps := []aiField{fieldProvider}
+	if m.custom {
+		steps = append(steps, fieldProtocol, fieldURL)
+	}
+	if !m.s.KeyOptional() || m.s.BaseURL == "" {
+		steps = append(steps, fieldKey)
+	}
+	return append(steps, fieldModel)
+}
+
+// stepLabel is "Step 2 of 3" while the setup runs, else "".
+func (m aiPageModel) stepLabel() string {
+	if !m.wizard {
+		return ""
+	}
+	steps := m.steps()
+	for i, f := range steps {
+		if f == m.field {
+			return "Step " + strconv.Itoa(i+1) + " of " + strconv.Itoa(len(steps))
+		}
+	}
+	return ""
+}
+
+// advance moves the setup on after field from was set; outside the setup it
+// finishes the edit instead, testing the connection when there is a model.
+func (m aiPageModel) advance(from aiField) (aiPageModel, tea.Cmd) {
+	m.message = ""
+	if !m.wizard {
+		if m.s.Configured() {
+			return m.test()
+		}
+		return m, nil
+	}
+	switch from {
+	case fieldProvider:
+		if m.custom {
+			return m.openProtocolPick(), nil
+		}
+		return m.toKey()
+	case fieldProtocol:
+		return m.openEdit(fieldURL, m.s.BaseURL, false)
+	case fieldURL:
+		return m.toKey()
+	case fieldKey:
+		return m.toModel()
+	}
+	m.wizard = false // the model was the last step
+	return m.test()
+}
+
+// toKey asks for the key, unless a local endpoint needs none or one is set.
+func (m aiPageModel) toKey() (aiPageModel, tea.Cmd) {
+	if m.s.KeyOptional() || m.s.APIKey != "" {
+		return m.toModel()
+	}
+	return m.openEdit(fieldKey, "", true)
+}
+
+// toModel lists the endpoint's models, or says why it cannot; a name can be
+// typed either way.
+func (m aiPageModel) toModel() (aiPageModel, tea.Cmd) {
+	m.field, m.pickAll = fieldModel, nil
+	m = m.openPick()
+	if err := m.s.ValidateEndpoint(); err != nil {
+		m.message = safeText(err.Error()) + ". Type a model name to use it."
+		return m, nil
+	}
+	return m.discover()
+}
+
+func (m aiPageModel) openProviderPick() aiPageModel {
+	m.field = fieldProvider
+	m.pickAll = nil
+	for _, p := range aimatch.Providers {
+		m.pickAll = append(m.pickAll, p.Name)
+	}
+	m.pickAll = append(m.pickAll, aiCustomProvider)
+	m = m.openPick()
+	return m
+}
+
+func (m aiPageModel) openProtocolPick() aiPageModel {
+	m.field = fieldProtocol
+	m.pickAll = nil
+	for _, p := range aimatch.Protocols {
+		m.pickAll = append(m.pickAll, p.Label())
+	}
+	return m.openPick()
+}
+
+// --- Editor -----------------------------------------------------------------
+
+func (m aiPageModel) openEdit(field aiField, value string, secret bool) (aiPageModel, tea.Cmd) {
+	m.mode, m.field, m.resetKey = aiEdit, field, false
 	m.input.EchoMode = textinput.EchoNormal
 	if secret {
 		m.input.EchoMode = textinput.EchoPassword
 	}
 	m.input.SetValue(value)
 	m.input.Placeholder = ""
+	if field == fieldURL && value == "" {
+		m.input.Placeholder = "https://api.example.com/v1"
+	}
 	return m, m.input.Focus()
+}
+
+// leaveEdit closes the editor, or pauses the setup when it was running.
+func (m aiPageModel) leaveEdit() aiPageModel {
+	m.mode = aiRows
+	m.input.Blur()
+	m.message = ""
+	if m.wizard {
+		m.wizard = false
+		m.message = "Setup paused; what you set so far is saved. Choose a row to continue."
+	}
+	return m
 }
 
 func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cmd) {
 	switch k {
 	case "esc", "ctrl+c":
-		m.mode, m.message = aiRows, ""
-		m.input.Blur()
-		return m, nil
+		return m.leaveEdit(), nil
 	case "ctrl+r":
-		if m.editRow == aiRowKey {
+		if m.field == fieldKey {
 			m.input.SetValue("")
 			m.resetKey, m.message = true, "Key removal selected; Enter saves"
 		}
 		return m, nil
 	case "enter":
 		v := strings.TrimSpace(m.input.Value())
-		switch m.editRow {
-		case aiRowURL:
+		switch m.field {
+		case fieldURL:
 			v = strings.TrimRight(v, "/")
 			if err := aimatch.ValidateBaseURL(v); err != nil {
 				m.message = err.Error()
 				return m, nil
 			}
 			m.s.BaseURL = v
-		case aiRowKey:
+		case fieldKey:
 			if v == "" && !m.resetKey {
+				if m.s.APIKey == "" && m.wizard && m.s.KeyOptional() {
+					break // a local endpoint: Enter skips the key
+				}
 				m.message = "Paste a key to save, or press Ctrl+R to remove the saved one"
 				return m, nil
 			}
 			m.s.APIKey = v
 		}
 		m.save()
-		m.mode, m.message = aiRows, ""
+		m.mode = aiRows
 		m.input.Blur()
-		return m, nil
+		return m.advance(m.field)
 	}
 	before := m.input.Value()
 	var cmd tea.Cmd
@@ -351,30 +468,61 @@ func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 	return m, cmd
 }
 
+// --- Lists ------------------------------------------------------------------
+
 func (m aiPageModel) openPick() aiPageModel {
 	m.mode, m.pickCursor, m.message = aiPick, 0, ""
 	m.input.EchoMode = textinput.EchoNormal
 	m.input.SetValue("")
 	m.input.Placeholder = "type to filter"
-	if m.pickKind == aiRowModel {
+	if m.field == fieldModel {
 		m.input.Placeholder = "type to filter, or a model name"
 	}
 	m.input.Focus()
+	m.pickCursor = m.currentIndex()
 	return m
 }
 
-// pickRows are the rows the filter leaves, then a row that uses the typed text
-// as it is, so a model the endpoint does not list can still be chosen.
+// current is the value of the open list that the settings hold now.
+func (m aiPageModel) current() string {
+	switch m.field {
+	case fieldModel:
+		return m.s.Model
+	case fieldProvider:
+		return m.provider()
+	case fieldProtocol:
+		return m.s.Protocol.Label()
+	}
+	return ""
+}
+
+// currentIndex is where the cursor starts: on the current choice.
+func (m aiPageModel) currentIndex() int {
+	for i, v := range m.pickAll {
+		if v == m.current() && v != "" {
+			return i
+		}
+	}
+	return 0
+}
+
+// pickRows are the rows the filter leaves, the current one marked, then a row
+// that uses the typed text as it is, so a model the endpoint does not list can
+// still be chosen.
 func (m aiPageModel) pickRows() (labels, values []string) {
 	text := strings.TrimSpace(m.input.Value())
 	exact := false
 	for _, v := range m.pickAll {
 		if text == "" || strings.Contains(strings.ToLower(v), strings.ToLower(text)) {
-			labels, values = append(labels, v), append(values, v)
+			label := v
+			if v == m.current() {
+				label += "  ✓ current"
+			}
+			labels, values = append(labels, label), append(values, v)
 		}
 		exact = exact || v == text
 	}
-	if m.pickKind == aiRowModel && text != "" && !exact {
+	if m.field == fieldModel && text != "" && !exact {
 		labels, values = append(labels, `Use "`+text+`"`), append(values, text)
 	}
 	return labels, values
@@ -384,8 +532,10 @@ func (m aiPageModel) pickKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 	_, values := m.pickRows()
 	switch k {
 	case "esc", "ctrl+c":
-		m.mode, m.message = aiRows, ""
+		m.mode = aiRows
 		m.input.Blur()
+		m.wizard = false
+		m.message = ""
 		return m, nil
 	case "up", "down", "pgup", "pgdown":
 		m.pickCursor = listCursor(k, m.pickCursor, len(values), max(1, m.height-10))
@@ -394,7 +544,7 @@ func (m aiPageModel) pickKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 		if m.pickCursor >= len(values) {
 			return m, nil
 		}
-		return m.choose(values[m.pickCursor]), nil
+		return m.choose(values[m.pickCursor])
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -402,38 +552,39 @@ func (m aiPageModel) pickKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 	return m, cmd
 }
 
-func (m aiPageModel) choose(value string) aiPageModel {
+func (m aiPageModel) choose(value string) (aiPageModel, tea.Cmd) {
 	m.mode = aiRows
 	m.input.Blur()
-	if m.pickKind == aiRowModel {
+	switch m.field {
+	case fieldModel:
 		m.s.Model = value
 		m.save()
-		m.message = "Model set; run the connection test"
-		return m
-	}
-	prev := m.s
-	for _, p := range aimatch.Providers {
-		if p.Name == value {
-			m.s.Protocol, m.s.BaseURL = p.Protocol, p.BaseURL
+	case fieldProtocol:
+		for _, p := range aimatch.Protocols {
+			if p.Label() == value {
+				m.s.Protocol = p
+			}
 		}
-	}
-	if value == aiCustomProvider {
-		m.cursor = int(aiRowURL)
-		if m.s.BaseURL == "" {
+		m.s.Model = ""
+		m.save()
+	case fieldProvider:
+		prev := m.s
+		m.custom = value == aiCustomProvider
+		for _, p := range aimatch.Providers {
+			if p.Name == value {
+				m.s.Protocol, m.s.BaseURL = p.Protocol, p.BaseURL
+			}
+		}
+		if m.custom && m.s.Protocol == "" {
 			m.s.Protocol = aimatch.ProtocolOpenAI
 		}
-		m.message = "Set the protocol and base URL of your endpoint"
-	}
-	if m.s.BaseURL != prev.BaseURL || m.s.Protocol != prev.Protocol {
-		// Another endpoint has other models, and the old key belongs to the old one.
-		m.s.Model, m.s.APIKey = "", ""
-		if value != aiCustomProvider {
-			m.message = "Provider set; add the API key and pick a model"
-			m.cursor = int(aiRowKey)
+		if m.s.BaseURL != prev.BaseURL || m.s.Protocol != prev.Protocol {
+			// Another endpoint has other models, and the old key belongs to the old one.
+			m.s.Model, m.s.APIKey = "", ""
 		}
+		m.save()
 	}
-	m.save()
-	return m
+	return m.advance(m.field)
 }
 
 func (m aiPageModel) discover() (aiPageModel, tea.Cmd) {
@@ -443,7 +594,7 @@ func (m aiPageModel) discover() (aiPageModel, tea.Cmd) {
 		return m, nil
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
-	m.cancel, m.busy = cancel, true
+	m.cancel, m.busy, m.busyNote = cancel, true, "Listing models…"
 	m.gen++
 	gen := m.gen
 	m.spinner = newLoadingSpinner()
@@ -460,7 +611,8 @@ func (m aiPageModel) test() (aiPageModel, tea.Cmd) {
 		return m, nil
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
-	m.cancel, m.busy = cancel, true
+	m.cancel, m.busy, m.busyNote = cancel, true, "Testing the connection…"
+	m.mode = aiRows
 	m.gen++
 	gen := m.gen
 	m.spinner = newLoadingSpinner()
@@ -469,14 +621,24 @@ func (m aiPageModel) test() (aiPageModel, tea.Cmd) {
 	})
 }
 
+// --- Views ------------------------------------------------------------------
+
 func (m aiPageModel) status() string {
 	switch {
 	case m.s.Verified():
 		return "✓ Verified: AI Match is available"
 	case m.s.Configured():
-		return "Not verified: run the connection test to turn AI Match on"
+		return "Not verified: run the test to turn AI Match on"
 	}
 	return "Not configured: AI Match is off"
+}
+
+// stepTitle is the title of a setup step: where it is and what it asks.
+func (m aiPageModel) stepTitle(what string) string {
+	if label := m.stepLabel(); label != "" {
+		return "Settings / AI model · " + label + " · " + what
+	}
+	return "Settings / AI model · " + what
 }
 
 func (m aiPageModel) view() tea.View {
@@ -484,31 +646,34 @@ func (m aiPageModel) view() tea.View {
 	title := "Settings / AI model"
 	muted := lipgloss.NewStyle().Foreground(currentTheme.Muted)
 	if m.busy {
-		note := "Testing the connection…"
-		if m.mode == aiPick {
-			note = "Listing models…"
-		}
-		return settingsCompactView(w, h, title, "", []string{"  " + m.spinner.View() + note}, "", []keys.Binding{uiKey("esc", "cancel")})
+		return settingsCompactView(w, h, title, "", []string{"  " + m.spinner.View() + m.busyNote}, "", []keys.Binding{uiKey("esc", "cancel")})
 	}
 	switch m.mode {
 	case aiEdit:
-		label, help := "Base URL", []string{"https, or http for localhost only. Anthropic-compatible endpoints omit /v1."}
-		if m.editRow == aiRowKey {
-			label = "API key"
+		what, help := "Base URL", []string{"https, or http for localhost only. Anthropic-compatible endpoints omit /v1."}
+		if m.field == fieldKey {
+			what = "API key"
 			help = []string{"Saved to ai.json in your config directory, readable only by you.", "It is shown masked and never written to logs."}
 			if m.s.APIKey != "" {
 				help = append([]string{"A key is set (hidden). Paste a new one to replace it."}, help...)
 			}
+			if m.s.KeyOptional() {
+				help = append(help, "A local endpoint needs no key: Enter on an empty box skips it.")
+			}
 		}
-		lines := []string{label, m.input.View(), ""}
+		lines := []string{m.input.View(), ""}
 		for _, l := range help {
 			lines = append(lines, muted.Render(ansi.Truncate(l, max(1, w-2), "…")))
 		}
-		return settingsCompactView(w, h, title, "", lines, m.message, []keys.Binding{uiKey("esc", "cancel"), uiKey("enter", "save")})
+		controls := []keys.Binding{uiKey("enter", "next"), uiKey("esc", "stop")}
+		if !m.wizard {
+			controls = []keys.Binding{uiKey("enter", "save"), uiKey("esc", "cancel")}
+		}
+		return settingsCompactView(w, h, m.stepTitle(what), "", lines, m.message, controls)
 	case aiPick:
 		labels, _ := m.pickRows()
-		name := map[aiRow]string{aiRowProvider: "Provider", aiRowModel: "Model"}[m.pickKind]
-		lines := []string{name, m.input.View(), ""}
+		name := map[aiField]string{fieldProvider: "Provider", fieldProtocol: "Protocol", fieldModel: "Model"}[m.field]
+		lines := []string{m.input.View(), ""}
 		visible := max(1, h-10)
 		start := max(0, m.pickCursor-visible+1)
 		for i := start; i < min(len(labels), start+visible); i++ {
@@ -517,51 +682,47 @@ func (m aiPageModel) view() tea.View {
 		if len(labels) == 0 {
 			lines = append(lines, muted.Render("  No match"))
 		}
-		return settingsCompactView(w, h, title, "", lines, m.message, []keys.Binding{uiKey("esc", "back"), uiKey("enter", "choose"), uiKey("↑/↓", "select")})
+		controls := []keys.Binding{uiKey("enter", "choose"), uiKey("↑/↓", "select"), uiKey("esc", "back")}
+		return settingsCompactView(w, h, m.stepTitle(name), "", lines, m.message, controls)
 	case aiConfirmRemove:
 		return settingsCompactView(w, h, title, "", []string{"Remove the saved AI model settings, including the API key?"}, "", []keys.Binding{uiKey("y", "remove"), uiKey("any key", "keep")})
 	}
 	labelWidth := 16
 	var lines []string
-	for i := range aiRowCount {
+	for i := range actCount {
 		value := ""
 		switch i {
-		case aiRowProvider:
+		case actProvider:
 			value = m.provider()
-		case aiRowProtocol:
-			value = m.s.Protocol.Label()
-			if m.s.Protocol == "" {
-				value = "Not set"
+			if value == aiCustomProvider {
+				value += " · " + m.s.BaseURL
 			}
-		case aiRowURL:
-			value = m.s.BaseURL
-			if value == "" {
-				value = "Not set"
-			}
-		case aiRowKey:
-			value = m.s.MaskedKey()
-		case aiRowModel:
+		case actModel:
 			value = m.s.Model
 			if value == "" {
 				value = "Not set"
 			}
-		case aiRowSearch:
+		case actKey:
+			value = m.s.MaskedKey()
+		case actSearch:
 			value = "Off"
 			if m.s.WebSearch {
-				value = "On"
+				value = "On: the model may search the web"
 			}
+		case actTest:
+			value = map[bool]string{true: "✓ verified", false: "not verified"}[m.s.Verified()]
 		}
-		row := aiRowLabels[i] + strings.Repeat(" ", max(1, labelWidth-ansi.StringWidth(aiRowLabels[i])))
+		row := aiActionLabels[i] + strings.Repeat(" ", max(1, labelWidth-ansi.StringWidth(aiActionLabels[i])))
 		lines = append(lines, styledListRow(row+ansi.Truncate(safeText(value), max(1, w-labelWidth-4), "…"), int(i) == m.cursor, w, currentTheme))
 	}
 	lines = append(lines, "", m.status())
 	if h >= 17 {
 		lines = append(lines, "",
-			muted.Render("AI Match is off until a model passes the connection test, and runs only"),
-			muted.Render("when you press a in the metadata lookup. It sends the title, authors,"),
-			muted.Render("ISBN and file name (never a path) to this endpoint."))
+			muted.Render("Changing the key, model or web search tests the connection again."),
+			muted.Render("AI Match runs only when you press a in the metadata lookup. It sends"),
+			muted.Render("the title, authors, ISBN and file name (never a path) to this endpoint."))
 	}
-	return settingsCompactView(w, h, title, "", lines, m.message, []keys.Binding{uiKey("esc", "back"), uiKey("enter", "select"), uiKey("↑/↓", "move")})
+	return settingsCompactView(w, h, title, "", lines, m.message, []keys.Binding{uiKey("enter", "change"), uiKey("↑/↓", "move"), uiKey("esc", "back")})
 }
 
 // openAIPage shows the AI model page over the settings.
