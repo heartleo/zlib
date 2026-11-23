@@ -470,6 +470,72 @@ Lookups and cover downloads use `ZLIB_PROXY` when it is set, otherwise the
 system proxy; the Z-Library session is never sent. The one exception is the
 `weread` source, which follows `ZLIB_WEREAD_PROXY` like the WeRead importer.
 
+### AI Match (optional)
+
+AI Match asks a language model to help when the catalogues disagree, find
+nothing, or list several editions: it can read a title in another language,
+an author's alias, or tell one edition of a work from another. It is **off
+until you set up a model and it passes a connection test**, and it never runs
+by itself: you start it with `a` on the results page or on the no-match page.
+The standard lookup works the same with or without it, and a failure of the model
+stays on the AI page (Esc returns to the untouched results).
+
+Set the model up in `zlib config ai` (or `/config ai`):
+
+- **Provider**: a preset (OpenAI, Anthropic, OpenRouter, DeepSeek, a local Ollama)
+  or a custom endpoint. The protocol is OpenAI-compatible or
+  Anthropic-compatible; the base URL must be `https`, except `localhost` and
+  other loopback addresses for a local server.
+- **API key**, shown masked everywhere and kept in `ai.json` in the config
+  directory, readable only by you. It is never written to a log or an error.
+- **Model**: listed from the endpoint when it offers a model list, with a
+  filter; a name you type is used as it is.
+- **Web search**: lets the model search the web for bibliographic evidence. It
+  works only where the endpoint supports it (the Responses API with its web
+  search tool for OpenAI-compatible endpoints, the web search tool for
+  Anthropic-compatible ones). The connection test checks it, so a model without
+  it fails the test instead of failing later.
+- **Test connection**: sends a one-word request (and a web search one, when
+  that is on). Changing the protocol, URL, key, model or web search makes the
+  last test stale, and AI Match is off again until a test passes.
+
+What it does, in order:
+
+1. Reads the title, authors, ISBN, language, publisher and year being searched,
+   and the file's name (never its path).
+2. Asks the model for extra search terms: another-language titles, author
+   aliases and, if its web search finds one, an ISBN.
+3. Searches the catalogues again with those terms, through the same sources as
+   the standard lookup.
+4. Asks the model to rank the rows the catalogues returned, including the first
+   search's.
+5. Shows each recommendation with its source, whether it is the same edition or
+   another edition of the same work, a confidence, a short reason and the
+   pages the web search cited.
+6. You pick one, and the usual fields page opens: it shows the differences
+   field by field and writes only what you select, after you confirm.
+
+The rules the code enforces, not only the prompt:
+
+- The model never supplies a value. A recommendation is a catalogue row, shown
+  exactly as the catalogue gave it; a reference to a row that does not exist is
+  dropped. An ISBN only the model knows is searched as an unconfirmed ISBN,
+  like one read from a copyright page, so it never becomes a field by itself.
+- The model must say whether a row is this edition or another edition of the
+  work. An edition recommendation lists before a work one, and a
+  recommendation under 50% confidence, or for another book, is left out.
+- Without reliable evidence the answer is **No reliable match**, and nothing is
+  changed.
+- A cited page is shown only if the model's own web search returned it, and
+  only if it is a plain `https` address.
+- Nothing is written without your explicit confirmation on the fields page; a
+  field the file already has stays unselected, as for any match.
+
+AI Match is available in the terminal interface only (`/meta`, `zlib meta
+FILE --fetch` on a terminal, and **Fix metadata** after a download). It is not
+part of `--json`, the MCP server or the plugins. What it sends, and to whom, is
+in [Privacy](privacy.md).
+
 ## Formats
 
 | Format | Fields read and written |

@@ -308,6 +308,23 @@ nothing while a search or a write runs:
   with opens on the editor.
 - **Looking up** shows the title, authors and ISBN being searched. Esc cancels
   the request and returns to the page it started from.
+- **AI match** is the optional extra page of the results and no-match pages,
+  opened by `a` only when the page was built with a model hook (the footer and
+  `?` mention it only then). It runs in its own run and generation, so Esc
+  cancels the request and a late answer is dropped. It shows a spinner with the
+  step the match reports, then one of: needs setup (no verified model; names
+  `/config ai`), failed (the reason, `r` retries; the standard results are
+  unchanged), no reliable match, or the recommendations. A recommendation row
+  has the confidence, `edition` or `work`, the title, authors and source; under
+  the list are the verdict, the reason, the cited pages and the candidate's own
+  rows, with a note when it is another edition. Enter opens the usual fields
+  page for that catalogue row, and Esc there returns to the recommendations;
+  Esc again returns to the untouched results. Everything the model said passes
+  through `safeText`. The AI model page is `zlib config ai` / `/config ai`: a
+  list of provider, protocol, base URL, API key (masked, empty editor, Ctrl+R
+  to remove), model (filterable list from the endpoint; a typed name offered as
+  `Use "…"`), web search and the connection test; every edit saves at once and
+  the saved verification goes stale on any change.
 - **Candidates** list the matches of every source, best first. The answers of
   different sources are not merged: each source has its own row or rows, so the
   same book from three catalogues is three adjacent rows, each with only what

@@ -47,9 +47,16 @@ zlib config weread account
 zlib config weread proxy
 zlib config metadata
 zlib config metadata google-key
+zlib config ai
 ```
 
-`zlib config` shows network, download, search, Kindle, WeRead and metadata settings together. The
+`zlib config ai` opens the AI model page: provider, base URL, API key, model,
+web search and a connection test for [AI Match](metadata.md#ai-match-optional).
+Unlike the other settings it is saved in `ai.json` in the config directory (mode
+0600), not in a `.env` file or the environment, and `zlib config --json` shows
+the model and whether it is verified, never the key.
+
+`zlib config` shows network, download, search, Kindle, WeRead, metadata and AI settings together. The
 subcommands open the same TUI at a specific section or field. Use arrow keys
 or Tab to select, Enter to edit, and Esc to return to the selected setting.
 The settings list keeps its controls and save feedback next to the fields;
