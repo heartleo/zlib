@@ -148,6 +148,31 @@ func orderSourceRows(q Query, rows []sourceRow) []Candidate {
 	return out
 }
 
+// RankOrder returns the indices of cands in the order a lookup would list them
+// for q: an ISBN match first, then by score and by how well the edition agrees
+// with the file. Rows that tie keep the order they were given in, so a caller
+// can put its own preference first.
+func RankOrder(q Query, cands []Candidate) []int {
+	idx := make([]int, len(cands))
+	for i := range idx {
+		idx[i] = i
+	}
+	slices.SortStableFunc(idx, func(i, j int) int {
+		a, b := cands[i], cands[j]
+		if (a.Match == MatchISBN) != (b.Match == MatchISBN) {
+			if a.Match == MatchISBN {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Or(
+			cmp.Compare(b.Score, a.Score),
+			cmp.Compare(editionBonus(q, b), editionBonus(q, a)),
+		)
+	})
+	return idx
+}
+
 func cmpDefault(v, def time.Duration) time.Duration {
 	if v == 0 {
 		return def

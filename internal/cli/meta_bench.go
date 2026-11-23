@@ -350,11 +350,6 @@ func (m metaPageModel) leaveBench() metaPageModel {
 		m.stage = metaPrepare
 		return m
 	}
-	if m.aiToFields {
-		// Opened from an AI recommendation: Esc returns to them.
-		m.stage, m.aiToFields = metaAI, false
-		return m
-	}
 	m.stage = metaCandidates
 	return m
 }

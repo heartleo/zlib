@@ -35,6 +35,9 @@ func (m metaPageModel) metaStepInfo() (int, string) {
 	case metaLooking:
 		return 1, "Searching"
 	case metaCandidates:
+		if m.aiResults {
+			return 2, "AI match results"
+		}
 		return 2, "Choose a match"
 	case metaFailed:
 		return 2, "No match"
@@ -150,12 +153,13 @@ func (m metaPageModel) candidatesBody() string {
 	if m.compareFits() {
 		// The file beside the highlighted match, field for field, before
 		// choosing it: what it would add, then both panels.
-		lines = append(lines, "", "  "+colorFaint(m.candidateEffectLine(c, max(1, width-4))))
+		verdict := m.aiVerdictPrefix()
+		lines = append(lines, "", "  "+colorFaint(verdict+m.candidateEffectLine(c, max(1, width-4-ansi.StringWidth(verdict)))))
 		cm := m.compareModel()
 		return strings.Join(append(lines, cm.benchPanelsWith(cm.compareRows(), m.compareCovers())...), "\n")
 	}
 	lines = append(lines, "", sectionHeader("Details", "", width))
-	for _, l := range formatDetailRows(append(m.candidateEffect(c), metaDetailRows(c)...), "  ", colorFaint) {
+	for _, l := range formatDetailRows(append(append(m.aiDetailRows(), m.candidateEffect(c)...), metaDetailRows(c)...), "  ", colorFaint) {
 		lines = append(lines, ansi.Truncate(l, width, "…"))
 	}
 	return strings.Join(lines, "\n")
@@ -308,6 +312,9 @@ func (m metaPageModel) metaHelpRows() [][2]string {
 	if m.ai == nil && (m.helpStage == metaCandidates || m.helpStage == metaFailed) {
 		skip["a"] = true // on the fields page `a` is "use the match for every field"
 	}
+	if !m.aiResults && m.helpStage == metaCandidates {
+		skip["p"] = true
+	}
 	var rows [][2]string
 	switch m.helpStage {
 	case metaPrepare:
@@ -317,7 +324,7 @@ func (m metaPageModel) metaHelpRows() [][2]string {
 			{"n / f2", "rename the file"}, {"enter", "search"}}
 	case metaCandidates:
 		rows = [][2]string{{"↑/↓", "choose a match"}, {"pgup/pgdown", "move a page"}, {"enter", "review its fields"},
-			{"e", "edit the search"}, {"s", "change the sources"}, {"a", "AI match: ask the model to compare editions (optional)"}, {"n / f2", "rename the file"}}
+			{"e", "edit the search"}, {"s", "change the sources"}, {"a", "AI match: ask the model to compare editions (optional)"}, {"p", "show the AI match process"}, {"n / f2", "rename the file"}}
 	case metaFailed:
 		rows = [][2]string{{"e", "edit the search"}, {"s", "change the sources"}, {"r", "search again"}, {"a", "AI match: ask the model to find it (optional)"}, {"n / f2", "rename the file"}}
 	case metaAI:

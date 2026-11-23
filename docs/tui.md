@@ -314,13 +314,27 @@ nothing while a search or a write runs:
   cancels the request and a late answer is dropped. It shows a spinner with the
   step the match reports, then one of: needs setup (no verified model; names
   `/config ai`), failed (the reason, `r` retries; the standard results are
-  unchanged), no reliable match, or the recommendations. A recommendation row
-  has the confidence, `edition` or `work`, the title, authors and source; under
-  the list are the verdict, the reason, the cited pages and the candidate's own
-  rows, with a note when it is another edition. Enter opens the usual fields
-  page for that catalogue row, and Esc there returns to the recommendations;
-  Esc again returns to the untouched results. Everything the model said passes
-  through `safeText`. The AI model page is `zlib config ai` / `/config ai`. With nothing
+  unchanged), no reliable match, or the results. The results are not a page of
+  their own: they replace the list of the results page, with the same columns
+  and, from 100 columns, the same side-by-side panels as any source, the
+  source tagged `AI` (`[AI+Open Library]`) and the step line reading `AI match
+  results`. A row's Match is the catalogue's own score and the rows are ordered
+  by `metasource.RankOrder` (an ISBN match, then score and edition), so the
+  column means the same everywhere; the model's verdict is on the line above
+  the panels (`AI: same edition 92% · Adds …`, the effect line shortening to
+  make room) and, on a narrower terminal, in the details with its reason, the
+  cited pages and a note for another edition. The list is kept in
+  `res.Candidates` with the verdicts in `aiRecs`, and `aiBase` holds the
+  standard results: Esc on the AI list returns to them (or to the no-match
+  page) untouched, `a` runs the match again from those standard rows, and a new
+  search or `abandonSearch` through the snapshot (`aiResults`, `aiRecs`,
+  `aiBase` are in `metaSnapshot`) keeps the modes apart. Enter opens the usual
+  fields page, and Esc there returns to the AI list. The process view is a
+  `viewport` (soft wrapped, following a running match), hidden by default and
+  opened with `p` on the AI page and on an AI list (the key is shown only
+  there); the steps are `aimatch.Event`s that the match appends to the run
+  under its mutex. Everything the model said passes through `safeText`. The AI
+  model page is `zlib config ai` / `/config ai`. With nothing
   configured it runs a guided setup headed `Step n of N`: protocol
   (OpenAI-compatible or Anthropic-compatible), then the base URL (offered as the
   protocol's official address, any compatible endpoint allowed), then the API key

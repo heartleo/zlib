@@ -91,7 +91,7 @@ func TestLiveAIEndpoints(t *testing.T) {
 			lookup := func(context.Context, metasource.Query) (metasource.Result, error) { return metasource.Result{}, nil }
 			out, err := aimatch.Match(ctx, client, lookup, aimatch.Input{
 				FileName: "book.epub", Query: metasource.Query{Title: "Der Process", Authors: []string{"Franz Kafka"}}, Existing: []metasource.Candidate{row},
-			}, func(step string) { t.Logf("step: %s", step) })
+			}, func(e aimatch.Event) { t.Logf("step: %s", e.Message) })
 			if err != nil {
 				t.Fatalf("match failed: %v", err)
 			}

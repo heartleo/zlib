@@ -50,8 +50,9 @@ type metaRun struct {
 	started atomic.Bool
 	mu      sync.Mutex
 	cancel  context.CancelFunc
-	// progress is the step an AI match reports; the spinner redraw reads it.
-	progress atomic.Pointer[string]
+	// log is the steps an AI match reports, guarded by mu: the match appends on
+	// its goroutine while the page reads it to draw the process view.
+	log []aimatch.Event
 }
 
 func newMetaRun() *metaRun { return &metaRun{ch: make(chan tea.Msg, 1)} }
@@ -141,18 +142,24 @@ type metaPageModel struct {
 	gen int
 	run *metaRun
 
-	// AI Match (meta_ai.go). ai is nil when the page does not offer it. aiFrom
-	// is the page it was opened from, which Esc returns to; aiToFields marks a
-	// fields page opened from a recommendation, so Esc there comes back to them.
-	ai         metaAIFunc
-	aiRun      *metaRun
-	aiGen      int
-	aiState    metaAIState
-	aiOut      aimatch.Outcome
-	aiErr      error
-	aiCursor   int
-	aiFrom     metaStage
-	aiToFields bool
+	// AI Match (meta_ai.go). ai is nil when the page does not offer it. aiFrom is
+	// the page it was opened from. When it finds rows they replace the list on
+	// the results page (aiResults, aiRecs holding the model's verdict for each
+	// row) and aiBase is the standard results Esc returns to. aiLog is the
+	// finished match's steps; the process view (aiLogOpen) is hidden until asked.
+	ai        metaAIFunc
+	aiRun     *metaRun
+	aiGen     int
+	aiState   metaAIState
+	aiOut     aimatch.Outcome
+	aiErr     error
+	aiFrom    metaStage
+	aiResults bool
+	aiRecs    []aimatch.Recommendation
+	aiBase    *metaAIBase
+	aiLog     []aimatch.Event
+	aiLogOpen bool
+	aiLogView viewport.Model
 
 	// renameOpts are the names on offer on the rename page, renameCursor the
 	// highlighted one and renameBack the stage Esc returns to. renamedFrom is
@@ -307,6 +314,7 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m = m.resizeInfo()
+		m = m.resizeAILog()
 		return m, m.coverNeededCmd()
 	case spinner.TickMsg:
 		if m.stage != metaLooking && m.stage != metaWriting && !m.aiRunning() {
@@ -314,12 +322,16 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
+		if m.aiLogOpen {
+			m = m.refreshAILog() // the open process view follows the running match
+		}
 		return m, cmd
 	case metaAIDone:
 		if msg.gen != m.aiGen || !m.aiRunning() {
 			return m, nil // an answer to a match the user already left
 		}
-		return m.aiDone(msg), nil
+		m = m.aiDone(msg)
+		return m, m.lookedUpCmd()
 	case metaLookupDone:
 		if msg.gen != m.gen || m.stage != metaLooking {
 			return m, nil // an answer to a lookup the user already left
@@ -369,6 +381,9 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.helpOpen {
 		return m.helpKey(msg)
 	}
+	if m.aiLogOpen {
+		return m.aiLogKey(msg)
+	}
 	if m.editing {
 		return m.editKey(msg)
 	}
@@ -414,7 +429,14 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case metaCandidates:
 		switch k {
 		case "esc":
+			if m.aiResults {
+				return m.leaveAIResults() // back to the standard results
+			}
 			return m.backToPrepare()
+		case "p":
+			if m.aiResults {
+				return m.openAILog(), nil
+			}
 		case "ctrl+c", "q":
 			m.cancelled = true
 			return m, tea.Quit
@@ -456,7 +478,6 @@ func (m *metaPageModel) scrollTo(row int) {
 
 // openFields plans the changes the chosen candidate would make.
 func (m metaPageModel) openFields() metaPageModel {
-	m.aiToFields = false
 	return m.openFieldsFor(m.res.Candidates[m.cursor])
 }
 
@@ -527,6 +548,9 @@ func (m metaPageModel) View() tea.View {
 	if m.helpOpen {
 		return m.helpScreen(subtitle)
 	}
+	if m.aiLogOpen {
+		return m.aiLogScreen(subtitle)
+	}
 	if m.editing && m.editKind == editQuery {
 		// From the prepare page Enter keeps the terms; from the results it searches.
 		accept := "search"
@@ -572,10 +596,10 @@ func (m metaPageModel) View() tea.View {
 	case metaCandidates:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.sideNarrow().candidatesBody(), m.sourceNote(),
 			m.keysFor(withHelpKey(
-				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI match"}, {"n", "rename"}, {"?", "keys"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI match"}, {"p", "process"}, {"n", "rename"}, {"?", "keys"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI"}, {"p", "process"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI"}, {"p", ""}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"a", "AI"}, {"p", ""}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"enter", ""}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"s", ""}, {"n", ""}, {"esc", ""}},
@@ -634,6 +658,9 @@ func (m metaPageModel) keysFor(tiers ...[][2]string) []keys.Binding {
 			}
 			if kd[0] == "a" && m.ai == nil {
 				continue
+			}
+			if kd[0] == "p" && !m.aiResults && m.stage != metaAI {
+				continue // the process view belongs to an AI match's results
 			}
 			if len(out) > 0 {
 				cells += 3 // the separator between hints

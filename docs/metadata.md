@@ -516,19 +516,34 @@ supported, and any endpoint that speaks one of them works. What it holds:
 
 What it does, in order:
 
-1. Reads the title, authors, ISBN, language, publisher and year being searched,
+1. Reads the title, authors, year, ISBN, language and publisher being searched,
    and the file's name (never its path).
-2. Asks the model for extra search terms: another-language titles, author
-   aliases and, if its web search finds one, an ISBN.
+2. Asks the model for extra search terms, each with a title, the authors and a
+   year like a standard query: another-language titles, author aliases and, if
+   its web search finds one, an ISBN.
 3. Searches the catalogues again with those terms, through the same sources as
    the standard lookup.
-4. Asks the model to rank the rows the catalogues returned, including the first
-   search's.
-5. Shows each recommendation with its source, whether it is the same edition or
-   another edition of the same work, a confidence, a short reason and the
-   pages the web search cited.
+4. Asks the model which of the rows the catalogues returned, including the
+   first search's, describe the file.
+5. Lists the rows it vouches for in the **same list and side-by-side comparison
+   as any source**: the same columns, the same file-and-match panels, the
+   source shown as `[AI+Open Library]`. A row's Match is the catalogue's own,
+   from the search that found it; the model's verdict (same edition or another
+   edition of the work, its confidence, a short reason and the pages its web
+   search cited) is shown beside it, on the line above the panels and in the
+   details. The rows are ordered like any lookup's: an exact ISBN first, then
+   by score and by how well the edition agrees with the file.
 6. You pick one, and the usual fields page opens: it shows the differences
-   field by field and writes only what you select, after you confirm.
+   field by field and writes only what you select, after you confirm. Esc on
+   the AI list returns to the standard results as they were.
+
+While it runs, the page shows the current step. **The process** is hidden
+by default: press `p` to open it (while the match runs, on the AI page after it
+fails or finds nothing, and on the AI list afterwards) and `p` or Esc to close
+it. It is a scrolling view of the search terms the model suggested and the web
+pages it cited, each catalogue search and how many rows it found, and the
+comparison with the verdict on every row kept. It holds nothing beyond what was
+sent: no key, no header value, no path.
 
 The rules the code enforces, not only the prompt:
 

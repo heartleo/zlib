@@ -8,6 +8,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/heartleo/zlib/internal/aimatch"
 	"github.com/heartleo/zlib/internal/metasource"
 )
 
@@ -30,6 +31,7 @@ func (m metaPageModel) search() (tea.Model, tea.Cmd) {
 	m.stop()
 	m.remember()
 	m.gen++
+	m.aiResults, m.aiRecs, m.aiBase = false, nil, nil // a new search replaces an AI list
 	m.stage, m.err, m.res = metaLooking, nil, metasource.Result{}
 	m.run = newMetaRun()
 	return m, tea.Batch(m.spinner.Tick, m.start())
@@ -47,6 +49,11 @@ type metaSnapshot struct {
 	lookup      metaLookupFunc
 	sources     []metaSourceChoice
 	draft       []metaSourceChoice
+	// The AI match state of the list: whether it holds AI rows, the model's
+	// verdict for each and the standard results Esc on it returns to.
+	aiResults bool
+	aiRecs    []aimatch.Recommendation
+	aiBase    *metaAIBase
 	// outer is the snapshot this one was taken over: a prepare page opened from
 	// the results holds the results here, so Esc steps back one page at a time.
 	outer *metaSnapshot
@@ -66,7 +73,8 @@ func (m *metaPageModel) remember() {
 // snapshot is the page as it is now, over whatever snapshot is already kept.
 func (m *metaPageModel) snapshot() *metaSnapshot {
 	return &metaSnapshot{stage: m.stage, res: m.res, err: m.err, query: m.query, extraction: m.extraction, cursor: m.cursor, top: m.top,
-		lookup: m.lookup, sources: m.sources, draft: append([]metaSourceChoice(nil), m.draft...), outer: m.prev}
+		lookup: m.lookup, sources: m.sources, draft: append([]metaSourceChoice(nil), m.draft...), outer: m.prev,
+		aiResults: m.aiResults, aiRecs: m.aiRecs, aiBase: m.aiBase}
 }
 
 // abandonSearch stops a search the user gave up on, or leaves the prepare page
@@ -78,6 +86,7 @@ func (m metaPageModel) abandonSearch() metaPageModel {
 	m.gen++
 	m.stage, m.res, m.err, m.query, m.extraction, m.cursor, m.top, m.lookup, m.sources, m.draft =
 		p.stage, p.res, p.err, p.query, p.extraction, p.cursor, p.top, p.lookup, p.sources, p.draft
+	m.aiResults, m.aiRecs, m.aiBase = p.aiResults, p.aiRecs, p.aiBase
 	m.prev, m.run, m.message = p.outer, newMetaRun(), ""
 	return m
 }
