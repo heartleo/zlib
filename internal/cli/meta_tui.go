@@ -721,21 +721,22 @@ func (m metaPageModel) failedBody() string {
 	return strings.Join(lines, "\n")
 }
 
-// sourceNote tells which sources failed while others answered. With the
-// side-by-side panels up, which have no room for the details, it also leads
-// with the reasons behind the highlighted row's rank.
+// sourceNote tells which sources failed while others answered, which is the
+// line's job and comes first. With the side-by-side panels up, which have no room
+// for the details, it ends with the first reason behind the highlighted row's rank
+// (the rest are in --json and the details of a narrower page).
 func (m metaPageModel) sourceNote() string {
 	var parts []string
-	if m.stage == metaCandidates && m.compareFits() && m.cursor < len(m.res.Candidates) {
-		if notes := m.res.Candidates[m.cursor].Notes; len(notes) > 0 {
-			parts = append(parts, "Evidence: "+strings.Join(notes, "; "))
-		}
-	}
 	for _, e := range m.res.Errors {
 		parts = append(parts, metaSourceError(e))
 	}
 	if note := m.titleNote(); note != "" {
 		parts = append(parts, note)
+	}
+	if m.stage == metaCandidates && m.compareFits() && m.cursor < len(m.res.Candidates) {
+		if notes := m.res.Candidates[m.cursor].Notes; len(notes) > 0 {
+			parts = append(parts, "Evidence: "+notes[0])
+		}
 	}
 	return strings.Join(parts, "; ")
 }

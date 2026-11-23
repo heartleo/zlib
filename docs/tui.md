@@ -366,7 +366,10 @@ nothing while a search or a write runs:
 - **Candidates** list the matches of every source, best first. The answers of
   different sources are not merged: each source has its own row or rows, so the
   same book from three catalogues is three adjacent rows, each with only what
-  that catalogue says. On a terminal 100
+  that catalogue says. The details of the highlighted row (or, on a page with the
+  panels, the status line, after any source failure) give the reasons for its rank
+  as `Evidence`: the program's own notes (another volume, another edition, a
+  year or language that differs), not a model's. On a terminal 100
   columns wide or more the page puts the file beside the highlighted match
   under the list, in the same two panels as the workbench (read only, and only
   the fields either side has), so you compare before choosing. One line between

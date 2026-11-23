@@ -230,7 +230,9 @@ built from the fields of the row and the file, never from a model.
 - **A summary or study guide** of the book ranks lower, unless the title asked for one.
 - **Authors.** `Frank Herbert`, `Herbert, Frank` and `F. Herbert` agree; a surname
   alone is a partial match (it fits every Herbert); the same surname with another
-  given name (`Brian Herbert`) conflicts.
+  given name (`Brian Herbert`) conflicts. A book that credits someone the file does
+  not name first and the file's author after (a continuation by other hands)
+  ranks a little lower, with a note.
 - **Another edition.** When the file has a confirmed ISBN and an edition-level result
   carries a different one, that result is another edition of the book. Choosing it
   still selects none of its edition fields.
@@ -488,8 +490,11 @@ what neither the file name nor the file gives. Leaving the page returns to the
 saved file.
 
 With `--json`, the document has the `query`, the ranked `candidates` (with
-`match`, `score`, `sources`, `edition_level` and the fields) and any
-per-source `errors`.
+`match`, `score`, `sources`, `edition_level`, `notes` and the fields) and any
+per-source `errors`. The `query` also carries the `year`, `publisher` and `language`
+the file declares, which only rank results (see
+[How a title match is weighed](#how-a-title-match-is-weighed)). `notes` are the
+reasons for a row's rank, in plain words.
 
 Exit codes, for redirected output and `--json`: `1` when nothing matched, `2`
 when the file has nothing to search with or `--isbn` is not a valid ISBN, `4`

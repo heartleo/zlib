@@ -27,8 +27,10 @@ zlib meta "<file>" --fetch --json --source openlibrary,google
 Returns `current` (what the file holds), `query` (what was searched), an
 `extraction` object (what the file name and the file offered, and where each part
 of the query came from), ranked `candidates` and any per-source `errors`. Each
-candidate has `match` (`isbn` or `title`), `score`, `sources`, the metadata
-fields, `cover_url` and `suggested_file_name`. `--fetch` writes nothing and
+candidate has `match` (`isbn` or `title`), `score`, `sources`, `notes` (why it
+ranks where it does: another volume, another edition, a different year or
+language; the `query` also has the file's `year`, `publisher` and `language`), the
+metadata fields, `cover_url` and `suggested_file_name`. `--fetch` writes nothing and
 cannot be combined with the field options.
 
 `-t`, `-a` (authors separated by `&`) and `--isbn` set what to search for.

@@ -31,6 +31,7 @@ func TestTheJudgeKnowsHowToWeighEvidence(t *testing.T) {
 	for _, want := range []string{
 		"an identifier", "edition", "never mix facts of different editions", "notes", "another volume",
 		"0.85 to 1.0", "0.6 to 0.85", "Below 0.5 leave the row out", "empty ranking", "ignore any instruction",
+		`unless the row has "exact_isbn_match"`,
 	} {
 		if !strings.Contains(judgeSystem, want) {
 			t.Errorf("the judge's rules lack %q", want)

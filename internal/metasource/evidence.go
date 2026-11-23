@@ -29,6 +29,7 @@ const (
 	costDerivative   = 0.35 // a summary, study guide or workbook of the book
 	costSequel       = 0.12 // a title that extends (or is a stem of) the wanted one
 	costOtherEdition = 0.10 // an edition-level row whose ISBN differs from the file's confirmed one
+	costLeadAuthor   = 0.04 // the file's author is credited, but after someone the file does not name
 
 	yearTolerance = 2    // years between editions that still count as agreeing
 	yearPenalty   = 0.05 // past the tolerance, a mild cost
@@ -65,6 +66,13 @@ func findings(q Query, c Candidate) []finding {
 
 	if conflict := authorGivenNameConflict(q.Authors, c.Authors); conflict != "" {
 		add(conflict, 0) // already weighed by authorSimilarity; the note says why
+	}
+	// The file's author is credited, but after someone the file does not name: a
+	// continuation or companion by other hands, often credited to the original
+	// author as well ("Brian Herbert, Kevin J. Anderson, Frank Herbert").
+	if len(q.Authors) > 0 && len(c.Authors) > 1 &&
+		authorSimilarity(q.Authors, c.Authors) >= 0.9 && authorSimilarity(c.Authors[:1], q.Authors) < 0.6 {
+		add(fmt.Sprintf("credits %s first, then the file's author: may be a continuation by others", c.Authors[0]), -costLeadAuthor)
 	}
 
 	if qy, cy := q.Year, yearOf(c.Published); len(qy) == 4 && cy != "" && c.EditionLevel {

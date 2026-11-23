@@ -249,7 +249,9 @@ page, one step at a time ([Metadata](metadata.md)). A good run:
 2. `lookup_metadata` with `file_path`. Matches come ranked, each from one
    catalogue (`sources` names it; the answers of different catalogues are not
    merged, so the same book from two catalogues is two matches), with `match`
-   (`isbn` or `title`), `score` and each field. Each match lists
+   (`isbn` or `title`), `score`, `notes` (the reasons for its rank: another
+   volume, another edition by ISBN, a year or language that differs, a sequel or
+   companion; facts from the record, read them before the score) and each field. Each match lists
    `changes`: the field, what the file holds (`old`), what the match says
    (`new`), whether it fills an empty field (`fill`) and whether it is safe to
    take (`selected`). A match found by title alone is a guess about the edition,

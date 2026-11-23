@@ -365,3 +365,46 @@ func TestLanguageTagsAreReadWhateverTheirSeparator(t *testing.T) {
 		t.Errorf("a zh_CN file did not prefer the Chinese record: %+v", rows)
 	}
 }
+
+// Found on real data: Google Books credits "Dune: House Atreides" to Brian
+// Herbert, Kevin J. Anderson and Frank Herbert. The file's author is there, so the
+// authors agree, but a book whose lead author the file does not name is a
+// continuation: it ranks below the same-title book that is led by the file's author.
+func TestACreditedLeadAuthorTheFileDoesNotNameRanksLower(t *testing.T) {
+	q := Query{Title: "Dune", Authors: []string{"Frank Herbert"}, Year: "2003"}
+	book := row("1", "Dune", "Frank Herbert", "1965") // far from the file's year, led by the file's author
+	prequel := row("2", "Dune: House Atreides", "", "1999")
+	prequel.Authors = []string{"Brian Herbert", "Kevin J. Anderson", "Frank Herbert"}
+	names, rows := ranked(q, prequel, book)
+	if names[0] != "Dune|Frank Herbert" {
+		t.Errorf("a continuation by others outranks the book: %v", names)
+	}
+	if got := notesOf(rows, "Dune: House Atreides", "Brian Herbert"); !strings.Contains(got, "credits Brian Herbert first") {
+		t.Errorf("notes = %q", got)
+	}
+	// A co-author listed after the file's own author is no continuation.
+	co := row("3", "Dune", "", "1965")
+	co.Authors = []string{"Frank Herbert", "Someone Else"}
+	if got := strings.Join(candidateNotes(q, co), ";"); strings.Contains(got, "credits") {
+		t.Errorf("a co-author was flagged: %q", got)
+	}
+	// And a book with no author at all, or only the file's author, is untouched.
+	for _, authors := range [][]string{nil, {"Frank Herbert"}} {
+		c := row("4", "Dune", "", "1965")
+		c.Authors = authors
+		if got := strings.Join(candidateNotes(q, c), ";"); strings.Contains(got, "credits") {
+			t.Errorf("%v flagged: %q", authors, got)
+		}
+	}
+}
+
+// Editing the search keeps what the file says about its edition, the language
+// included: without it the language evidence would stop applying the moment the
+// user edits the search on the results page.
+func TestEditingTheSearchKeepsTheFilesLanguage(t *testing.T) {
+	old := Query{Title: "三体", Publisher: "重庆出版社", Year: "2008", Language: "zh_CN"}
+	q, err := ParseQueryEdit(old, "三体", "刘慈欣", "")
+	if err != nil || q.Language != "zh_CN" || q.Year != "2008" || q.Publisher != "重庆出版社" {
+		t.Fatalf("query = %+v, %v", q, err)
+	}
+}
