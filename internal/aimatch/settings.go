@@ -48,6 +48,10 @@ type Settings struct {
 	Model   string `json:"model"`
 	// WebSearch lets the model search the web, when the endpoint supports it.
 	WebSearch bool `json:"web_search,omitempty"`
+	// Headers are extra request headers sent with every request to this endpoint,
+	// for a gateway that wants one (a session id, say). Their values can be
+	// secrets: they are saved like the key and never shown or logged.
+	Headers []Header `json:"headers,omitempty"`
 	// VerifiedFingerprint is Fingerprint() as of the last successful connection
 	// test. Any change to the fields it covers makes it stale.
 	VerifiedFingerprint string `json:"verified,omitempty"`
@@ -56,7 +60,7 @@ type Settings struct {
 // Fingerprint identifies every field a connection test depends on.
 func (s Settings) Fingerprint() string {
 	sum := sha256.Sum256([]byte(strings.Join([]string{
-		string(s.Protocol), s.BaseURL, s.Model, s.APIKey, fmt.Sprint(s.WebSearch),
+		string(s.Protocol), s.BaseURL, s.Model, s.APIKey, fmt.Sprint(s.WebSearch), headersFingerprint(s.Headers),
 	}, "\x00")))
 	return hex.EncodeToString(sum[:])
 }
@@ -86,10 +90,95 @@ func (s Settings) MaskedKey() string {
 
 // String and GoString keep the key out of logs and %v dumps.
 func (s Settings) String() string {
-	return fmt.Sprintf("{%s %s model=%s key=%s web_search=%t}", s.Protocol, s.BaseURL, s.Model, s.MaskedKey(), s.WebSearch)
+	return fmt.Sprintf("{%s %s model=%s key=%s web_search=%t headers=%d}", s.Protocol, s.BaseURL, s.Model, s.MaskedKey(), s.WebSearch, len(s.Headers))
 }
 
 func (s Settings) GoString() string { return s.String() }
+
+// Header is one custom request header.
+type Header struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// MaxHeaders and maxHeaderValue bound what a configuration can carry.
+const (
+	MaxHeaders     = 10
+	maxHeaderValue = 1024
+)
+
+// reservedHeaders are set by zlib itself or by the HTTP stack; a custom header
+// cannot replace them, so a typo cannot break authentication or framing.
+var reservedHeaders = map[string]bool{
+	"authorization": true, "x-api-key": true, "anthropic-version": true, "content-type": true,
+	"content-length": true, "host": true, "transfer-encoding": true, "connection": true,
+	"user-agent": true, "accept": true, "proxy-authorization": true, "cookie": true,
+}
+
+// ValidateHeader checks a header: a valid name that is not reserved, and a
+// value without control characters (which would split the request).
+func ValidateHeader(h Header) error {
+	if h.Name == "" {
+		return errors.New("a header needs a name")
+	}
+	for _, r := range h.Name {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("!#$%&'*+-.^_`|~", r)) {
+			return fmt.Errorf("%q is not a valid header name", h.Name)
+		}
+	}
+	if reservedHeaders[strings.ToLower(h.Name)] {
+		return fmt.Errorf("%s is set by zlib and cannot be overridden", h.Name)
+	}
+	if h.Value == "" {
+		return fmt.Errorf("%s needs a value", h.Name)
+	}
+	if len(h.Value) > maxHeaderValue {
+		return fmt.Errorf("the value of %s is longer than %d characters", h.Name, maxHeaderValue)
+	}
+	for _, r := range h.Value {
+		if r < 0x20 && r != '\t' || r == 0x7f {
+			return fmt.Errorf("the value of %s has a control character", h.Name)
+		}
+	}
+	return nil
+}
+
+// ValidateHeaders checks every header and that no name repeats.
+func ValidateHeaders(hs []Header) error {
+	if len(hs) > MaxHeaders {
+		return fmt.Errorf("at most %d custom headers", MaxHeaders)
+	}
+	seen := map[string]bool{}
+	for _, h := range hs {
+		if err := ValidateHeader(h); err != nil {
+			return err
+		}
+		k := strings.ToLower(h.Name)
+		if seen[k] {
+			return fmt.Errorf("%s is listed twice", h.Name)
+		}
+		seen[k] = true
+	}
+	return nil
+}
+
+// ParseHeaderLine reads "Name: value". An empty value is allowed here (the
+// editor uses it to mean "keep the saved value"); ValidateHeader rejects it.
+func ParseHeaderLine(line string) (Header, error) {
+	name, value, ok := strings.Cut(line, ":")
+	if !ok {
+		return Header{}, errors.New("write the header as Name: value")
+	}
+	return Header{Name: strings.TrimSpace(name), Value: strings.TrimSpace(value)}, nil
+}
+
+func headersFingerprint(hs []Header) string {
+	var sb strings.Builder
+	for _, h := range hs {
+		sb.WriteString(strings.ToLower(h.Name) + "\x01" + h.Value + "\x02")
+	}
+	return sb.String()
+}
 
 // DefaultModel is the model the setup suggests when none is chosen yet.
 const DefaultModel = "deepseek-v4.1-flash"
@@ -120,7 +209,7 @@ func (s Settings) Validate() error {
 	if strings.TrimSpace(s.Model) == "" {
 		return errors.New("no model set")
 	}
-	return nil
+	return ValidateHeaders(s.Headers)
 }
 
 // ValidateBaseURL requires an https URL without credentials; plain http is

@@ -68,6 +68,7 @@ const (
 	fieldURL
 	fieldKey
 	fieldModel
+	fieldHeader
 )
 
 // aiAction is a row of the summary page.
@@ -79,12 +80,13 @@ const (
 	actKey
 	actModel
 	actSearch
+	actHeaders
 	actTest
 	actRemove
 	actCount
 )
 
-var aiActionLabels = [actCount]string{"Protocol", "Base URL", "API key", "Model", "Web search", "Test connection", "Remove settings"}
+var aiActionLabels = [actCount]string{"Protocol", "Base URL", "API key", "Model", "Web search", "Custom headers", "Test connection", "Remove settings"}
 
 type aiMode int
 
@@ -93,6 +95,7 @@ const (
 	aiEdit
 	aiPick
 	aiConfirmRemove
+	aiHeaders // the list of custom request headers
 )
 
 type (
@@ -115,19 +118,24 @@ type aiPageModel struct {
 	input  textinput.Model
 	// field is what the open editor or list is for. wizard is set while the
 	// guided setup runs.
-	field         aiField
-	wizard        bool
-	resetKey      bool
-	pickAll       []string
-	pickCursor    int
-	spinner       spinner.Model
-	busy          bool
-	busyNote      string
-	gen           int
-	cancel        context.CancelFunc
-	message       string
-	width, height int
-	done          bool
+	field    aiField
+	wizard   bool
+	resetKey bool
+	// The custom headers list: its cursor, the header being edited (-1: a new
+	// one) and whether anything changed, so leaving the list tests again.
+	hcursor        int
+	headerIndex    int
+	headersChanged bool
+	pickAll        []string
+	pickCursor     int
+	spinner        spinner.Model
+	busy           bool
+	busyNote       string
+	gen            int
+	cancel         context.CancelFunc
+	message        string
+	width, height  int
+	done           bool
 }
 
 func newAIPage(ctx context.Context, width, height int) aiPageModel {
@@ -240,6 +248,8 @@ func (m aiPageModel) key(msg tea.KeyPressMsg) (aiPageModel, tea.Cmd) {
 		return m.editKey(msg, k)
 	case aiPick:
 		return m.pickKey(msg, k)
+	case aiHeaders:
+		return m.headersKey(k)
 	case aiConfirmRemove:
 		if k == "y" {
 			if _, err := removeAISettings(); err != nil {
@@ -280,6 +290,8 @@ func (m aiPageModel) activate() (aiPageModel, tea.Cmd) {
 		if m.s.Configured() {
 			return m.test() // the test covers web search when it is on
 		}
+	case actHeaders:
+		m.mode, m.hcursor, m.headersChanged = aiHeaders, 0, false
 	case actTest:
 		return m.test()
 	case actRemove:
@@ -384,6 +396,11 @@ func (m aiPageModel) openEdit(field aiField, value string, secret bool) (aiPageM
 
 // leaveEdit closes the editor, or pauses the setup when it was running.
 func (m aiPageModel) leaveEdit() aiPageModel {
+	if m.field == fieldHeader {
+		m.mode, m.message = aiHeaders, ""
+		m.input.Blur()
+		return m
+	}
 	m.mode = aiRows
 	m.input.Blur()
 	m.message = ""
@@ -403,12 +420,17 @@ func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 		switch m.field {
 		case fieldKey:
 			m.resetKey, m.message = true, "Cleared: Enter removes the saved key, or paste a new one"
+		case fieldHeader:
+			m.message = "Cleared: Enter deletes this header, or type a new Name: value"
 		default:
 			m.message = "Cleared: type an address"
 		}
 		return m, nil
 	case "enter":
 		v := strings.TrimSpace(m.input.Value())
+		if m.field == fieldHeader {
+			return m.saveHeader(v), nil
+		}
 		switch m.field {
 		case fieldURL:
 			v = strings.TrimRight(v, "/")
@@ -449,6 +471,108 @@ func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 		m.resetKey = false
 	}
 	return m, cmd
+}
+
+// --- Custom headers --------------------------------------------------------
+
+// headerLine is what the editor opens with: the name, and no value, which is
+// never shown again. An empty value on save keeps the saved one.
+func headerLine(h aimatch.Header) string { return h.Name + ": " }
+
+func (m aiPageModel) headersKey(k string) (aiPageModel, tea.Cmd) {
+	n := len(m.s.Headers) + 1 // the headers, then "Add a header"
+	switch k {
+	case "esc", "ctrl+c", "q", "left":
+		m.mode, m.message = aiRows, ""
+		if m.headersChanged {
+			m.headersChanged = false
+			if m.s.Configured() {
+				return m.test() // the headers can decide whether the endpoint answers
+			}
+		}
+	case "up", "down", "pgup", "pgdown", "home", "end", "k", "j":
+		m.hcursor = listCursor(k, m.hcursor, n, max(1, m.height-10))
+	case "d", "delete", "backspace":
+		if m.hcursor < len(m.s.Headers) {
+			name := m.s.Headers[m.hcursor].Name
+			m.s.Headers = append(append([]aimatch.Header(nil), m.s.Headers[:m.hcursor]...), m.s.Headers[m.hcursor+1:]...)
+			m.save()
+			m.headersChanged = true
+			m.hcursor = min(m.hcursor, len(m.s.Headers))
+			m.message = "Removed " + safeText(name)
+		}
+	case "enter", "space", "a":
+		if m.hcursor < len(m.s.Headers) {
+			m.headerIndex = m.hcursor
+			next, cmd := m.openEdit(fieldHeader, headerLine(m.s.Headers[m.hcursor]), false)
+			return next, cmd
+		}
+		if len(m.s.Headers) >= aimatch.MaxHeaders {
+			m.message = "At most " + strconv.Itoa(aimatch.MaxHeaders) + " custom headers"
+			return m, nil
+		}
+		m.headerIndex = -1
+		next, cmd := m.openEdit(fieldHeader, "", false)
+		return next, cmd
+	}
+	return m, nil
+}
+
+// saveHeader applies the line typed in the header editor. An empty line
+// deletes the header being edited; "Name:" with no value keeps its value.
+func (m aiPageModel) saveHeader(line string) aiPageModel {
+	back := func(msg string) aiPageModel {
+		m.mode, m.message = aiHeaders, msg
+		m.input.Blur()
+		return m
+	}
+	idx := m.headerIndex
+	if line == "" {
+		if idx < 0 || idx >= len(m.s.Headers) {
+			return back("")
+		}
+		name := m.s.Headers[idx].Name
+		m.s.Headers = append(append([]aimatch.Header(nil), m.s.Headers[:idx]...), m.s.Headers[idx+1:]...)
+		m.save()
+		m.headersChanged = true
+		m.hcursor = min(m.hcursor, len(m.s.Headers))
+		return back("Removed " + safeText(name))
+	}
+	h, err := aimatch.ParseHeaderLine(line)
+	if err != nil {
+		m.message = err.Error()
+		return m
+	}
+	if h.Value == "" && idx >= 0 && idx < len(m.s.Headers) && strings.EqualFold(h.Name, m.s.Headers[idx].Name) {
+		h.Value = m.s.Headers[idx].Value
+	}
+	next := append([]aimatch.Header(nil), m.s.Headers...)
+	if idx >= 0 && idx < len(next) {
+		next[idx] = h
+	} else {
+		next = append(next, h)
+		m.hcursor = len(next) - 1
+	}
+	if err := aimatch.ValidateHeaders(next); err != nil {
+		m.message = safeText(err.Error())
+		return m
+	}
+	m.s.Headers = next
+	m.save()
+	m.headersChanged = true
+	return back("Saved " + safeText(h.Name))
+}
+
+// headersSummary is the value of the Custom headers row: names only.
+func headersSummary(hs []aimatch.Header) string {
+	if len(hs) == 0 {
+		return "None (optional)"
+	}
+	names := make([]string, len(hs))
+	for i, h := range hs {
+		names[i] = h.Name
+	}
+	return strconv.Itoa(len(hs)) + " set: " + strings.Join(names, ", ")
 }
 
 // --- Lists ------------------------------------------------------------------
@@ -646,6 +770,12 @@ func (m aiPageModel) view() tea.View {
 	switch m.mode {
 	case aiEdit:
 		what, help := "Base URL", []string{"https, or http for localhost only. Anthropic-compatible endpoints omit /v1."}
+		if m.field == fieldHeader {
+			what = "Custom header"
+			help = []string{"Write it as Name: value, for example x-session-id: abc123.",
+				"Sent with every request to this endpoint. The value is saved in ai.json,",
+				"never shown again or logged. Leave the value empty to keep the saved one."}
+		}
 		if m.field == fieldKey {
 			what = "API key"
 			help = []string{"Saved to ai.json in your config directory, readable only by you.", "It is shown masked and never written to logs."}
@@ -679,6 +809,17 @@ func (m aiPageModel) view() tea.View {
 		}
 		controls := []keys.Binding{uiKey("enter", "choose"), uiKey("↑/↓", "select"), uiKey("esc", "back")}
 		return settingsCompactView(w, h, m.stepTitle(name), "", lines, m.message, controls)
+	case aiHeaders:
+		lines := []string{}
+		for i, h := range m.s.Headers {
+			row := h.Name + strings.Repeat(" ", max(1, 26-ansi.StringWidth(h.Name))) + "value hidden (" + strconv.Itoa(len(h.Value)) + " characters)"
+			lines = append(lines, styledListRow(ansi.Truncate(safeText(row), max(1, w-4), "…"), i == m.hcursor, w, currentTheme))
+		}
+		lines = append(lines, styledListRow("+ Add a header", len(m.s.Headers) == m.hcursor, w, currentTheme), "",
+			muted.Render(ansi.Truncate("Extra headers for gateways that ask for one, such as a session id.", max(1, w-2), "…")),
+			muted.Render(ansi.Truncate("Authorization and x-api-key are managed by zlib and cannot be set here.", max(1, w-2), "…")))
+		return settingsCompactView(w, h, "Settings / AI model · Custom headers", "", lines, m.message,
+			[]keys.Binding{uiKey("enter", "edit or add"), uiKey("d", "delete"), uiKey("esc", "back")})
 	case aiConfirmRemove:
 		return settingsCompactView(w, h, title, "", []string{"Remove the saved AI model settings, including the API key?"}, "", []keys.Binding{uiKey("y", "remove"), uiKey("any key", "keep")})
 	}
@@ -709,6 +850,8 @@ func (m aiPageModel) view() tea.View {
 			if m.s.WebSearch {
 				value = "On: the model may search the web"
 			}
+		case actHeaders:
+			value = headersSummary(m.s.Headers)
 		case actTest:
 			value = map[bool]string{true: "✓ verified", false: "not verified"}[m.s.Verified()]
 		}

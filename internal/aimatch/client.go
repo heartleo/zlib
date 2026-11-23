@@ -294,6 +294,9 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	} else if c.s.APIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.s.APIKey)
 	}
+	for _, h := range c.s.Headers {
+		req.Header.Set(h.Name, h.Value)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return c.redact(err)
@@ -345,6 +348,11 @@ func (c *Client) errorMessage(data []byte) string {
 }
 
 func (c *Client) redactText(s string) string {
+	for _, h := range c.s.Headers { // a header value can be a secret too
+		if len(h.Value) >= 6 {
+			s = strings.ReplaceAll(s, h.Value, "[header]")
+		}
+	}
 	if c.s.APIKey != "" {
 		s = strings.ReplaceAll(s, c.s.APIKey, "[key]")
 		if len(c.s.APIKey) > 8 {

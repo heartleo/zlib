@@ -52,7 +52,7 @@ zlib config ai
 
 `zlib config ai` opens the AI model page: protocol (OpenAI-compatible or
 Anthropic-compatible), base URL, API key, model,
-web search and a connection test for [AI Match](metadata.md#ai-match-optional).
+web search, optional custom request headers and a connection test for [AI Match](metadata.md#ai-match-optional).
 Unlike the other settings it is saved in `ai.json` in the config directory (mode
 0600), not in a `.env` file or the environment, and `zlib config --json` shows
 the model and whether it is verified, never the key.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +19,8 @@ import (
 //	ZLIB_AI_LIVE=1 go test -run TestLiveAIEndpoints -v ./internal/cli
 //
 // It reads OPENAI_BASE_URL, OPENAI_API_KEY, OPENAI_MODEL and the ANTHROPIC_
-// equivalents, and ZLIB_PROXY, from the repository's .env (or the file named by
+// equivalents (and optional OPENAI_HEADERS / ANTHROPIC_HEADERS, "Name: value;
+// Name2: value2"), and ZLIB_PROXY, from the repository's .env (or the file named by
 // ZLIB_AI_LIVE_ENV). It logs hosts, counts and redacted errors, never a key.
 func TestLiveAIEndpoints(t *testing.T) {
 	if os.Getenv("ZLIB_AI_LIVE") != "1" {
@@ -47,6 +49,17 @@ func TestLiveAIEndpoints(t *testing.T) {
 			s := aimatch.Settings{Protocol: tc.proto, BaseURL: get(tc.prefx + "BASE_URL"), APIKey: get(tc.prefx + "API_KEY"), Model: get(tc.prefx + "MODEL")}
 			if s.BaseURL == "" || s.APIKey == "" || s.Model == "" {
 				t.Skip("not configured in .env")
+			}
+			// Optional custom headers: "Name: value; Name2: value2".
+			for part := range strings.SplitSeq(get(tc.prefx+"HEADERS"), ";") {
+				if strings.TrimSpace(part) == "" {
+					continue
+				}
+				h, err := aimatch.ParseHeaderLine(part)
+				if err != nil {
+					t.Fatalf("%sHEADERS: %v", tc.prefx, err)
+				}
+				s.Headers = append(s.Headers, h)
 			}
 			u, _ := url.Parse(s.BaseURL)
 			// The model is not logged: a misplaced key in .env would show up in it.

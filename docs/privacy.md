@@ -23,8 +23,9 @@ AI Match is off by default and sends nothing until you configure a model, pass
 its connection test and start a match yourself; the other catalogue lookups are
 the same with or without it. What the AI provider does with the request is up
 to that provider. zlib never sends the file, its path or your Z-Library session
-to it. Your Google Books, WeRead and AI API keys are sent only to their own
-services, and the AI endpoint is never followed through a redirect to another host.
+to it. Your Google Books, WeRead and AI API keys, and any custom AI request
+headers, are sent only to their own services, and the AI endpoint is never
+followed through a redirect to another host.
 
 ## What is kept on your computer
 

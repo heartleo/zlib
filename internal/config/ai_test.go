@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestAISettingsRoundTripAndRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err = LoadAI()
-	if err != nil || got != s || !got.Verified() {
+	if err != nil || !reflect.DeepEqual(got, s) || !got.Verified() {
 		t.Fatalf("round trip: %+v, %v", got, err)
 	}
 	if info, err := os.Stat(AIPath()); err != nil || info.Mode().Perm()&0o077 != 0 && os.PathSeparator == '/' {

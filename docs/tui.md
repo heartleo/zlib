@@ -332,10 +332,14 @@ nothing while a search or a write runs:
   terminal), and Ctrl+R empties it, for the base URL and the key alike (for the
   key, Enter then removes the saved one). With no model set the list starts on
   `deepseek-v4.1-flash`, and the box is prefilled with it when the endpoint has
-  no model list. Afterwards the page is seven rows (protocol,
-  base URL, API key, model, web search, test, remove); changing the key, model
-  or web search tests again by itself, and a new base URL or protocol drops the
-  key and model and runs the setup again. Every edit saves at once and the saved
+  no model list. Afterwards the page is eight rows (protocol,
+  base URL, API key, model, web search, custom headers, test, remove); changing
+  the key, model or web search tests again by itself, and a new base URL or
+  protocol drops the key and model and runs the setup again. Custom headers
+  opens a list of the headers (name and the length of the hidden value, then
+  `+ Add a header`): Enter edits or adds one as `Name: value` (a name with no
+  value keeps the saved value, and Ctrl+R then Enter deletes), `d` deletes, and
+  leaving the list tests again if anything changed. Every edit saves at once and the saved
   verification goes stale on any change.
 - **Candidates** list the matches of every source, best first. The answers of
   different sources are not merged: each source has its own row or rows, so the

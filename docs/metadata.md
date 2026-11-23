@@ -501,9 +501,18 @@ supported, and any endpoint that speaks one of them works. What it holds:
   search tool for OpenAI-compatible endpoints, the web search tool for
   Anthropic-compatible ones). The connection test checks it, so a model without
   it fails the test instead of failing later.
+- **Custom headers** (optional, the last of the settings): extra request
+  headers for a gateway that asks for one, such as a session id. Write each as
+  `Name: value`; up to 10. A value is saved in `ai.json` like the key and is never
+  shown again, logged or put in an error: the list shows only the names and the
+  length of each value. `Authorization`, `x-api-key`, `anthropic-version`,
+  `Content-Type`, `Host`, `Content-Length`, `Cookie` and a few others are
+  set by zlib and cannot be overridden, and a value with a control character is
+  refused. Headers go only to the endpoint's own address, which is never followed
+  through a redirect.
 - **Test connection**: sends a one-word request (and a web search one, when
-  that is on). Changing the protocol, URL, key, model or web search makes the
-  last test stale, and AI Match is off again until a test passes.
+  that is on). Changing the protocol, URL, key, model, web search or a header
+  makes the last test stale, and AI Match is off again until a test passes.
 
 What it does, in order:
 
