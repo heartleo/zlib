@@ -91,19 +91,28 @@ func (s Settings) String() string {
 
 func (s Settings) GoString() string { return s.String() }
 
-// Validate checks that the settings can be used to build a client.
-func (s Settings) Validate() error {
+// ValidateEndpoint checks the protocol, URL and key: what is needed to reach
+// the endpoint, for example to list its models.
+func (s Settings) ValidateEndpoint() error {
 	if s.Protocol != ProtocolOpenAI && s.Protocol != ProtocolAnthropic {
 		return fmt.Errorf("unknown protocol %q (use openai or anthropic)", s.Protocol)
 	}
 	if err := ValidateBaseURL(s.BaseURL); err != nil {
 		return err
 	}
-	if strings.TrimSpace(s.Model) == "" {
-		return errors.New("no model set")
-	}
 	if s.APIKey == "" && !isLoopbackURL(s.BaseURL) {
 		return errors.New("no API key set")
+	}
+	return nil
+}
+
+// Validate checks that the settings can be used to build a client.
+func (s Settings) Validate() error {
+	if err := s.ValidateEndpoint(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(s.Model) == "" {
+		return errors.New("no model set")
 	}
 	return nil
 }

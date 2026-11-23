@@ -49,6 +49,7 @@ var settingsSections = []settingsSection{
 	{"KINDLE", "kindle", kindleSettingKeys},
 	{"WEREAD", "weread", []string{wereadAccountKey, wereadProxyEnv}},
 	{"METADATA", "metadata", []string{metaSourcesEnv, metaResultsEnv, nameLayoutEnv, googleBooksKeyEnv, wereadAPIKeyEnv}},
+	{"AI MATCH", "ai", []string{aiModelKey}},
 }
 
 var settingLabels = map[string]string{
@@ -63,6 +64,7 @@ var settingLabels = map[string]string{
 	kindlePortKey:       "SMTP port",
 	kindleSecurityKey:   "SMTP security",
 	wereadAccountKey:    "WeRead account",
+	aiModelKey:          "AI model",
 	wereadProxyEnv:      "WeRead proxy",
 	googleBooksKeyEnv:   "Google Books key",
 	wereadAPIKeyEnv:     "WeRead API key",
@@ -85,7 +87,7 @@ func settingsPageKeys(page string) []string {
 }
 
 func isSettingsListPage(page string) bool {
-	return page == "home" || page == "network" || page == "download" || page == "search" || page == "kindle" || page == "weread" || page == "metadata"
+	return page == "home" || page == "network" || page == "download" || page == "search" || page == "kindle" || page == "weread" || page == "metadata" || page == "ai"
 }
 
 // wereadAccount loads the saved WeRead login and its settings row: the
@@ -176,6 +178,9 @@ type settingsModel struct {
 	logoutFocused bool
 	// wereadCreds is the saved WeRead login, zero when there is none.
 	wereadCreds weread.Credentials
+	// aiPage is the embedded AI model page while page is "ai-page"
+	// (settings_ai.go).
+	aiPage *aiPageModel
 }
 
 func newSettingsModel(ctx context.Context, store settingsStore, page string) (settingsModel, error) {
@@ -190,6 +195,7 @@ func newSettingsModel(ctx context.Context, store settingsStore, page string) (se
 	values = append(values, kindleSettingValues(kindle)...)
 	wereadCreds, wereadValues := wereadAccount()
 	values = append(values, wereadValues...)
+	values = append(values, aiSettingValue())
 	input := textinput.New()
 	input.SetVirtualCursor(false)
 	input.Prompt = "> "
@@ -288,7 +294,7 @@ func (m *settingsModel) reload() error {
 	values = append(values, kindleSettingValues(m.kindle)...)
 	creds, wereadValues := wereadAccount()
 	m.wereadCreds = creds
-	m.values = append(values, wereadValues...)
+	m.values = append(append(values, wereadValues...), aiSettingValue())
 	return nil
 }
 
@@ -558,6 +564,9 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.page == "weread-login" && m.wereadLogin != nil {
 		return m.updateWeReadLogin(msg)
 	}
+	if m.page == "ai-page" && m.aiPage != nil {
+		return m.updateAIPage(msg)
+	}
 	switch msg := msg.(type) {
 	case settingsWeReadNameMsg:
 		_ = m.reload()
@@ -815,7 +824,7 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			switch m.page {
-			case "home", "network", "download", "kindle", "weread", "metadata":
+			case "home", "network", "download", "kindle", "weread", "metadata", "ai":
 				keys := settingsPageKeys(m.page)
 				if m.cursor >= len(keys) {
 					return m, nil
@@ -827,6 +836,8 @@ func (m settingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, m.openDomains()
 				case wereadAccountKey:
 					return m, m.openWeReadAccount()
+				case aiModelKey:
+					return m, m.openAIPage()
 				default:
 					return m, m.edit(key)
 				}
@@ -912,7 +923,7 @@ func (m settingsModel) settingsListView(width, height int, title string) tea.Vie
 	helpModel.Styles.ShortKey = lipgloss.NewStyle().Foreground(currentTheme.Accent)
 	helpModel.Styles.ShortDesc = lipgloss.NewStyle().Foreground(currentTheme.Muted)
 	enter := "edit"
-	if key := m.selectedSetting().Key; key == wereadAccountKey || key == zlib.EnvDomain {
+	if key := m.selectedSetting().Key; key == wereadAccountKey || key == zlib.EnvDomain || key == aiModelKey {
 		enter = "open"
 	}
 	footer := helpModel.ShortHelpView([]keys.Binding{uiKey("esc", "back"), uiKey("enter", enter), uiKey("↑/↓", "select")})
@@ -969,10 +980,13 @@ func (m settingsModel) View() tea.View {
 	if m.page == "weread-login" && m.wereadLogin != nil {
 		return m.wereadLogin.View()
 	}
+	if m.page == "ai-page" && m.aiPage != nil {
+		return m.aiPageView()
+	}
 	if m.page == "weread-account" && !m.busy {
 		return m.wereadAccountView(w, h)
 	}
-	titles := map[string]string{"home": "Settings", "network": "Settings / Network", "download": "Settings / Downloads", "search": "Settings / Search", "kindle": "Settings / Kindle", "weread": "Settings / WeRead", "metadata": "Settings / Metadata", "weread-account": "Settings / WeRead account", "browse": "Settings / Choose directory", "edit": "Settings / Edit"}
+	titles := map[string]string{"home": "Settings", "network": "Settings / Network", "download": "Settings / Downloads", "search": "Settings / Search", "kindle": "Settings / Kindle", "weread": "Settings / WeRead", "metadata": "Settings / Metadata", "ai": "Settings / AI match", "weread-account": "Settings / WeRead account", "browse": "Settings / Choose directory", "edit": "Settings / Edit"}
 	if m.busy {
 		return screenView(w, h, titles[m.page], "", m.spinner.View(), "", uiKey("esc", "back"))
 	}

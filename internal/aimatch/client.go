@@ -45,12 +45,25 @@ func NewClient(s Settings, rt http.RoundTripper) (*Client, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
 	}
+	return newClient(s, rt), nil
+}
+
+// NewLister builds a client that can only list models, so it needs no model
+// name yet.
+func NewLister(s Settings, rt http.RoundTripper) (*Client, error) {
+	if err := s.ValidateEndpoint(); err != nil {
+		return nil, err
+	}
+	return newClient(s, rt), nil
+}
+
+func newClient(s Settings, rt http.RoundTripper) *Client {
 	s.BaseURL = strings.TrimRight(s.BaseURL, "/")
 	return &Client{s: s, http: &http.Client{
 		Transport:     rt,
 		Timeout:       3 * time.Minute,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}}, nil
+	}}
 }
 
 // APIError is a failed model request. Message is cleaned and has the key removed.

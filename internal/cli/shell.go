@@ -646,7 +646,7 @@ func (m *shellModel) dispatch(value string) tea.Cmd {
 			page = "home"
 		}
 		if !isSettingsListPage(page) && page != "domain" {
-			m.setError("Use /config network, /config domain, /config download, /config search, /config kindle, /config weread or /config metadata")
+			m.setError("Use /config network, /config domain, /config download, /config search, /config kindle, /config weread, /config metadata or /config ai")
 			return nil
 		}
 		model, err := newSettingsModel(context.Background(), store, page)

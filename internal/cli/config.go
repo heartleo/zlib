@@ -59,6 +59,8 @@ func runSettingsTUI(m settingsModel, key string) error {
 	initial := m.Init()
 	if key == wereadAccountKey {
 		initial = m.openWeReadAccount()
+	} else if key == aiModelKey {
+		initial = m.openAIPage()
 	} else if key != "" {
 		initial = m.edit(key)
 	}
@@ -74,7 +76,7 @@ type settingsStart struct {
 func (m settingsStart) Init() tea.Cmd { return m.initial }
 
 func init() {
-	root := settingsCommand("config", "home", "", "View or edit network, download, search, Kindle, WeRead and metadata settings")
+	root := settingsCommand("config", "home", "", "View or edit network, download, search, Kindle, WeRead, metadata and AI settings")
 	root.PersistentFlags().Bool("json", false, "Print settings and their sources as JSON")
 	network := settingsCommand("network", "network", "", "Set domain and proxy")
 	network.AddCommand(settingsCommand("domain", "domain", "", "Set Z-Library domain"), settingsCommand("proxy", "network", zlib.EnvProxy, "Set proxy URL"))
@@ -88,6 +90,7 @@ func init() {
 	wereadSettings.AddCommand(settingsCommand("account", "weread", wereadAccountKey, "Log in to or out of WeRead"), settingsCommand("proxy", "weread", wereadProxyEnv, "Set the WeRead proxy: a URL, direct, or empty for the system proxy"))
 	metadata := settingsCommand("metadata", "metadata", "", "Set the metadata lookup sources and the Google Books API key")
 	metadata.AddCommand(settingsCommand("sources", "metadata", metaSourcesEnv, "Set the metadata lookup sources; empty picks them by book language"), settingsCommand("filename", "metadata", nameLayoutEnv, "Set the order of a file name: title-author, author-title or title-paren; empty restores title-author"), settingsCommand("results", "metadata", metaResultsEnv, "Set how many matches a lookup lists (1 to 50); empty restores 10"), settingsCommand("google-key", "metadata", googleBooksKeyEnv, "Set or remove the Google Books API key"), settingsCommand("weread-key", "metadata", wereadAPIKeyEnv, "Set or remove the WeRead API key (the WeRead skill key) the weread source needs"))
-	root.AddCommand(network, download, search, kindle, wereadSettings, metadata)
+	ai := settingsCommand("ai", "ai", aiModelKey, "Set up the AI model used by AI Match in the metadata lookup")
+	root.AddCommand(network, download, search, kindle, wereadSettings, metadata, ai)
 	rootCmd.AddCommand(root)
 }
