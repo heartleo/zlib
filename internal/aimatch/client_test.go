@@ -241,3 +241,27 @@ func TestSettingsNeverPrintTheKey(t *testing.T) {
 		}
 	}
 }
+
+func TestCutOffAndRefusedAnswersAreErrorsNotEmptyAnswers(t *testing.T) {
+	for _, tc := range []struct {
+		p    Protocol
+		body string
+		want error
+	}{
+		{ProtocolAnthropic, `{"stop_reason":"max_tokens","content":[{"type":"text","text":"{\"ranking\":["}]}`, ErrTruncated},
+		{ProtocolAnthropic, `{"stop_reason":"refusal","content":[]}`, ErrRefused},
+		{ProtocolOpenAI, `{"choices":[{"finish_reason":"length","message":{"content":"{"}}]}`, ErrTruncated},
+		{ProtocolOpenAI, `{"choices":[{"finish_reason":"content_filter","message":{"content":""}}]}`, ErrRefused},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, tc.body) }))
+		base := srv.URL
+		if tc.p == ProtocolOpenAI {
+			base += "/v1"
+		}
+		_, err := newTestClient(t, settingsFor(t, tc.p, base)).Generate(context.Background(), Request{User: "u"})
+		srv.Close()
+		if !errors.Is(err, tc.want) {
+			t.Errorf("%s: err = %v, want %v", tc.p, err, tc.want)
+		}
+	}
+}

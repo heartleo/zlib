@@ -79,6 +79,13 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("model endpoint answered HTTP %d: %s", e.Status, e.Message)
 }
 
+// Errors for an answer that is not a finished one. A cut-off or refused answer
+// must not look like "the model found nothing".
+var (
+	ErrTruncated = errors.New("the model's answer was cut off (token limit); try another model")
+	ErrRefused   = errors.New("the model declined to answer")
+)
+
 // Generate sends r and returns the model's text answer.
 func (c *Client) Generate(ctx context.Context, r Request) (string, error) {
 	if c.s.Protocol == ProtocolAnthropic {
@@ -145,7 +152,8 @@ func (c *Client) openAIChat(ctx context.Context, r Request) (string, error) {
 	msgs = append(msgs, map[string]string{"role": "user", "content": r.User})
 	var out struct {
 		Choices []struct {
-			Message struct {
+			FinishReason string `json:"finish_reason"`
+			Message      struct {
 				Content string `json:"content"`
 			} `json:"message"`
 		} `json:"choices"`
@@ -155,6 +163,12 @@ func (c *Client) openAIChat(ctx context.Context, r Request) (string, error) {
 	}
 	if len(out.Choices) == 0 {
 		return "", errors.New("the model returned no answer")
+	}
+	switch out.Choices[0].FinishReason {
+	case "length":
+		return "", ErrTruncated
+	case "content_filter":
+		return "", ErrRefused
 	}
 	return out.Choices[0].Message.Content, nil
 }
@@ -171,6 +185,10 @@ func (c *Client) openAIResponses(ctx context.Context, r Request) (string, error)
 		body["instructions"] = r.System
 	}
 	var out struct {
+		Status            string `json:"status"`
+		IncompleteDetails struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Output []struct {
 			Type    string `json:"type"`
 			Content []struct {
@@ -181,6 +199,12 @@ func (c *Client) openAIResponses(ctx context.Context, r Request) (string, error)
 	}
 	if err := c.do(ctx, http.MethodPost, "/responses", body, &out); err != nil {
 		return "", err
+	}
+	if out.Status == "incomplete" {
+		if out.IncompleteDetails.Reason == "content_filter" {
+			return "", ErrRefused
+		}
+		return "", ErrTruncated
 	}
 	var sb strings.Builder
 	for _, item := range out.Output {
@@ -199,7 +223,7 @@ func (c *Client) openAIResponses(ctx context.Context, r Request) (string, error)
 func (c *Client) anthropic(ctx context.Context, r Request) (string, error) {
 	msgs := []map[string]any{{"role": "user", "content": r.User}}
 	for range maxPauseTurns {
-		body := map[string]any{"model": c.s.Model, "max_tokens": 4096, "messages": msgs}
+		body := map[string]any{"model": c.s.Model, "max_tokens": 16000, "messages": msgs}
 		if r.System != "" {
 			body["system"] = r.System
 		}
@@ -212,6 +236,12 @@ func (c *Client) anthropic(ctx context.Context, r Request) (string, error) {
 		}
 		if err := c.do(ctx, http.MethodPost, "/v1/messages", body, &out); err != nil {
 			return "", err
+		}
+		switch out.StopReason {
+		case "max_tokens":
+			return "", ErrTruncated
+		case "refusal":
+			return "", ErrRefused
 		}
 		if out.StopReason != "pause_turn" {
 			var sb strings.Builder

@@ -76,7 +76,6 @@ func TestMatchReturnsNoMatchWithoutReliableEvidence(t *testing.T) {
 		"low confidence":   `{"ranking":[{"id":"c1","relation":"same_edition","confidence":0.3}]}`,
 		"different book":   `{"ranking":[{"id":"c1","relation":"different","confidence":0.95}]}`,
 		"unknown relation": `{"ranking":[{"id":"c1","relation":"probably","confidence":0.95}]}`,
-		"not json":         `I think it is the first one.`,
 	} {
 		out, err := Match(context.Background(), &fakeModel{plan: `{}`, judge: judge}, noLookup, input(a), nil)
 		if err != nil || len(out.Recommendations) != 0 {
@@ -167,7 +166,7 @@ func TestExplanationIsCleanedAndShort(t *testing.T) {
 }
 
 func TestPromptsCarryNoPathAndSayTheDataIsNotInstructions(t *testing.T) {
-	m := &fakeModel{plan: `{}`, judge: `{}`}
+	m := &fakeModel{plan: `{}`, judge: `{"ranking":[]}`}
 	in := input(cand("openlibrary", "The Trial", "", ""))
 	// Joined at run time so no home-path literal sits in source.
 	in.FileName = strings.Join([]string{"C:", "Users", "someone", "Books", "book.epub"}, `\`)
@@ -219,3 +218,30 @@ func TestNothingToRankIsNoMatchWithoutAskingTheJudge(t *testing.T) {
 }
 
 func slicesEqual(a, b []string) bool { return reflect.DeepEqual(a, b) }
+
+func TestAnExactISBNRowStaysFirstWhateverTheModelSays(t *testing.T) {
+	exact := cand("openlibrary", "The Trial", "9780805210408", "Schocken")
+	exact.Match, exact.Score = metasource.MatchISBN, 1
+	fuzzy := cand("google", "The Trial", "", "Penguin")
+	fuzzy.Match, fuzzy.Score = metasource.MatchTitle, 0.8
+	m := &fakeModel{plan: `{}`, judge: `{"ranking":[
+		{"id":"c2","relation":"same_edition","confidence":0.95,"explanation":"x"},
+		{"id":"c1","relation":"same_work","confidence":0.55,"explanation":"y"}]}`}
+	out, err := Match(context.Background(), m, noLookup, input(exact, fuzzy), nil)
+	if err != nil || len(out.Recommendations) != 2 || out.Recommendations[0].Candidate.Publisher != "Schocken" {
+		t.Fatalf("%+v, %v", out.Recommendations, err)
+	}
+	if !strings.Contains(m.requests[1].User, `"exact_isbn_match":true`) {
+		t.Fatal("the judge was not told which row is the exact ISBN match")
+	}
+}
+
+func TestUnreadableJudgeAnswerIsAnErrorNotNoMatch(t *testing.T) {
+	a := cand("openlibrary", "The Trial", "", "")
+	for _, judge := range []string{`I think it is the first one.`, `{}`, `{"ranking":`} {
+		_, err := Match(context.Background(), &fakeModel{plan: `{}`, judge: judge}, noLookup, input(a), nil)
+		if !errors.Is(err, ErrUnreadableAnswer) {
+			t.Errorf("judge %q: err = %v", judge, err)
+		}
+	}
+}

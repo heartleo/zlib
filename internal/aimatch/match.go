@@ -121,9 +121,17 @@ func Match(ctx context.Context, gen Generator, lookup LookupFunc, in Input, prog
 	if err != nil {
 		return Outcome{}, err
 	}
-	out.Recommendations = validate(text, pool, plan.evidenceSet())
+	recs, ok := validate(text, pool, plan.evidenceSet())
+	if !ok {
+		return Outcome{}, ErrUnreadableAnswer
+	}
+	out.Recommendations = recs
 	return out, nil
 }
+
+// ErrUnreadableAnswer means the model's ranking was not the JSON asked for. It
+// is a failure, not "no match": an explicit empty ranking is the no-match answer.
+var ErrUnreadableAnswer = errors.New("the model's answer could not be read; try again or use another model")
 
 // poolID is the id the model sees for a pool row.
 func poolID(i int) string { return fmt.Sprintf("c%d", i+1) }
@@ -131,7 +139,7 @@ func poolID(i int) string { return fmt.Sprintf("c%d", i+1) }
 // validate keeps only rows the model referred to by a known id, with a relation
 // and confidence that make it a match. Everything else the model said, ids it
 // invented included, is dropped. Candidates are copied from the pool unchanged.
-func validate(text string, pool []metasource.Candidate, evidence map[string]bool) []Recommendation {
+func validate(text string, pool []metasource.Candidate, evidence map[string]bool) ([]Recommendation, bool) {
 	var ans struct {
 		Ranking []struct {
 			ID          string   `json:"id"`
@@ -141,8 +149,8 @@ func validate(text string, pool []metasource.Candidate, evidence map[string]bool
 			Evidence    []string `json:"evidence"`
 		} `json:"ranking"`
 	}
-	if !extractJSON(text, &ans) {
-		return nil
+	if !extractJSON(text, &ans) || ans.Ranking == nil {
+		return nil, false
 	}
 	byID := map[string]int{}
 	for i := range pool {
@@ -172,15 +180,22 @@ func validate(text string, pool []metasource.Candidate, evidence map[string]bool
 			Explanation: explanation, Evidence: cites,
 		})
 	}
-	// An edition before another edition of the same work, then by confidence.
+	// An exact ISBN match first, whatever the model made of it, then an edition
+	// before another edition of the same work, then by confidence.
 	// SliceStable keeps the model's order for ties.
+	exact := func(r Recommendation) bool {
+		return r.Candidate.Match == metasource.MatchISBN && r.Candidate.Score >= 1
+	}
 	sort.SliceStable(recs, func(a, b int) bool {
+		if exact(recs[a]) != exact(recs[b]) {
+			return exact(recs[a])
+		}
 		if (recs[a].Relation == SameEdition) != (recs[b].Relation == SameEdition) {
 			return recs[a].Relation == SameEdition
 		}
 		return recs[a].Confidence > recs[b].Confidence
 	})
-	return recs
+	return recs, true
 }
 
 // searchPlan is what the model proposed to search for.
@@ -296,6 +311,8 @@ func judgePrompt(facts string, plan searchPlan, pool []metasource.Candidate) str
 		Languages   []string `json:"languages,omitempty"`
 		Edition     bool     `json:"edition_level"`
 		Description string   `json:"description,omitempty"`
+		// ExactISBN marks a row that shares a confirmed ISBN with the file.
+		ExactISBN bool `json:"exact_isbn_match,omitempty"`
 	}
 	rows := make([]row, len(pool))
 	for i, c := range pool {
@@ -303,7 +320,7 @@ func judgePrompt(facts string, plan searchPlan, pool []metasource.Candidate) str
 		if len(desc) > 200 {
 			desc = append(desc[:200], '…')
 		}
-		rows[i] = row{poolID(i), strings.Join(c.Sources, ","), c.Title, c.Authors, c.Publisher, c.Published, c.ISBN(), c.Languages, c.EditionLevel, string(desc)}
+		rows[i] = row{poolID(i), strings.Join(c.Sources, ","), c.Title, c.Authors, c.Publisher, c.Published, c.ISBN(), c.Languages, c.EditionLevel, string(desc), c.Match == metasource.MatchISBN && c.Score >= 1}
 	}
 	cands, _ := json.Marshal(rows)
 	ev, _ := json.Marshal(plan.Evidence)
