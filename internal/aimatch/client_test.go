@@ -96,6 +96,29 @@ func TestAnthropicSendsHeadersToolAndResumesPausedTurn(t *testing.T) {
 	}
 }
 
+func TestAnthropicBaseURLPastedWithV1IsNotDoubled(t *testing.T) {
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.URL.Path == "/v1/models" {
+			fmt.Fprint(w, `{"data":[{"id":"m"}]}`)
+			return
+		}
+		fmt.Fprint(w, `{"stop_reason":"end_turn","content":[{"type":"text","text":"OK"}]}`)
+	}))
+	defer srv.Close()
+	for _, base := range []string{srv.URL + "/gateway/v1", srv.URL + "/gateway/v1/", srv.URL + "/gateway"} {
+		paths = nil
+		c := newTestClient(t, settingsFor(t, ProtocolAnthropic, base))
+		if _, err := c.Generate(context.Background(), Request{User: "u"}); err != nil {
+			t.Fatalf("%s: %v", base, err)
+		}
+		if len(paths) != 1 || paths[0] != "/gateway/v1/messages" {
+			t.Errorf("%s: requested %v, want /gateway/v1/messages", base, paths)
+		}
+	}
+}
+
 func TestRedirectIsRefusedAndKeyNeverReachesTheTarget(t *testing.T) {
 	leaked := false
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

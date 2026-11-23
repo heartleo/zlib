@@ -59,6 +59,11 @@ func NewLister(s Settings, rt http.RoundTripper) (*Client, error) {
 
 func newClient(s Settings, rt http.RoundTripper) *Client {
 	s.BaseURL = strings.TrimRight(s.BaseURL, "/")
+	if s.Protocol == ProtocolAnthropic {
+		// The routes below add /v1 themselves; an address pasted with it would
+		// become /v1/v1.
+		s.BaseURL = strings.TrimSuffix(s.BaseURL, "/v1")
+	}
 	return &Client{s: s, http: &http.Client{
 		Transport:     rt,
 		Timeout:       3 * time.Minute,
