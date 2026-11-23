@@ -254,7 +254,7 @@ was itself read from the file name or the download record.
   nothing is.** An ISBN-10 alone, an ASIN or a number with a wrong check digit is
   not an ISBN-13, and the titles are not compared. An ISBN the file already has
   is never replaced. A format with no place for an ISBN (PDF, DOCX) keeps none,
-  and the download says so. Use `--no-embed` to skip this. Z-Library's record has
+  and nothing is said. Use `--no-embed` to skip this. Z-Library's record has
   no ISBN at all for many books, and then there is nothing to write. In the
   terminal interface a write that fails is reported on the completion page.
   Older downloads wrote an unconfirmed ISBN as `zlib-isbn` when the titles
@@ -263,8 +263,8 @@ was itself read from the file name or the download record.
   page list the file's ISBN on its side (the `ISBN` row), and a narrow results page
   names it in the details as `File ISBN`. The ISBN the download obtained is also
   listed as an `ISBN (download)` row when the file does not hold it as its own: the
-  `zlib-isbn` hint of an older download, or the record's ISBN-13 that a format
-  with no place for it could not take, in the session that downloaded it.
+  `zlib-isbn` hint of an older download, or, in the session that downloaded
+  it, the record's ISBN-13 that a format with no place for it did not take.
 - **Printed in the book.** For a book without either, the lookup reads the
   front and last pages of an EPUB or DOCX for an ISBN after the word `ISBN`
   (or a hyphenated ISBN-13). Only a number with a correct check digit counts,

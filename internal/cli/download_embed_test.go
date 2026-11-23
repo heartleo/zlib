@@ -248,16 +248,6 @@ func TestPlainDownloadWritesTheISBN13EvenWhenTheTitlesDiffer(t *testing.T) {
 	}
 }
 
-func TestTheISBNMessageSaysWhenAFormatCannotStoreIt(t *testing.T) {
-	got := embeddedISBNMessage(&embeddedISBN{Unstorable: embedTestISBN})
-	if !strings.Contains(got, embedTestISBN) || !strings.Contains(got, "cannot store") {
-		t.Fatalf("message = %q", got)
-	}
-	if (&embeddedISBN{Unstorable: embedTestISBN}).isbnPart() != nil {
-		t.Fatal("an ISBN that was not written is reported as recorded")
-	}
-}
-
 func TestScannedISBNsFindsTheCopyrightPageISBN(t *testing.T) {
 	p := writeEPUB(t, "三体", "<p>书号：ISBN 978-7-5366-9293-0</p><p>定价：38.00元</p>")
 	cur, _, err := ebookmeta.ReadFile(p)
@@ -283,5 +273,40 @@ func TestScannedISBNsFindsTheCopyrightPageISBN(t *testing.T) {
 	x := metasource.Extract("book.epub", cur, scannedISBNs(p, cur), metasource.Hint{})
 	if len(x.Query.ISBNs) != 1 || x.ISBNFrom[0] != "copyright page" || len(x.Query.Unconfirmed) != 1 {
 		t.Errorf("extraction = %+v from %v", x.Query, x.ISBNFrom)
+	}
+}
+
+// minimalPDF is a PDF with a cross-reference table and an Info dictionary. PDF
+// has no place for an identifier.
+func minimalPDF() []byte {
+	var b bytes.Buffer
+	b.WriteString("%PDF-1.4\n")
+	objs := []string{"<</Type/Catalog/Pages 2 0 R>>", "<</Type/Pages/Kids[]/Count 0>>", "<</Title (Old Title)>>"}
+	offs := make([]int, len(objs))
+	for i, o := range objs {
+		offs[i] = b.Len()
+		fmt.Fprintf(&b, "%d 0 obj\n%s\nendobj\n", i+1, o)
+	}
+	xref := b.Len()
+	fmt.Fprintf(&b, "xref\n0 %d\n0000000000 65535 f\r\n", len(objs)+1)
+	for _, o := range offs {
+		fmt.Fprintf(&b, "%010d 00000 n\r\n", o)
+	}
+	fmt.Fprintf(&b, "trailer\n<</Size %d/Root 1 0 R/Info 3 0 R>>\nstartxref\n%d\n%%%%EOF\n", len(objs)+1, xref)
+	return b.Bytes()
+}
+
+func TestAFormatThatCannotStoreAnISBNIsLeftAloneWithoutANotice(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "book.pdf")
+	if err := os.WriteFile(p, minimalPDF(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(p)
+	got, err := embedDownloadISBN(p, zlib.Book{ID: "42", Hash: "abc", Name: "三体", ISBN13: embedTestISBN})
+	if err != nil || got != nil {
+		t.Fatalf("a PDF was reported on: %+v, %v", got, err)
+	}
+	if after, _ := os.ReadFile(p); !bytes.Equal(before, after) {
+		t.Error("the PDF was rewritten although it cannot hold an ISBN")
 	}
 }

@@ -20,10 +20,6 @@ type embeddedISBN struct {
 	// metasource.SchemeZlibID. It is reported apart from the ISBN, in the
 	// download's own zlib_id field.
 	ZlibID string `json:"-"`
-	// Unstorable is the record's ISBN-13 when the file's format has no place for
-	// an ISBN, so it was not written. A later lookup still shows it for a
-	// download made in the same session.
-	Unstorable string `json:"-"`
 }
 
 // isbnPart is e when it records an ISBN, or nil when it only holds the ID.
@@ -37,8 +33,6 @@ func (e *embeddedISBN) isbnPart() *embeddedISBN {
 // embeddedISBNMessage words what a download recorded, for a screen.
 func embeddedISBNMessage(e *embeddedISBN) string {
 	switch {
-	case e.Scheme == "" && e.Unstorable != "":
-		return "ISBN " + e.Unstorable + " was not written: this format cannot store an ISBN"
 	case e.Scheme == "":
 		return "Recorded the Z-Library ID in the file metadata"
 	}
@@ -53,7 +47,7 @@ func embeddedISBNMessage(e *embeddedISBN) string {
 // ISBN-13 is written: a record without one (an ISBN-10 alone included) gives no
 // ISBN. It returns nil when there was nothing to record: no ISBN-13 and no ID,
 // a file that already has both, an unreadable format. A format with no place for
-// an ISBN (it is reported as Unstorable) keeps only the ID.
+// an ISBN simply keeps none: nothing is written and nothing is reported.
 //
 // It never fails a download: callers report the error as a warning. The file
 // is rewritten through a temporary file and renamed, so a failure leaves it
@@ -84,20 +78,14 @@ func embedDownloadISBN(path string, book zlib.Book) (*embeddedISBN, error) {
 		}
 		changes.Identifiers[metasource.SchemeZlibID] = id
 	}
-	out := &embeddedISBN{}
-	if v := changes.Identifiers["isbn"]; v != "" && !ebookmeta.CanStore(format, "identifier:isbn") {
-		out.Unstorable = v
-	}
-	ebookmeta.DropUnsupported(format, changes) // a format may store the ISBN but not the ID
+	ebookmeta.DropUnsupported(format, changes) // a format may store the ISBN but not the ID, or neither
 	if changes.Empty() {
-		if out.Unstorable != "" {
-			return out, nil
-		}
 		return nil, nil
 	}
 	if err := ebookmeta.WriteFile(path, changes); err != nil {
 		return nil, err
 	}
+	out := &embeddedISBN{}
 	out.ZlibID = changes.Identifiers[metasource.SchemeZlibID]
 	if v := changes.Identifiers["isbn"]; v != "" {
 		out.Scheme, out.Value = "isbn", v

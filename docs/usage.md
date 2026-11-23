@@ -70,8 +70,7 @@ file's metadata as its `isbn` before any Kindle or WeRead delivery, so a later
 JSON document then has `isbn`: `{"scheme":"isbn","value":"978..."}`. Only an
 ISBN-13 is written: a record with no ISBN-13 (an ISBN-10 alone included) gives no
 ISBN. The titles are not compared, and an ISBN the file already has is never
-replaced. A format with no place for an ISBN keeps none, and the download says
-so on stderr. An EPUB also records the Z-Library book ID (`id:hash`)
+replaced. A format with no place for an ISBN keeps none, silently. An EPUB also records the Z-Library book ID (`id:hash`)
 as the identifier `zlib-id`, so the file can always be traced back to its
 record; the JSON document then has `zlib_id`, and `zlib meta` shows it as
 `Z-Library ID`. Other formats have no place for an identifier of their own and
