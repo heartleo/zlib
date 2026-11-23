@@ -399,10 +399,10 @@ func (m metaPageModel) helpKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m metaPageModel) helpScreen(subtitle string) tea.View {
 	body := sectionHeader("Keys", "", max(20, m.width)) + "\n" + m.helpView.View()
 	if m.helpView.TotalLineCount() > m.helpView.Height() {
-		return screenView(m.width, m.height, "Fix metadata", subtitle, body, strconv.Itoa(int(m.helpView.ScrollPercent()*100+0.5))+"%",
+		return screenView(m.width, m.height, m.pageTitle(), subtitle, body, strconv.Itoa(int(m.helpView.ScrollPercent()*100+0.5))+"%",
 			uiKey("↑/↓", "scroll"), uiKey("esc", "close"))
 	}
-	return screenView(m.width, m.height, "Fix metadata", subtitle, body, "", uiKey("esc", "close"), uiKey("?", "close"))
+	return screenView(m.width, m.height, m.pageTitle(), subtitle, body, "", uiKey("esc", "close"), uiKey("?", "close"))
 }
 
 // --- File details --------------------------------------------------------------
@@ -434,6 +434,10 @@ func (m metaPageModel) resizeInfo() metaPageModel {
 func (m metaPageModel) infoKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "ctrl+c", "q", "i", "enter":
+		if m.viewOnly { // there is no page behind the viewer: leave
+			m.cancelled = true
+			return m, tea.Quit
+		}
 		m.stage = metaPrepare
 		return m, nil
 	}

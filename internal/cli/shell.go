@@ -936,6 +936,8 @@ func (m *shellModel) completed() tea.Cmd {
 				return m.importWeRead(page.path)
 			case "meta-file":
 				return m.openMetaFile(page.path)
+			case "meta-view-file":
+				return m.openMetaView(page.path)
 			}
 			return m.sendKindle(page.path)
 		}

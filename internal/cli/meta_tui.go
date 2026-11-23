@@ -94,6 +94,10 @@ type metaPageModel struct {
 	lookup        metaLookupFunc
 	write         metaWriteFunc
 	cover         metaCoverFunc // nil: covers are not offered
+	// viewOnly is the read-only viewer: the page opens on the file's details and
+	// offers nothing else. No lookup runs, no editor opens, no write or rename is
+	// reachable, and the file is only ever read.
+	viewOnly bool
 
 	stage    metaStage
 	spinner  spinner.Model
@@ -228,6 +232,19 @@ func withMetaSourceSaver(save func(names []string) (overriddenBy string, err err
 	return func(m *metaPageModel) { m.saveSources = save }
 }
 
+// withMetaViewOnly makes the page a read-only viewer of the file's metadata.
+func withMetaViewOnly() metaOption {
+	return func(m *metaPageModel) { m.viewOnly = true }
+}
+
+// pageTitle is the title of the page: it says "View" when nothing can change.
+func (m metaPageModel) pageTitle() string {
+	if m.viewOnly {
+		return "View metadata"
+	}
+	return "Fix metadata"
+}
+
 func withMetaCover(fetch metaCoverFunc) metaOption {
 	return func(m *metaPageModel) { m.cover = fetch }
 }
@@ -257,6 +274,9 @@ func newMetaPageModel(path string, lookup metaLookupFunc, write metaWriteFunc, o
 	m.extraction = metasource.Extract(filepath.Base(path), cur, scannedISBNs(path, cur), m.hint)
 	m.query = m.extraction.Query
 	m.draft = append([]metaSourceChoice(nil), m.sources...)
+	if m.viewOnly {
+		return m.openInfo(), nil
+	}
 	if m.query.Empty() {
 		m.blink = m.beginQueryEdit()
 	}
@@ -272,6 +292,9 @@ func newDefaultMetaCover() metaCoverFunc {
 }
 
 func (m metaPageModel) Init() tea.Cmd {
+	if m.viewOnly {
+		return nil // nothing is searched or written in the viewer
+	}
 	if m.stage == metaPrepare {
 		return m.blink // nothing is searched until the user presses Enter
 	}
@@ -574,11 +597,15 @@ func (m metaPageModel) View() tea.View {
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.aiBody(), m.aiStatus(), m.aiKeys()...)
 	case metaInfo:
 		body := "  " + colorBold("File details") + "\n" + m.infoView.View()
-		if m.infoScrollable() {
-			return screenView(m.width, m.height, "Fix metadata", subtitle, body, m.infoStatus(),
-				m.keysFor(withHelpKey([][2]string{{"↑/↓", "scroll"}, {"?", "keys"}, {"esc", "back"}}, [][2]string{{"↑/↓", ""}, {"esc", "back"}})...)...)
+		leave := "back"
+		if m.viewOnly {
+			leave = "close"
 		}
-		return screenView(m.width, m.height, "Fix metadata", subtitle, body, "", uiKey("?", "keys"), uiKey("esc", "back"))
+		if m.infoScrollable() {
+			return screenView(m.width, m.height, m.pageTitle(), subtitle, body, m.infoStatus(),
+				m.keysFor(withHelpKey([][2]string{{"↑/↓", "scroll"}, {"?", "keys"}, {"esc", leave}}, [][2]string{{"↑/↓", ""}, {"esc", leave}})...)...)
+		}
+		return screenView(m.width, m.height, m.pageTitle(), subtitle, body, "", uiKey("?", "keys"), uiKey("esc", leave))
 	case metaRename:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.renameBody(), m.message, m.renameKeys()...)
 	case metaPrepare:

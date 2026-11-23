@@ -14,6 +14,7 @@ import (
 	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/metasource"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const metaLong = `Show or change the metadata of a local e-book file.
@@ -56,7 +57,8 @@ var metaCmd = &cobra.Command{
   zlib meta book.epub -t "New Title" -a "Jane Doe & John Roe" --series Saga --index 2
   zlib meta book.epub --cover cover.jpg --isbn 9780000000002
   zlib meta book.azw3 --get-cover cover.jpg --to-opf book.opf
-  zlib meta book.epub --json`,
+  zlib meta book.epub --json
+  zlib meta book.epub --view`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) == 1 || metaOpensPicker(cmd, args) {
 			return nil
@@ -78,6 +80,9 @@ func metaOpensPicker(cmd *cobra.Command, args []string) bool {
 		return false
 	}
 	flags := cmd.Flags()
+	if flags.Changed("view") { // the viewer picks a file to read, with no other option
+		return flags.NFlag() == 1
+	}
 	if !flags.Changed("fetch") {
 		return flags.NFlag() == 0
 	}
@@ -114,6 +119,20 @@ func addMetaFlags(cmd *cobra.Command) {
 	f.Bool("rename", false, "Rename the file to \"Title - Authors.ext\" (or the format in ZLIB_FILENAME_FORMAT) from the title and authors a lookup would search for, after any change above")
 	f.String("rename-to", "", "Rename the file to this name; the extension is kept and characters a file system rejects are replaced")
 	f.Bool("json", false, "Print the metadata as JSON")
+	f.Bool("view", false, "View the metadata read-only: on a terminal open a viewer that cannot change the file, otherwise print it. Combines only with --json")
+}
+
+// metaViewCheckFlags refuses any option that would change the file, look the
+// book up or write another file: --view only reads. It runs before anything
+// opens, so the viewer never silently ignores an option.
+func metaViewCheckFlags(cmd *cobra.Command) error {
+	var err error
+	cmd.Flags().Visit(func(f *pflag.Flag) {
+		if err == nil && f.Name != "view" && f.Name != "json" {
+			err = &usageError{fmt.Errorf("--view only reads and writes nothing; it cannot be combined with --%s", f.Name)}
+		}
+	})
+	return err
 }
 
 // metaJSON is the --json document: the metadata plus where it came from.
@@ -130,10 +149,27 @@ func runMeta(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer func() { metaSourcesFlag = "" }()
+	view, _ := cmd.Flags().GetBool("view")
+	if view {
+		if err := metaViewCheckFlags(cmd); err != nil {
+			return err
+		}
+	}
 	if len(args) == 0 { // Args allowed it: a terminal and no other option
+		if view {
+			return runStandaloneShellCommand(metaViewShellCommand(""))
+		}
 		return runStandaloneShellCommand("/meta")
 	}
 	path := args[0]
+	if asJSON, _ := cmd.Flags().GetBool("json"); view && !asJSON && metaIsInteractive() {
+		// A bad file is an error with the usual exit code, not a message in a
+		// program that opens and closes.
+		if _, _, err := ebookmeta.ReadFile(path); err != nil {
+			return metaError(path, err)
+		}
+		return runStandaloneShellCommand(metaViewShellCommand(path))
+	}
 	if fetch, _ := cmd.Flags().GetBool("fetch"); fetch {
 		return runMetaFetch(cmd, path)
 	}

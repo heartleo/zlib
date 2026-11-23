@@ -10,6 +10,24 @@ zlib meta book.epub
 zlib meta book.epub --json
 ```
 
+## View read-only
+
+`--view` only reads. On a terminal it opens a viewer with the file details and
+the cover; it has no lookup, editor, write or rename, so nothing in it can change
+the file. Esc, `q` or Enter close it. Off a terminal, or with `--json`, it prints
+the metadata as usual. Any other option (a field, `--fetch`, `--cover`,
+`--rename`, `--to-opf` and so on) with `--view` is a usage error, so the file is
+never touched. A file or folder without write permission can be viewed.
+
+```sh
+zlib meta book.epub --view
+zlib meta --view
+zlib meta book.epub --view --json
+```
+
+With no file, `--view` on a terminal opens a file picker. In the shell it is
+`/meta --view [file]`.
+
 ## Change fields
 
 Any field option rewrites the file in place and then prints the result.

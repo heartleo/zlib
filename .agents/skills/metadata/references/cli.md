@@ -10,6 +10,10 @@ page an agent cannot drive.
 zlib meta "<file>" --json
 ```
 
+`--view` is the read-only form for a person at a terminal (`zlib meta "<file>"
+--view` opens a viewer that cannot change the file). It combines only with
+`--json`; any other option is a usage error. An agent reads with `--json`.
+
 Prints `file`, `format` and the metadata: `title`, `title_sort`, `authors`,
 `author_sort`, `publisher`, `languages`, `tags`, `series`, `series_index`,
 `identifiers`, `published`, `description`, `rating` and `cover` (the embedded

@@ -9,7 +9,20 @@ import (
 	"github.com/heartleo/zlib/internal/ebookmeta"
 )
 
-const metaUsage = "Use /meta or /meta <file>"
+const metaUsage = "Use /meta, /meta <file> or /meta --view [file]"
+
+// metaViewFlag opens the read-only viewer instead of the lookup page.
+const metaViewFlag = "--view"
+
+// metaViewTarget words the file picker of the read-only viewer.
+var metaViewTarget = sendTarget{
+	title:        "View metadata",
+	confirmTitle: "View metadata?",
+	note:         "Read only. The file is not changed.",
+	action:       "View",
+	unsupported:  "Unsupported file type. Choose an EPUB, FB2, DOCX, MOBI, AZW3 or PDF file.",
+	allowed:      ebookmeta.Extensions,
+}
 
 // metaTarget words the file picker for the metadata page.
 var metaTarget = sendTarget{
@@ -24,7 +37,14 @@ var metaTarget = sendTarget{
 // openMeta handles /meta and /meta <file>. It works without a Z-Library
 // login: the lookup uses public catalogues.
 func (m *shellModel) openMeta(arg string) tea.Cmd {
+	view := false
+	if rest, ok := strings.CutPrefix(strings.TrimSpace(arg), metaViewFlag); ok && (rest == "" || rest[0] == ' ') {
+		view, arg = true, strings.TrimSpace(rest)
+	}
 	if arg == "" {
+		if view {
+			return m.open("meta-view-file", newSendFileModel(filePickerStartDir(), metaViewTarget))
+		}
 		return m.open("meta-file", newSendFileModel(filePickerStartDir(), metaTarget))
 	}
 	path := strings.TrimSpace(arg)
@@ -43,7 +63,22 @@ func (m *shellModel) openMeta(arg string) tea.Cmd {
 		m.setError("File not found: " + path)
 		return nil
 	}
+	if view {
+		return m.openMetaView(path)
+	}
 	return m.openMetaFile(path)
+}
+
+// openMetaView opens the read-only viewer for path, or reports why it cannot.
+// The viewer reads the file and nothing else: it has no lookup, no editor and no
+// write, so the file cannot change.
+func (m *shellModel) openMetaView(path string) tea.Cmd {
+	page, err := newMetaPageModel(path, nil, nil, withMetaViewOnly())
+	if err != nil {
+		m.setError(safeText(err.Error()))
+		return nil
+	}
+	return m.open("meta", page)
 }
 
 // openMetaFile opens the lookup page for path, or reports why it cannot.
@@ -103,4 +138,13 @@ func (m *shellModel) metaDone(page metaPageModel) tea.Cmd {
 // standalone program.
 func metaShellCommand(path string) string {
 	return "/meta \"" + filepath.ToSlash(path) + "\""
+}
+
+// metaViewShellCommand is the shell command that opens the read-only viewer for
+// path (or, with no path, a file picker for it) in a standalone program.
+func metaViewShellCommand(path string) string {
+	if path == "" {
+		return "/meta " + metaViewFlag
+	}
+	return "/meta " + metaViewFlag + " \"" + filepath.ToSlash(path) + "\""
 }

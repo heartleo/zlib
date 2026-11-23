@@ -253,6 +253,12 @@ scans on dark terminals, offers `r` for a new code after expiry or a declined
 login, and asks for a larger terminal when the code does not fit. Kindle and
 WeRead file pickers open in the default download directory.
 
+`/meta --view [file]` is the read-only viewer: a file picker (or the path) and
+then the file details page titled `View metadata`, with no lookup, editor, write
+or rename behind it. Every key but scroll, `?` and close (Esc, `q`, Enter) does
+nothing, and Esc leaves the viewer instead of returning to a prepare page.
+Tests: `TestMetaViewerCannotChangeTheFile`, `TestShellMetaViewCommand`.
+
 `/meta` looks a local book up online and fixes its metadata; it needs no
 Z-Library login. It opens a file picker listing folders and the formats
 `zlib meta` reads, or takes a path (`/meta "<file>"`). The page does not search
