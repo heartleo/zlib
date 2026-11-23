@@ -419,6 +419,7 @@ func printMetaCandidates(out io.Writer, cands []metasource.Candidate) {
 			}
 		}
 		add("Authors", strings.Join(c.Authors, " & "))
+		add("Evidence", strings.Join(c.Notes, "; "))
 		add("Publisher", c.Publisher)
 		add("Published", c.Published)
 		add("Languages", strings.Join(c.Languages, ", "))

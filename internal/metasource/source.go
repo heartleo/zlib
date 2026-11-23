@@ -53,6 +53,9 @@ type Query struct {
 	// find a book; they only rank editions of one title a little.
 	Publisher string `json:"publisher,omitempty"`
 	Year      string `json:"year,omitempty"`
+	// Language is the language the file declares (BCP 47). It only ranks: a
+	// result in another language is a translation, or another book.
+	Language string `json:"language,omitempty"`
 }
 
 // AddUnconfirmedISBN adds isbn, a valid ISBN-13, to the query as an
@@ -68,6 +71,9 @@ func (q *Query) AddUnconfirmedISBN(isbn string) {
 // QueryFromMetadata builds a query from what a file already knows.
 func QueryFromMetadata(m *ebookmeta.Metadata) Query {
 	q := Query{Title: m.Title, Authors: m.Authors}
+	if len(m.Languages) > 0 {
+		q.Language = m.Languages[0]
+	}
 	if isbn := NormalizeISBN(m.Identifier("isbn")); isbn != "" {
 		q.ISBNs = append(q.ISBNs, isbn)
 	}
@@ -110,6 +116,10 @@ type Candidate struct {
 	// Match says how the candidate relates to the query; Score is 0 to 1.
 	Match Match   `json:"match"`
 	Score float64 `json:"score"`
+	// Notes are the reasons behind the rank, in plain words: what agreed and what
+	// conflicted (another volume, another edition, a different year). They come
+	// from the fields of the row and the query, never from a model.
+	Notes []string `json:"notes,omitempty"`
 
 	coverRank int // lower is preferred
 }

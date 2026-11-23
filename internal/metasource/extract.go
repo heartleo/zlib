@@ -117,7 +117,7 @@ func Extract(fileName string, m *ebookmeta.Metadata, scanned []string, hint Hint
 	}
 	x.AuthorsFrom = from
 
-	q := Query{Title: title, Authors: authors, TitleGuessed: guessed, Publisher: emb.Publisher, Year: emb.Year}
+	q := Query{Title: title, Authors: authors, TitleGuessed: guessed, Publisher: emb.Publisher, Year: emb.Year, Language: emb.Language}
 	add := func(isbn, source string, confirmed bool) {
 		if isbn == "" || containsFold(q.ISBNs, isbn) {
 			return

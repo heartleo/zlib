@@ -235,13 +235,15 @@ func TestEditionHintsBreakTiesBetweenEditions(t *testing.T) {
 	if plain[0].Score != plain[1].Score {
 		t.Errorf("scores differ without hints: %v vs %v", plain[0].Score, plain[1].Score)
 	}
-	// Below the cap the hints raise the score, a little.
+	// Below the cap the hints move the score a little: the agreeing edition gains
+	// the publisher and year bonus (0.07), and the one published 8 years from the
+	// file's year loses a mild 0.05 on top. Never as much as a different book.
 	loose := Query{Title: "三体全集", Publisher: "重庆出版社", Year: "2008"}
 	a := Candidate{Title: "三体全集版", Publisher: "某出版社", Published: "2016-01", EditionLevel: true, Sources: []string{"A"}, Identifiers: []ebookmeta.Identifier{{Scheme: "douban", Value: "1"}}}
 	b := Candidate{Title: "三体全集版", Publisher: "重庆出版社", Published: "2008-01", EditionLevel: true, Sources: []string{"A"}, Identifiers: []ebookmeta.Identifier{{Scheme: "douban", Value: "2"}}}
 	r := rankAndMerge(loose, []Candidate{a, b}, defaultMinScore, 10)
-	if len(r) != 2 || r[0].Published != "2008-01" || r[0].Score-r[1].Score < 0.06 || r[0].Score-r[1].Score > 0.08 {
-		t.Errorf("the hints add %v, want about 0.07: %+v", r[0].Score-r[1].Score, r)
+	if len(r) != 2 || r[0].Published != "2008-01" || r[0].Score-r[1].Score < 0.06 || r[0].Score-r[1].Score > 0.14 {
+		t.Errorf("the hints add %v, want a little (about 0.12): %+v", r[0].Score-r[1].Score, r)
 	}
 	// An ISBN match is decided by the ISBN, whatever the hints say.
 	withISBN := q

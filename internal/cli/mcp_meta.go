@@ -177,6 +177,7 @@ type mcpMetadataCandidate struct {
 	Score                float64                `json:"score" jsonschema:"0 to 1. An isbn match below 1 is not confirmed: its ISBN belongs to a book with another title, or only a hint."`
 	Sources              []string               `json:"sources"`
 	EditionLevel         bool                   `json:"edition_level,omitempty" jsonschema:"True when it describes one edition, so its publisher, date and ISBN are that edition's."`
+	Notes                []string               `json:"notes,omitempty" jsonschema:"Why it ranks where it does: what agreed with the file and what conflicted (another volume, another edition, a different year or language). Facts from the record, not a guess."`
 	SuggestedFileName    string                 `json:"suggested_file_name,omitempty"`
 	Changes              []mcpPlannedChange     `json:"changes,omitempty" jsonschema:"With file_path: what taking this match would change in the file."`
 }
@@ -349,7 +350,7 @@ func handleMCPLookupMetadata(ctx context.Context, _ *mcp.CallToolRequest, in mcp
 			Rank: i + 1, Title: safeText(c.Title), Authors: safeList(c.Authors), Publisher: safeText(c.Publisher), Published: safeText(c.Published),
 			Languages: safeList(c.Languages), Tags: safeList(c.Tags), Series: safeText(c.Series), SeriesIndex: c.SeriesIndex,
 			CoverURL: c.CoverURL, Match: string(c.Match), Score: c.Score,
-			Sources: c.Sources, EditionLevel: c.EditionLevel,
+			Sources: c.Sources, EditionLevel: c.EditionLevel, Notes: safeList(c.Notes),
 			SuggestedFileName: metasource.FileNameWith(metaNameLayout(), c.Title, c.Authors, ext),
 		}
 		for _, id := range c.Identifiers {

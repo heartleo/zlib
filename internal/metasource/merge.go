@@ -146,6 +146,7 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 	for _, r := range order {
 		c := mergePool(q, pools[r])
 		c.Match, c.Score = scoreCandidate(q, c)
+		c.Notes = candidateNotes(q, c)
 		if c.Match == MatchISBN || c.Score >= minScore {
 			out = append(out, c)
 		}
@@ -208,7 +209,10 @@ func scoreCandidate(q Query, c Candidate) (Match, float64) {
 	}
 	s += min(0.06, 0.03*float64(len(c.Sources)-1))
 	s += editionBonus(q, c)
-	return MatchTitle, min(s, 0.99)
+	// Soft evidence: conflicts (another volume, a summary of the book, another
+	// edition) cap the score and a year or language far off costs a little. An
+	// ISBN match above never reaches this: nothing soft overrides an exact ISBN.
+	return MatchTitle, min(applyFindings(s, findings(q, c)), 0.99)
 }
 
 // editionBonus is the little a matching publisher or year adds to a title

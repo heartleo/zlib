@@ -130,13 +130,26 @@ func authorSimilarity(want, got []string) float64 {
 		return 1
 	}
 	total := 0.0
-	for _, w := range keys {
+	for _, w := range want {
+		wk := personKey(w)
+		if wk == "" {
+			continue
+		}
+		wt := personTokens(w)
 		best := 0.0
 		for _, g := range got {
 			gk := personKey(g)
-			s := dice([]rune(w), []rune(gk))
-			// A surname alone, or a name with a middle initial, still counts.
-			if gk != "" && (strings.Contains(gk, w) || strings.Contains(w, gk)) && min(len(gk), len(w)) >= 3 {
+			if s, _, ok := namePair(wt, personTokens(g)); ok {
+				// Same surname: the given names decide (the same person, an
+				// initial, a lone surname, or another person of that surname).
+				best = max(best, s)
+				continue
+			}
+			s := dice([]rune(wk), []rune(gk))
+			// A name with a middle initial, or a name written with extra words,
+			// still counts. A lone surname does not count in full: it fits every
+			// person of that name.
+			if gk != "" && (strings.Contains(gk, wk) || strings.Contains(wk, gk)) && min(len(gk), len(wk)) >= 3 {
 				s = max(s, 0.85)
 			}
 			best = max(best, s)

@@ -721,9 +721,16 @@ func (m metaPageModel) failedBody() string {
 	return strings.Join(lines, "\n")
 }
 
-// sourceNote tells which sources failed while others answered.
+// sourceNote tells which sources failed while others answered. With the
+// side-by-side panels up, which have no room for the details, it also leads
+// with the reasons behind the highlighted row's rank.
 func (m metaPageModel) sourceNote() string {
 	var parts []string
+	if m.stage == metaCandidates && m.compareFits() && m.cursor < len(m.res.Candidates) {
+		if notes := m.res.Candidates[m.cursor].Notes; len(notes) > 0 {
+			parts = append(parts, "Evidence: "+strings.Join(notes, "; "))
+		}
+	}
 	for _, e := range m.res.Errors {
 		parts = append(parts, metaSourceError(e))
 	}
@@ -752,6 +759,7 @@ func metaDetailRows(c metasource.Candidate) [][2]string {
 		}
 	}
 	add("Match", metaMatchLabel(c))
+	add("Evidence", strings.Join(c.Notes, "; "))
 	add("Sources", strings.Join(c.Sources, ", "))
 	// An edition says which ISBN it has, or that it has none: a match without
 	// one is a guess about the edition. A work-level result names no edition.

@@ -209,6 +209,40 @@ What it does:
   for the first volume. Dates written with the Chinese year and month
   characters are read.
 
+#### How a title match is weighed
+
+An exact ISBN decides; nothing below overrides it. For a title match the
+title and authors set the score, and the rest is evidence that moves a row
+without hiding it. Two rules run through all of it: **a conflict costs more than
+an agreement earns, and missing data counts for nothing.** Every row carries the
+reasons as `notes` (`--json`, the MCP tools and the details line `Evidence`),
+built from the fields of the row and the file, never from a model.
+
+- **Another volume.** The same title with a different number (`Dune 01` and
+  `Dune 02`, or a title ending in `Ⅱ` and the same one ending in `Ⅲ`) is a different
+  book. It only applies when the titles are otherwise equal, so `1984`,
+  `Fahrenheit 451` and `2001: A Space Odyssey` are never volumes.
+- **A sequel or companion.** A title that continues the wanted one without a
+  subtitle (`Dune` and `Dune Messiah`; the same for a Chinese title with a volume
+  name added after it) ranks lower. A subtitle (`Dune: Messiah`) and an edition
+  word (`Special Edition`, or the Chinese words for a complete or revised edition)
+  do not count.
+- **A summary or study guide** of the book ranks lower, unless the title asked for one.
+- **Authors.** `Frank Herbert`, `Herbert, Frank` and `F. Herbert` agree; a surname
+  alone is a partial match (it fits every Herbert); the same surname with another
+  given name (`Brian Herbert`) conflicts.
+- **Another edition.** When the file has a confirmed ISBN and an edition-level result
+  carries a different one, that result is another edition of the book. Choosing it
+  still selects none of its edition fields.
+- **Year.** A result within two years of the file's year agrees (a reprint). Further
+  off it costs a little. A missing year costs nothing, and the first-publication
+  year of a work-level result is not compared at all.
+- **Language.** A result in a language other than the file's costs a little; an
+  unknown language costs nothing.
+
+A row that had a place in the list keeps it: a cost lowers its rank and the
+note says why, instead of dropping it.
+
 ### What the search is built from
 
 The search is built from the file name first and then the file's own
