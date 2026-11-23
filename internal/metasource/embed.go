@@ -8,15 +8,15 @@ import (
 )
 
 const (
-	// SchemeZlibISBN holds an ISBN taken from the Z-Library record of a
-	// download that nothing has confirmed. A lookup searches it, and the
-	// matcher still checks the title, but it is never read as the book's own
-	// ISBN: a wrong value here must not turn into an "exact" match later.
+	// SchemeZlibISBN is the identifier older downloads used for an ISBN taken
+	// from the Z-Library record that nothing had confirmed. A download no longer
+	// writes it (the record's ISBN-13 is written as the file's own ISBN), but
+	// files that carry it are still read: a lookup searches it, and the matcher
+	// still checks the title before it counts it as exact.
 	SchemeZlibISBN = "zlib-isbn"
 
-	// embedMinTitleSimilarity is how close the record's title must be to the
-	// file's before the record's ISBN is written as the file's own ISBN. It
-	// is stricter than the matcher's threshold, since a write is permanent.
+	// embedMinTitleSimilarity is how close a title must be to the file's before
+	// a hint ISBN is confirmed by it (see hintTitleSimilarity).
 	embedMinTitleSimilarity = 0.8
 )
 
@@ -24,66 +24,32 @@ const (
 // file came from, as id:hash, so it can be traced back to that record.
 const SchemeZlibID = "zlib-id"
 
-// PlanDownloadISBN decides how to record the ISBN of a Z-Library record in the
-// file it was downloaded as. isbns are tried in order and the first valid one
-// is used. It returns the identifier scheme written and the change, or "" and
-// nil when there is nothing to write:
-//
-//   - the record has no valid ISBN;
-//   - the file already has an ISBN: it is never replaced here, and the record
-//     is not allowed to contradict it quietly;
-//   - the file already carries this ISBN under SchemeZlibISBN.
-//
-// The scheme is "isbn" only when the file has a title, the record's title
-// agrees with it, and the record names one edition: an identifier can list the
-// ISBNs of several editions, and a title cannot say which one the file is.
-// Otherwise it is SchemeZlibISBN.
-func PlanDownloadISBN(cur *ebookmeta.Metadata, recordTitle string, isbns ...string) (string, *ebookmeta.Changes) {
-	var isbn string
-	editions := map[string]bool{}
-	for _, raw := range isbns {
-		for _, value := range splitIdentifiers(raw) {
-			if v := NormalizeISBN(value); v != "" {
-				editions[v] = true // an ISBN-10 counts as its ISBN-13
-				if isbn == "" {
-					isbn = v
-				}
-			}
-		}
+// ISBN13 returns raw as an ISBN-13 when it is one, and "" otherwise: hyphens
+// and spaces are ignored, the check digit must be right, and an ISBN-10 is not
+// converted. A download writes only an ISBN-13 the record gives as one.
+func ISBN13(raw string) string {
+	digits := strings.NewReplacer("-", "", " ", "").Replace(strings.TrimSpace(raw))
+	if len(digits) != 13 {
+		return ""
 	}
-	if isbn == "" || strings.TrimSpace(cur.Identifier("isbn")) != "" || NormalizeISBN(cur.Identifier(SchemeZlibISBN)) == isbn {
-		return "", nil
-	}
-	scheme := SchemeZlibISBN
-	if cur.Title != "" && recordTitle != "" && len(editions) == 1 && recordTitleAgrees(recordTitle, cur.Title) {
-		scheme = "isbn"
-	}
-	return scheme, &ebookmeta.Changes{Identifiers: map[string]string{scheme: isbn}}
+	return NormalizeISBN(digits)
 }
 
-// recordTitleAgrees reports whether the Z-Library record's title says what the
-// file's own title says. A record is often named like a file, "Author - Series
-// 01 - Title", whose words in front of the real title would make a whole-string
-// comparison fail for the very file it describes; so when the record has that
-// shape (three or more parts) its last part, the title, is compared too. A
-// two-part name is ambiguous ("A - B" can be either order) and is compared
-// whole only.
-func recordTitleAgrees(recordTitle, fileTitle string) bool {
-	if titleSimilarity(recordTitle, fileTitle) >= embedMinTitleSimilarity {
-		return true
+// PlanDownloadISBN decides what to write for the Z-Library record's ISBN-13 in
+// the file it was downloaded as: the identifier "isbn", always, when the record
+// has an ISBN-13. It returns nil when there is nothing to write:
+//
+//   - the record has no valid ISBN-13 (an ISBN-10 alone is not enough);
+//   - the file already has an ISBN of its own: it is never replaced here.
+//
+// There is no title test: the file was downloaded from that record, so its ISBN
+// is the file's. An older hint under SchemeZlibISBN does not stop the write.
+func PlanDownloadISBN(cur *ebookmeta.Metadata, isbn13 string) *ebookmeta.Changes {
+	v := ISBN13(isbn13)
+	if v == "" || strings.TrimSpace(cur.Identifier("isbn")) != "" {
+		return nil
 	}
-	parts := strings.Split(recordTitle, " - ")
-	if len(parts) < 3 {
-		return false
-	}
-	last := strings.TrimSpace(parts[len(parts)-1])
-	return len([]rune(last)) >= 2 && titleSimilarity(last, fileTitle) >= embedMinTitleSimilarity
-}
-
-// splitIdentifiers splits an identifier field that lists several values, as
-// Z-Library's does ("9787229042066,7229042062").
-func splitIdentifiers(s string) []string {
-	return strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ';' || r == '|' || r == '\n' })
+	return &ebookmeta.Changes{Identifiers: map[string]string{"isbn": v}}
 }
 
 // ISBNsFromSnippets reads ISBNs from the text that follows an "ISBN" label in

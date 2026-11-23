@@ -126,9 +126,9 @@ zlib download "id:hash" --dir ./books --json
 absolute `path` of the saved file; add `--send-to-kindle` and it gains a
 `kindle` object (`sent`, `to` or `error`); `--send-to-weread` adds a `weread`
 object (`imported`, `book_id`, `already_existed` or `error`). When Z-Library's
-record has a valid ISBN, the download also writes it into the saved file's
-metadata and the document gains `isbn` (`scheme` is `isbn`, or `zlib-isbn` when
-the record's title did not agree with the file's; `value`). An EPUB also records
+record has an ISBN-13, the download also writes it into the saved file's
+metadata as its `isbn` and the document gains `isbn` (`scheme` is `isbn`;
+`value`); a record without an ISBN-13 writes none. An EPUB also records
 the Z-Library book ID as the identifier `zlib-id` and the document gains
 `zlib_id` (`id:hash`). `--no-embed` skips both. Progress lines go to stderr, so read stdout only.
 

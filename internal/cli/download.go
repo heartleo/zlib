@@ -231,10 +231,13 @@ func (m downloadModel) runPlain(status io.Writer) (downloadModel, error) {
 	} else if embedded != nil {
 		m.embedded = embedded
 		if embedded.Scheme != "" {
-			fmt.Fprintf(status, "Recorded ISBN %s in the file metadata (%s)\n", embedded.Value, embedded.Scheme)
+			fmt.Fprintf(status, "Recorded ISBN %s in the file metadata\n", embedded.Value)
 		}
 		if embedded.ZlibID != "" {
 			fmt.Fprintf(status, "Recorded the Z-Library ID %s in the file metadata\n", safeText(embedded.ZlibID))
+		}
+		if embedded.Unstorable != "" {
+			fmt.Fprintf(status, "ISBN %s was not written: this format cannot store an ISBN\n", embedded.Unstorable)
 		}
 	}
 	return m, nil

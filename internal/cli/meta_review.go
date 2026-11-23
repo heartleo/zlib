@@ -159,7 +159,11 @@ func (m metaPageModel) candidatesBody() string {
 		return strings.Join(append(lines, cm.benchPanelsWith(cm.compareRows(), m.compareCovers())...), "\n")
 	}
 	lines = append(lines, "", sectionHeader("Details", "", width))
-	for _, l := range formatDetailRows(append(append(m.aiDetailRows(), m.candidateEffect(c)...), metaDetailRows(c)...), "  ", colorFaint) {
+	detail := append(m.aiDetailRows(), m.candidateEffect(c)...)
+	if r, ok := m.fileISBNRow(); ok {
+		detail = append(detail, r) // beside the match's own ISBN below
+	}
+	for _, l := range formatDetailRows(append(detail, metaDetailRows(c)...), "  ", colorFaint) {
 		lines = append(lines, ansi.Truncate(l, width, "…"))
 	}
 	return strings.Join(lines, "\n")

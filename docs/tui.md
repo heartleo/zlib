@@ -291,8 +291,11 @@ nothing while a search or a write runs:
   them in Chinese when only one does; otherwise from the file when it names
   the same person, as a file name often adds the translator, and from the
   file name when it does not. A title that is only a placeholder (`Unknown`,
-  a UUID, a long number) is not used, and an ISBN alone is not a title. The file's own ISBN is confirmed; an ISBN read from the copyright
-  page, recorded by a download or found in the file name is a hint. The file's
+  a UUID, a long number) is not used, and an ISBN alone is not a title. The file's own ISBN (which includes the ISBN-13 a download wrote) is confirmed; an ISBN read from the copyright
+  page, an older download's `zlib-isbn` or found in the file name is a hint. The
+  results page lists the file's ISBN on the file's side of the comparison (the
+  `ISBN (download)` row for one the file does not hold) and, on a narrow terminal,
+  in the details as `File ISBN`. The file's
   publisher and year rank editions of one title a little. A title read from
   the name or the download is marked `a guess` and cannot by itself confirm a
   hint ISBN; the file's own title, or one you edit, can. The terms and sources

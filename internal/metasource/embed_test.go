@@ -11,47 +11,56 @@ func TestPlanDownloadISBN(t *testing.T) {
 	const isbn = "9787536692930"
 	withISBN := &ebookmeta.Metadata{Title: "三体"}
 	withISBN.SetIdentifier("isbn", "9780140328721")
-	alreadyHeld := &ebookmeta.Metadata{Title: "三体"}
-	alreadyHeld.SetIdentifier(SchemeZlibISBN, "978-7-5366-9293-0")
+	legacyHint := &ebookmeta.Metadata{Title: "三体"}
+	legacyHint.SetIdentifier(SchemeZlibISBN, "978-7-5366-9293-0")
 
 	for _, tc := range []struct {
-		name   string
-		cur    *ebookmeta.Metadata
-		title  string
-		isbns  []string
-		scheme string
+		name string
+		cur  *ebookmeta.Metadata
+		isbn string
+		want string // the ISBN written, "" for nothing
 	}{
-		{"agreeing title is written as the ISBN", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{"", isbn}, "isbn"},
-		{"subtitle on the record still agrees", &ebookmeta.Metadata{Title: "三体"}, "三体：地球往事", []string{isbn}, "isbn"},
-		{"ISBN-10 is stored as ISBN-13", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{"7-5366-9293-5"}, "isbn"},
-		{"disagreeing title is only a hint", &ebookmeta.Metadata{Title: "红楼梦"}, "三体", []string{isbn}, SchemeZlibISBN},
-		{"a sequel is not the first volume", &ebookmeta.Metadata{Title: "三体"}, "三体Ⅱ", []string{isbn}, SchemeZlibISBN},
-		{"no file title cannot confirm", &ebookmeta.Metadata{}, "三体", []string{isbn}, SchemeZlibISBN},
-		{"no record title cannot confirm", &ebookmeta.Metadata{Title: "三体"}, "", []string{isbn}, SchemeZlibISBN},
-		{"invalid ISBNs are skipped", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{"9787536692931", "abc"}, ""},
-		// A record's identifier can list several editions' ISBNs, and a title
-		// cannot say which edition the file is.
-		{"one book's ISBN-13 and ISBN-10 are one edition", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "7-5366-9293-5"}, "isbn"},
-		{"several editions give only a hint", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "7-5366-9293-5", "9780140328721,9781593272203"}, SchemeZlibISBN},
-		{"a 978 and a 979 ISBN-13 are two editions", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "9798666362525"}, SchemeZlibISBN},
-		{"a repeated ISBN is still one edition", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "9787536692930,9787536692930"}, "isbn"},
-		{"an ASIN beside the ISBN is not an edition", &ebookmeta.Metadata{Title: "三体"}, "三体", []string{isbn, "B07S7CCQGL," + isbn}, "isbn"},
-		{"an existing ISBN is never replaced", withISBN, "三体", []string{isbn}, ""},
-		{"an already recorded hint is not rewritten", alreadyHeld, "三体", []string{isbn}, ""},
+		// The record's ISBN-13 is the file's ISBN, whatever the titles say.
+		{"an ISBN-13 is written", &ebookmeta.Metadata{Title: "三体"}, isbn, isbn},
+		{"a file with a different title still gets it", &ebookmeta.Metadata{Title: "红楼梦"}, isbn, isbn},
+		{"a file with no title still gets it", &ebookmeta.Metadata{}, isbn, isbn},
+		{"hyphens and spaces are removed", &ebookmeta.Metadata{Title: "三体"}, " 978-7-5366-9293-0 ", isbn},
+		{"an older hint does not stop the write", legacyHint, isbn, isbn},
+		// Without an ISBN-13 nothing is written.
+		{"an ISBN-10 alone is not enough", &ebookmeta.Metadata{Title: "三体"}, "7-5366-9293-5", ""},
+		{"no ISBN", &ebookmeta.Metadata{Title: "三体"}, "", ""},
+		{"a bad check digit", &ebookmeta.Metadata{Title: "三体"}, "9787536692931", ""},
+		{"an ASIN", &ebookmeta.Metadata{Title: "三体"}, "B07S7CCQGL", ""},
+		{"several values are not one ISBN-13", &ebookmeta.Metadata{Title: "三体"}, isbn + ",7-5366-9293-5", ""},
+		// A file's own ISBN is never replaced.
+		{"an existing ISBN is kept", withISBN, isbn, ""},
 	} {
-		scheme, c := PlanDownloadISBN(tc.cur, tc.title, tc.isbns...)
-		if scheme != tc.scheme {
-			t.Errorf("%s: scheme = %q, want %q", tc.name, scheme, tc.scheme)
-			continue
-		}
-		if tc.scheme == "" {
+		c := PlanDownloadISBN(tc.cur, tc.isbn)
+		if tc.want == "" {
 			if c != nil {
 				t.Errorf("%s: wrote %+v", tc.name, c)
 			}
 			continue
 		}
-		if c == nil || !reflect.DeepEqual(c.Identifiers, map[string]string{tc.scheme: isbn}) {
+		if c == nil || !reflect.DeepEqual(c.Identifiers, map[string]string{"isbn": tc.want}) {
 			t.Errorf("%s: changes = %+v", tc.name, c)
+		}
+	}
+}
+
+func TestISBN13IsOnlyAnISBN13(t *testing.T) {
+	for raw, want := range map[string]string{
+		"9787536692930":       "9787536692930",
+		"978-7-5366-9293-0":   "9787536692930",
+		" 9787536692930 ":     "9787536692930",
+		"7536692935":          "", // an ISBN-10 is not converted
+		"9787536692931":       "", // bad check digit
+		"978753669293":        "",
+		"9787536692930,12345": "",
+		"":                    "",
+	} {
+		if got := ISBN13(raw); got != want {
+			t.Errorf("ISBN13(%q) = %q, want %q", raw, got, want)
 		}
 	}
 }

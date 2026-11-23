@@ -241,31 +241,30 @@ and where the title, authors and each ISBN came from.
 ### Where the ISBN comes from
 
 A lookup searches, in this order of trust: the ISBN in the file's metadata; an
-ISBN recorded by a [download](usage.md#download) under the identifier
-`zlib-isbn`; an ISBN printed in the book itself; the Z-Library record of a
-download just made; and an ISBN written in the file name. Only the first is
-the file's own and confirmed. The others are hints: a hint is confirmed only
-when a result carries it and its title agrees with the file's own title or one
-you edited, never with a title that was itself read from the file name or the
-download record.
+ISBN recorded under the identifier `zlib-isbn` (by an older download); an ISBN
+printed in the book itself; the Z-Library record of a download just made; and an
+ISBN written in the file name. Only the first is the file's own and confirmed.
+The others are hints: a hint is confirmed only when a result carries it and its
+title agrees with the file's own title or one you edited, never with a title that
+was itself read from the file name or the download record.
 
-- **Recorded by a download.** `zlib download` writes the ISBN from Z-Library's
-  record into the saved file. It becomes the file's `isbn` only when the file
-  has none, the record's title agrees closely with the file's title, and the
-  record names one edition: a record that lists the ISBNs of several editions
-  cannot say which one the file is. A record named like a file, `Author - Series
-  01 - Title`, is compared by its last part too, so the file's own title `Title`
-  agrees. Otherwise it is stored as `zlib-isbn`, a hint that is searched but
-  never taken as the book's own ISBN. A later lookup that finds the same ISBN on
-  a book with the same title confirms it, and the page then offers to fill the
-  empty `isbn`. Use `--no-embed` to skip this. Z-Library's record has no ISBN at
-  all for many books, and then there is nothing to write. In the terminal
-  interface a write that fails is reported on the completion page.
+- **Written by a download.** `zlib download` writes the ISBN-13 from Z-Library's
+  record into the saved file as its own `isbn`, so it is the file's own and
+  confirmed. The rule is plain: **an ISBN-13 is always written; without one
+  nothing is.** An ISBN-10 alone, an ASIN or a number with a wrong check digit is
+  not an ISBN-13, and the titles are not compared. An ISBN the file already has
+  is never replaced. A format with no place for an ISBN (PDF, DOCX) keeps none,
+  and the download says so. Use `--no-embed` to skip this. Z-Library's record has
+  no ISBN at all for many books, and then there is nothing to write. In the
+  terminal interface a write that fails is reported on the completion page.
+  Older downloads wrote an unconfirmed ISBN as `zlib-isbn` when the titles
+  differed; such files are still read as hints.
 - **Shown in the results.** The comparison on the results page and the fields
-  page list the ISBN the download obtained as an `ISBN (download)` row on the
-  file's side, whether it is the `zlib-isbn` hint in the file or the Z-Library
-  record's ISBN that was not written (a format with no place for it). It is left
-  out when the file already holds an `isbn` of its own, which the ISBN row shows.
+  page list the file's ISBN on its side (the `ISBN` row), and a narrow results page
+  names it in the details as `File ISBN`. The ISBN the download obtained is also
+  listed as an `ISBN (download)` row when the file does not hold it as its own: the
+  `zlib-isbn` hint of an older download, or the record's ISBN-13 that a format
+  with no place for it could not take, in the session that downloaded it.
 - **Printed in the book.** For a book without either, the lookup reads the
   front and last pages of an EPUB or DOCX for an ISBN after the word `ISBN`
   (or a hyphenated ISBN-13). Only a number with a correct check digit counts,

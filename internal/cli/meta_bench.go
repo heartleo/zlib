@@ -168,11 +168,27 @@ func (m metaPageModel) downloadISBN() string {
 		return v
 	}
 	for i, isbn := range m.extraction.Query.ISBNs {
-		if i < len(m.extraction.ISBNFrom) && m.extraction.ISBNFrom[i] == "download record" {
-			return isbn
+		if i < len(m.extraction.ISBNFrom) && m.extraction.ISBNFrom[i] == "download record" && len(isbn) == 13 {
+			return isbn // an ISBN-13: the only kind a download writes
 		}
 	}
 	return ""
+}
+
+// fileISBNRow is the ISBN the file carries, for the details of a narrow results
+// page that has no comparison panels: the file's own ISBN, or the one the
+// download obtained that the file does not hold. ok is false when there is none.
+func (m metaPageModel) fileISBNRow() (row [2]string, ok bool) {
+	if m.current == nil {
+		return row, false
+	}
+	if v := strings.TrimSpace(m.current.Identifier("isbn")); v != "" {
+		return [2]string{"File ISBN", safeText(v)}, true
+	}
+	if v := m.downloadISBN(); v != "" {
+		return [2]string{"File ISBN", v + " (from the download, not in the file)"}, true
+	}
+	return row, false
 }
 
 func (m metaPageModel) benchRow(f metasource.Field) benchRow {

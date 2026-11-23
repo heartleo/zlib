@@ -82,31 +82,57 @@ func TestEmbedDownloadISBN(t *testing.T) {
 		}
 	})
 
-	t.Run("disagreeing title is kept as a hint only", func(t *testing.T) {
+	t.Run("the ISBN-13 is written whatever the titles say", func(t *testing.T) {
 		p := writeEPUB(t, "红楼梦", "<p>x</p>")
 		got, err := embedDownloadISBN(p, record)
-		if err != nil || got == nil || got.Scheme != metasource.SchemeZlibISBN {
+		if err != nil || got == nil || got.Scheme != "isbn" || got.Value != embedTestISBN {
 			t.Fatalf("got %+v, %v", got, err)
 		}
 		m, _, _ := ebookmeta.ReadFile(p)
-		if m.Identifier("isbn") != "" || m.Identifier(metasource.SchemeZlibISBN) != embedTestISBN {
+		if m.Identifier("isbn") != embedTestISBN || m.Identifier(metasource.SchemeZlibISBN) != "" {
 			t.Fatalf("identifiers = %+v", m.Identifiers)
 		}
-		// A later lookup searches the hint without trusting it.
-		if q := metasource.QueryFromMetadata(m); len(q.ISBNs) != 1 || q.ISBNs[0] != embedTestISBN {
+		// The file's own ISBN is what a later lookup searches, confirmed.
+		if q := metasource.QueryFromMetadata(m); len(q.ISBNs) != 1 || q.ISBNs[0] != embedTestISBN || len(q.Unconfirmed) != 0 {
 			t.Errorf("query = %+v", q)
 		}
 	})
 
-	t.Run("a record listing several editions only gives a hint", func(t *testing.T) {
+	t.Run("a record listing several editions writes its ISBN-13", func(t *testing.T) {
 		p := writeEPUB(t, "三体", "<p>x</p>")
 		book := zlib.Book{Name: "三体", ISBN13: embedTestISBN, ISBN10: "7536692935", ISBN: embedTestISBN + ",7536692935,9780140328721"}
 		got, err := embedDownloadISBN(p, book)
-		if err != nil || got == nil || got.Scheme != metasource.SchemeZlibISBN {
+		if err != nil || got == nil || got.Scheme != "isbn" || got.Value != embedTestISBN {
 			t.Fatalf("got %+v, %v", got, err)
 		}
-		if m, _, _ := ebookmeta.ReadFile(p); m.Identifier("isbn") != "" {
-			t.Errorf("an ambiguous ISBN became the file's own: %+v", m.Identifiers)
+	})
+
+	t.Run("without an ISBN-13 no ISBN is written", func(t *testing.T) {
+		p := writeEPUB(t, "三体", "<p>x</p>")
+		before, _ := os.ReadFile(p)
+		for name, book := range map[string]zlib.Book{
+			"an ISBN-10 only":           {Name: "三体", ISBN10: "7536692935", ISBN: "7536692935"},
+			"a list without an ISBN-13": {Name: "三体", ISBN: "7536692935,B07S7CCQGL"},
+		} {
+			if got, err := embedDownloadISBN(p, book); err != nil || got != nil {
+				t.Errorf("%s: got %+v, %v", name, got, err)
+			}
+		}
+		if after, _ := os.ReadFile(p); !bytes.Equal(before, after) {
+			t.Error("the file changed although the record has no ISBN-13")
+		}
+	})
+
+	t.Run("an ISBN the file already has is kept", func(t *testing.T) {
+		p := writeEPUB(t, "三体", "<p>x</p>")
+		if err := ebookmeta.WriteFile(p, &ebookmeta.Changes{Identifiers: map[string]string{"isbn": "9780140328721"}}); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := embedDownloadISBN(p, record); err != nil || got != nil {
+			t.Fatalf("got %+v, %v", got, err)
+		}
+		if m, _, _ := ebookmeta.ReadFile(p); m.Identifier("isbn") != "9780140328721" {
+			t.Fatalf("the file's own ISBN was replaced: %+v", m.Identifiers)
 		}
 	})
 
@@ -211,11 +237,24 @@ func TestPlainDownloadNoEmbedLeavesTheFileAlone(t *testing.T) {
 	}
 }
 
-func TestPlainDownloadMismatchedTitleRecordsAHint(t *testing.T) {
+func TestPlainDownloadWritesTheISBN13EvenWhenTheTitlesDiffer(t *testing.T) {
 	srv := fakeEAPI(t, "三体", epubBytes(t, "红楼梦", "<p>x</p>"))
 	result, _, _ := runEmbedDownload(t, srv, false)
-	if result.ISBN == nil || result.ISBN.Scheme != metasource.SchemeZlibISBN {
+	if result.ISBN == nil || result.ISBN.Scheme != "isbn" || result.ISBN.Value != embedTestISBN {
 		t.Fatalf("result.ISBN = %+v", result.ISBN)
+	}
+	if m, _, err := ebookmeta.ReadFile(result.Path); err != nil || m.Identifier("isbn") != embedTestISBN {
+		t.Fatalf("saved file = %+v, %v", m, err)
+	}
+}
+
+func TestTheISBNMessageSaysWhenAFormatCannotStoreIt(t *testing.T) {
+	got := embeddedISBNMessage(&embeddedISBN{Unstorable: embedTestISBN})
+	if !strings.Contains(got, embedTestISBN) || !strings.Contains(got, "cannot store") {
+		t.Fatalf("message = %q", got)
+	}
+	if (&embeddedISBN{Unstorable: embedTestISBN}).isbnPart() != nil {
+		t.Fatal("an ISBN that was not written is reported as recorded")
 	}
 }
 
