@@ -1,7 +1,7 @@
 {
   "name": "zlib-plugin-cc",
   "metadata": {
-    "description": "Give Claude a Z-Library client. /zlib searches, downloads, and send to Kindle; /zlib:metadata fixes e-book metadata."
+    "description": "Give Claude a Z-Library client. /zlib searches, downloads, and send to Kindle; /zlib:metadata fixes e-book metadata; /zlib:metadata-matching decides which record is the right match."
   },
   "owner": {
     "name": "heartleo"

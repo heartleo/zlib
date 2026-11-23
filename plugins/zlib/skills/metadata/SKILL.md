@@ -48,6 +48,11 @@ Both do the same thing and read the same settings, so use either.
      different title. Do not take it without the user's say.
    - A field that replaces something the file already holds needs the user's
      decision; one that fills an empty field is the usual choice.
+   - Each match also has `notes`: the reasons for its rank (another volume,
+     another edition, a different year). When matches disagree, the file has no
+     ISBN, the title is in another language or sources conflict, follow the
+     [metadata-matching skill](../metadata-matching/SKILL.md) to decide which
+     record is the book and which of its fields are safe.
 4. **Write, then check.** `edit_metadata` with `dry_run: true` first (CLI:
    field options on `zlib meta "<file>"`), show the changes, then repeat without
    `dry_run` once the user agrees. Read the file again to confirm. A field the
