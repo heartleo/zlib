@@ -330,7 +330,12 @@ nothing while a search or a write runs:
   setup and keeps what was saved. The text box has the focus: a framed box in
   the accent colour with a visible cursor (the frame is dropped on a short
   terminal), and Ctrl+R empties it, for the base URL and the key alike (for the
-  key, Enter then removes the saved one). With no model set the list starts on
+  key, Enter then removes the saved one). Under the box are Clear, Cancel and
+  Save (Next during the setup) buttons, reached with Tab: the focus moves
+  between the box and the buttons, the box's frame dims and its cursor hides
+  while a button has it, and Enter on Clear empties the box and gives the focus
+  back. Typing goes to the box only while it has the focus. The buttons are
+  left out on a terminal under 18 rows, where Ctrl+R still clears. With no model set the list starts on
   `deepseek-v4.1-flash`, and the box is prefilled with it when the endpoint has
   no model list. Afterwards the page is eight rows (protocol,
   base URL, API key, model, web search, custom headers, test, remove); changing

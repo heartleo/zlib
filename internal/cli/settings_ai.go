@@ -123,7 +123,10 @@ type aiPageModel struct {
 	resetKey bool
 	// The custom headers list: its cursor, the header being edited (-1: a new
 	// one) and whether anything changed, so leaving the list tests again.
-	hcursor        int
+	hcursor int
+	// editAction is what has the focus in an editor: 0 the text box, 1 Clear,
+	// 2 Cancel, 3 Save (or Next in the setup). Tab moves between them.
+	editAction     int
 	headerIndex    int
 	headersChanged bool
 	pickAll        []string
@@ -381,7 +384,7 @@ func (m aiPageModel) openProtocolPick() aiPageModel {
 // --- Editor -----------------------------------------------------------------
 
 func (m aiPageModel) openEdit(field aiField, value string, secret bool) (aiPageModel, tea.Cmd) {
-	m.mode, m.field, m.resetKey = aiEdit, field, false
+	m.mode, m.field, m.resetKey, m.editAction = aiEdit, field, false, 0
 	m.input.EchoMode = textinput.EchoNormal
 	if secret {
 		m.input.EchoMode = textinput.EchoPassword
@@ -412,6 +415,39 @@ func (m aiPageModel) leaveEdit() aiPageModel {
 }
 
 func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cmd) {
+	// Tab moves the focus between the box and the Clear, Cancel and Save
+	// buttons; Enter on a button does what it says.
+	if k == "tab" || k == "shift+tab" {
+		d := 1
+		if k == "shift+tab" {
+			d = -1
+		}
+		m.editAction = (m.editAction + d + 4) % 4
+		if m.editAction == 0 {
+			return m, m.input.Focus()
+		}
+		m.input.Blur()
+		return m, nil
+	}
+	if m.editAction != 0 {
+		switch k {
+		case "enter", "space":
+			switch m.editAction {
+			case 1:
+				k = "ctrl+r"
+			case 2:
+				k = "esc"
+			default:
+				k = "enter"
+			}
+		case "ctrl+r":
+		case "esc", "ctrl+c":
+		default:
+			return m, nil // typing goes to the box only while it has the focus
+		}
+		m.editAction = 0
+		m.input.Focus()
+	}
 	switch k {
 	case "esc", "ctrl+c":
 		return m.leaveEdit(), nil
@@ -748,7 +784,11 @@ func (m aiPageModel) focusedBox(w, h int) string {
 	if h < 14 || w < 12 {
 		return m.input.View()
 	}
-	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(currentTheme.Accent).
+	border := currentTheme.Accent
+	if !m.input.Focused() {
+		border = currentTheme.Muted // the focus is on a button
+	}
+	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).
 		Width(max(1, min(w, 62)-2)).Render(m.input.View())
 }
 
@@ -790,9 +830,15 @@ func (m aiPageModel) view() tea.View {
 		for _, l := range help {
 			lines = append(lines, muted.Render(ansi.Truncate(l, max(1, w-2), "…")))
 		}
-		controls := []keys.Binding{uiKey("enter", "next"), uiKey("ctrl+r", "clear"), uiKey("esc", "stop")}
+		controls := []keys.Binding{uiKey("enter", "next"), uiKey("tab", "buttons"), uiKey("ctrl+r", "clear"), uiKey("esc", "stop")}
+		save := "Next"
 		if !m.wizard {
-			controls = []keys.Binding{uiKey("enter", "save"), uiKey("ctrl+r", "clear"), uiKey("esc", "cancel")}
+			controls = []keys.Binding{uiKey("enter", "save"), uiKey("tab", "buttons"), uiKey("ctrl+r", "clear"), uiKey("esc", "cancel")}
+			save = "Save"
+		}
+		if h >= 18 { // buttons need rows a short terminal does not have
+			lines = append(lines, "")
+			lines = append(lines, actionButtonRows([]string{"Clear", "Cancel", save}, m.editAction, w)...)
 		}
 		return settingsCompactView(w, h, m.stepTitle(what), "", lines, m.message, controls)
 	case aiPick:
