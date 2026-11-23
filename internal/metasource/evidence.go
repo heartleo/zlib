@@ -107,10 +107,11 @@ func findings(q Query, c Candidate) []finding {
 
 // applyFindings turns the findings into the score of a title match. A cost
 // lowers a row's rank but never takes a row out of the list that it was in: the
-// score does not fall below the lookup's floor when it started above it, so a
-// conflict is shown (and its note says why) instead of silently dropped.
-func applyFindings(score float64, fs []finding) float64 {
-	floor := min(score, defaultMinScore)
+// score does not fall below the lookup's own floor (minScore) when it started
+// above it, so a conflict is shown (and its note says why) instead of silently
+// dropped.
+func applyFindings(score float64, fs []finding, minScore float64) float64 {
+	floor := min(score, minScore)
 	for _, f := range fs {
 		score += f.delta
 	}

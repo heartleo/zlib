@@ -145,7 +145,7 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 	var out []Candidate
 	for _, r := range order {
 		c := mergePool(q, pools[r])
-		c.Match, c.Score = scoreCandidate(q, c)
+		c.Match, c.Score = scoreCandidate(q, c, minScore)
 		c.Notes = candidateNotes(q, c)
 		if c.Match == MatchISBN || c.Score >= minScore {
 			out = append(out, c)
@@ -181,7 +181,7 @@ func rankAndMerge(q Query, in []Candidate, minScore float64, limit int) []Candid
 // result is kept but flagged. Otherwise the title (65%) and authors (35%)
 // decide, with a small bonus for each further source that agrees. A candidate
 // that Lookup returns names one source, so it gets no such bonus.
-func scoreCandidate(q Query, c Candidate) (Match, float64) {
+func scoreCandidate(q Query, c Candidate, minScore float64) (Match, float64) {
 	if isbn := c.ISBN(); isbn != "" && slices.Contains(q.ISBNs, isbn) {
 		need := minTitleSimilarity
 		unconfirmed := slices.Contains(q.Unconfirmed, isbn)
@@ -212,7 +212,7 @@ func scoreCandidate(q Query, c Candidate) (Match, float64) {
 	// Soft evidence: conflicts (another volume, a summary of the book, another
 	// edition) cap the score and a year or language far off costs a little. An
 	// ISBN match above never reaches this: nothing soft overrides an exact ISBN.
-	return MatchTitle, min(applyFindings(s, findings(q, c)), 0.99)
+	return MatchTitle, min(applyFindings(s, findings(q, c), minScore), 0.99)
 }
 
 // editionBonus is the little a matching publisher or year adds to a title

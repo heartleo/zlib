@@ -408,3 +408,26 @@ func TestEditingTheSearchKeepsTheFilesLanguage(t *testing.T) {
 		t.Fatalf("query = %+v, %v", q, err)
 	}
 }
+
+// The floor is the lookup's own: a stricter minimum score is still not undercut by
+// a cost, so a row that cleared it before its costs clears it after them.
+func TestACostNeverPushesARowBelowTheLookupsOwnFloor(t *testing.T) {
+	q := Query{Title: "三体Ⅱ", Authors: []string{"刘慈欣"}}
+	asked := row("1", "三体Ⅱ", "刘慈欣", "2008")
+	other := row("2", "三体Ⅲ", "刘慈欣", "2010") // the other volume: a cost of 0.30
+	for _, floor := range []float64{defaultMinScore, 0.55, 0.6} {
+		out := rankAndMerge(q, []Candidate{asked, other}, floor, 10)
+		var found bool
+		for _, c := range out {
+			if c.Title == "三体Ⅲ" {
+				found = true
+				if c.Score < min(0.675, floor) {
+					t.Errorf("floor %.2f: the other volume fell to %.3f", floor, c.Score)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("floor %.2f: a row that cleared the floor before its cost was dropped", floor)
+		}
+	}
+}
