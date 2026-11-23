@@ -780,6 +780,9 @@ func metaDetailRows(c metasource.Candidate) [][2]string {
 
 func metaFieldLabel(f metasource.Field) string {
 	name := strings.TrimPrefix(string(f), "identifier:")
+	if f == downloadISBNField {
+		return "ISBN (download)"
+	}
 	if name != string(f) {
 		return "ID " + name
 	}

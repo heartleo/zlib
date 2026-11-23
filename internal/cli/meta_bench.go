@@ -145,11 +145,41 @@ func (m metaPageModel) benchRows() []benchRow {
 	if f := metasource.Field("identifier:" + metasource.SchemeZlibID); !seen[f] && m.current.Identifier(metasource.SchemeZlibID) != "" {
 		rows = append(rows, m.benchRow(f))
 	}
+	// The ISBN the download took from that record, when the file does not hold
+	// it as its own: a hint, so it is listed apart from the ISBN row.
+	if f := downloadISBNField; !seen[f] && m.downloadISBN() != "" {
+		rows = append(rows, m.benchRow(f))
+	}
 	return rows
+}
+
+// downloadISBNField is the row of the ISBN a download recorded as a hint.
+const downloadISBNField = metasource.Field("identifier:" + metasource.SchemeZlibISBN)
+
+// downloadISBN is the ISBN obtained when the book was downloaded, if the file
+// does not carry it as its own ISBN: the hint the download wrote into the file,
+// or the one from the download's Z-Library record. "" when there is none or the
+// file already holds an ISBN of its own, which the ISBN row shows.
+func (m metaPageModel) downloadISBN() string {
+	if m.current == nil || strings.TrimSpace(m.current.Identifier("isbn")) != "" {
+		return ""
+	}
+	if v := metasource.NormalizeISBN(m.current.Identifier(metasource.SchemeZlibISBN)); v != "" {
+		return v
+	}
+	for i, isbn := range m.extraction.Query.ISBNs {
+		if i < len(m.extraction.ISBNFrom) && m.extraction.ISBNFrom[i] == "download record" {
+			return isbn
+		}
+	}
+	return ""
 }
 
 func (m metaPageModel) benchRow(f metasource.Field) benchRow {
 	r := benchRow{field: f, file: metasource.FileValue(m.current, f), plan: -1}
+	if f == downloadISBNField {
+		r.file = m.downloadISBN() // also the record's own, when nothing was written
+	}
 	if !m.manual {
 		r.match = metasource.MatchValue(m.cand, f)
 	}

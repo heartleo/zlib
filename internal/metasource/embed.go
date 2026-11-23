@@ -55,10 +55,29 @@ func PlanDownloadISBN(cur *ebookmeta.Metadata, recordTitle string, isbns ...stri
 		return "", nil
 	}
 	scheme := SchemeZlibISBN
-	if cur.Title != "" && recordTitle != "" && len(editions) == 1 && titleSimilarity(recordTitle, cur.Title) >= embedMinTitleSimilarity {
+	if cur.Title != "" && recordTitle != "" && len(editions) == 1 && recordTitleAgrees(recordTitle, cur.Title) {
 		scheme = "isbn"
 	}
 	return scheme, &ebookmeta.Changes{Identifiers: map[string]string{scheme: isbn}}
+}
+
+// recordTitleAgrees reports whether the Z-Library record's title says what the
+// file's own title says. A record is often named like a file, "Author - Series
+// 01 - Title", whose words in front of the real title would make a whole-string
+// comparison fail for the very file it describes; so when the record has that
+// shape (three or more parts) its last part, the title, is compared too. A
+// two-part name is ambiguous ("A - B" can be either order) and is compared
+// whole only.
+func recordTitleAgrees(recordTitle, fileTitle string) bool {
+	if titleSimilarity(recordTitle, fileTitle) >= embedMinTitleSimilarity {
+		return true
+	}
+	parts := strings.Split(recordTitle, " - ")
+	if len(parts) < 3 {
+		return false
+	}
+	last := strings.TrimSpace(parts[len(parts)-1])
+	return len([]rune(last)) >= 2 && titleSimilarity(last, fileTitle) >= embedMinTitleSimilarity
 }
 
 // splitIdentifiers splits an identifier field that lists several values, as

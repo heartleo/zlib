@@ -253,11 +253,19 @@ download record.
   record into the saved file. It becomes the file's `isbn` only when the file
   has none, the record's title agrees closely with the file's title, and the
   record names one edition: a record that lists the ISBNs of several editions
-  cannot say which one the file is. Otherwise it is stored as `zlib-isbn`, a
-  hint that is searched but never
-  taken as the book's own ISBN. A later lookup that finds the same ISBN on a
-  book with the same title confirms it, and the page then offers to fill the
-  empty `isbn`. Use `--no-embed` to skip this.
+  cannot say which one the file is. A record named like a file, `Author - Series
+  01 - Title`, is compared by its last part too, so the file's own title `Title`
+  agrees. Otherwise it is stored as `zlib-isbn`, a hint that is searched but
+  never taken as the book's own ISBN. A later lookup that finds the same ISBN on
+  a book with the same title confirms it, and the page then offers to fill the
+  empty `isbn`. Use `--no-embed` to skip this. Z-Library's record has no ISBN at
+  all for many books, and then there is nothing to write. In the terminal
+  interface a write that fails is reported on the completion page.
+- **Shown in the results.** The comparison on the results page and the fields
+  page list the ISBN the download obtained as an `ISBN (download)` row on the
+  file's side, whether it is the `zlib-isbn` hint in the file or the Z-Library
+  record's ISBN that was not written (a format with no place for it). It is left
+  out when the file already holds an `isbn` of its own, which the ISBN row shows.
 - **Printed in the book.** For a book without either, the lookup reads the
   front and last pages of an EPUB or DOCX for an ISBN after the word `ISBN`
   (or a hyphenated ISBN-13). Only a number with a correct check digit counts,

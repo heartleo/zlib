@@ -335,6 +335,9 @@ type downloadDoneMsg struct {
 	path     string
 	size     int64
 	embedded *embeddedISBN
+	// embedErr is why the ISBN could not be recorded in the file, shown on the
+	// completion page: a failed write must not pass silently.
+	embedErr error
 }
 type errMsg struct{ err error }
 
@@ -440,9 +443,9 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				// Recorded before the completion page, so Kindle, WeRead and
 				// Fix metadata all see the ISBN. A failure is not worth
-				// interrupting the page for.
-				embedded, _ := m.embedISBN(result.FilePath, msg.book)
-				emit(downloadDoneMsg{path: result.FilePath, size: result.Size, embedded: embedded})
+				// interrupting the page for; the page says so when it fails.
+				embedded, embedErr := m.embedISBN(result.FilePath, msg.book)
+				emit(downloadDoneMsg{path: result.FilePath, size: result.Size, embedded: embedded, embedErr: embedErr})
 			}
 			close(ch)
 		}()
@@ -508,6 +511,9 @@ func (m downloadModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.embedded = msg.embedded
 		if e := msg.embedded; e != nil && m.completeMessage == "" {
 			m.completeMessage, m.completeTone = embeddedISBNMessage(e), noticeSuccess
+		}
+		if msg.embedErr != nil && m.completeMessage == "" {
+			m.completeMessage, m.completeTone = "Could not record the ISBN in the file: "+safeText(msg.embedErr.Error()), noticeError
 		}
 		m.state = stateComplete
 		if m.autoKindle {
