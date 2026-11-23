@@ -132,9 +132,15 @@ func yearOf(published string) string {
 	return ""
 }
 
+// primaryLanguage is the language part of a tag, whatever the separator: "en",
+// "en-US", "zh_CN" and the three-letter "eng" give "en", "en", "zh" and "en".
+// "" when it is unknown.
 func primaryLanguage(tag string) string {
-	tag = normalizeLanguage(tag)
-	primary, _, _ := strings.Cut(tag, "-")
+	tag = strings.ToLower(strings.TrimSpace(tag))
+	if i := strings.IndexAny(tag, "-_"); i > 0 {
+		tag = tag[:i]
+	}
+	primary, _, _ := strings.Cut(normalizeLanguage(tag), "-")
 	return primary
 }
 

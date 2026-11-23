@@ -346,3 +346,22 @@ func TestAConflictLowersARowWithoutDroppingIt(t *testing.T) {
 		t.Errorf("an unrelated title was listed: %+v", rows)
 	}
 }
+
+// Real files write the language many ways: the comparison must read them all, or
+// the evidence silently does not apply (a "zh_CN" file looked like an unknown one).
+func TestLanguageTagsAreReadWhateverTheirSeparator(t *testing.T) {
+	for tag, want := range map[string]string{
+		"en": "en", "en-US": "en", "EN_us": "en", "zh_CN": "zh", "zh-Hans-CN": "zh", "eng": "en", "chi": "zh", " fr ": "fr", "": "", "und": "",
+	} {
+		if got := primaryLanguage(tag); got != want {
+			t.Errorf("primaryLanguage(%q) = %q, want %q", tag, got, want)
+		}
+	}
+	q := Query{Title: "鬼吹灯全集", Authors: []string{"天下霸唱"}, Language: "zh_CN"}
+	zh := row("1", "鬼吹灯全集", "天下霸唱", "", "zh")
+	en := row("2", "鬼吹灯全集", "天下霸唱", "", "en")
+	_, rows := ranked(q, en, zh)
+	if rows[0].Languages[0] != "zh" || rows[0].Score <= rows[1].Score {
+		t.Errorf("a zh_CN file did not prefer the Chinese record: %+v", rows)
+	}
+}
