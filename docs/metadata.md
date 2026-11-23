@@ -561,11 +561,19 @@ What it does, in order:
    and the file's name (never its path).
 2. Asks the model for extra search terms, each with a title, the authors and a
    year like a standard query: another-language titles, author aliases and, if
-   its web search finds one, an ISBN.
+   its web search finds one, an ISBN. It is also asked for the original-language
+   title (searched without the file's year, which is the edition's), the series
+   and volume number and the edition statement; the last two are leads shown to
+   the judge, never values.
 3. Searches the catalogues again with those terms, through the same sources as
    the standard lookup.
 4. Asks the model which of the rows the catalogues returned, including the
-   first search's, describe the file.
+   first search's, describe the file. Each row goes with the reasons the program
+   computed for it (the `notes` of [How a title match is weighed](#how-a-title-match-is-weighed)),
+   so the model weighs the facts the lists show. It is told to weigh an identifier
+   first, then the edition's facts (publisher, edition statement, format, date),
+   then title and authors, then series and description; never to mix facts of two
+   editions; and what high, medium and low confidence mean.
 5. Lists the rows it vouches for in the **same list and side-by-side comparison
    as any source**: the same columns, the same file-and-match panels, the
    source shown as `[AI+Open Library]`. A row's Match is the catalogue's own,
