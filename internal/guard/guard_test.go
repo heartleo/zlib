@@ -117,3 +117,27 @@ func TestGitignoreAnchorsTheBinary(t *testing.T) {
 		t.Error(".gitignore has no /zlib entry for the built binary")
 	}
 }
+
+// FetchBookDetails runs requests on several goroutines, so the cookie map is
+// shared. cookiesMu guards it, and the only code allowed to touch the map is the
+// three functions that take the lock; everything else reads cookieSnapshot().
+func TestCookieMapIsOnlyTouchedUnderItsLock(t *testing.T) {
+	allowed := map[string]bool{"Logout": true, "cookieSnapshot": true, "SetCookies": true}
+	for path, f := range goFiles(t) {
+		if !strings.HasPrefix(path, "zlib/") {
+			continue
+		}
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || allowed[fn.Name.Name] {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if sel, ok := n.(*ast.SelectorExpr); ok && sel.Sel.Name == "cookies" {
+					t.Errorf("%s: %s reads Client.cookies without cookiesMu. Call c.cookieSnapshot() to read it or c.SetCookies() to replace it", path, fn.Name.Name)
+				}
+				return true
+			})
+		}
+	}
+}
