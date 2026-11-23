@@ -15,6 +15,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/heartleo/zlib/internal/aimatch"
 	"github.com/heartleo/zlib/internal/ebookmeta"
 	"github.com/heartleo/zlib/internal/metasource"
 )
@@ -31,6 +32,7 @@ const (
 	metaPrepare                     // what is known about the book, and which sources to ask, before any search
 	metaRename                      // choosing a new name for the file
 	metaInfo                        // everything the file's own metadata says
+	metaAI                          // AI Match, opened by hand over the results (meta_ai.go)
 )
 
 // metaCoverError marks a failed cover download, which happens before
@@ -48,6 +50,8 @@ type metaRun struct {
 	started atomic.Bool
 	mu      sync.Mutex
 	cancel  context.CancelFunc
+	// progress is the step an AI match reports; the spinner redraw reads it.
+	progress atomic.Pointer[string]
 }
 
 func newMetaRun() *metaRun { return &metaRun{ch: make(chan tea.Msg, 1)} }
@@ -136,6 +140,19 @@ type metaPageModel struct {
 
 	gen int
 	run *metaRun
+
+	// AI Match (meta_ai.go). ai is nil when the page does not offer it. aiFrom
+	// is the page it was opened from, which Esc returns to; aiToFields marks a
+	// fields page opened from a recommendation, so Esc there comes back to them.
+	ai         metaAIFunc
+	aiRun      *metaRun
+	aiGen      int
+	aiState    metaAIState
+	aiOut      aimatch.Outcome
+	aiErr      error
+	aiCursor   int
+	aiFrom     metaStage
+	aiToFields bool
 
 	// renameOpts are the names on offer on the rename page, renameCursor the
 	// highlighted one and renameBack the stage Esc returns to. renamedFrom is
@@ -271,8 +288,13 @@ func (m metaPageModel) start() tea.Cmd {
 	return waitForMsg(run.ch)
 }
 
-// stop abandons a lookup in flight.
-func (m metaPageModel) stop() { m.run.stop() }
+// stop abandons a lookup, and an AI match, in flight.
+func (m metaPageModel) stop() {
+	m.run.stop()
+	if m.aiRun != nil {
+		m.aiRun.stop()
+	}
+}
 
 func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -287,12 +309,17 @@ func (m metaPageModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.resizeInfo()
 		return m, m.coverNeededCmd()
 	case spinner.TickMsg:
-		if m.stage != metaLooking && m.stage != metaWriting {
+		if m.stage != metaLooking && m.stage != metaWriting && !m.aiRunning() {
 			return m, nil
 		}
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
+	case metaAIDone:
+		if msg.gen != m.aiGen || !m.aiRunning() {
+			return m, nil // an answer to a match the user already left
+		}
+		return m.aiDone(msg), nil
 	case metaLookupDone:
 		if msg.gen != m.gen || m.stage != metaLooking {
 			return m, nil // an answer to a lookup the user already left
@@ -349,7 +376,7 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if k == "f2" && m.stage != metaRename { // F2 renames a file in every file manager
 		k = "n"
 	}
-	if k == "?" && m.stage != metaLooking && m.stage != metaWriting {
+	if k == "?" && m.stage != metaLooking && m.stage != metaWriting && !m.aiRunning() {
 		return m.openHelp(), nil
 	}
 	switch m.stage {
@@ -379,7 +406,11 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.openRename()
 		case "r":
 			return m.search()
+		case "a":
+			return m.startAI()
 		}
+	case metaAI:
+		return m.aiKey(k)
 	case metaCandidates:
 		switch k {
 		case "esc":
@@ -393,6 +424,8 @@ func (m metaPageModel) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.openPrepare()
 		case "n":
 			return m.openRename()
+		case "a":
+			return m.startAI()
 		case "enter":
 			m = m.openFields()
 			return m, m.matchCoverCmd(m.cand.CoverURL)
@@ -423,7 +456,15 @@ func (m *metaPageModel) scrollTo(row int) {
 
 // openFields plans the changes the chosen candidate would make.
 func (m metaPageModel) openFields() metaPageModel {
-	m.cand = m.res.Candidates[m.cursor]
+	m.aiToFields = false
+	return m.openFieldsFor(m.res.Candidates[m.cursor])
+}
+
+// openFieldsFor plans the changes candidate c would make. An AI recommendation
+// opens the same page as a standard match: c is a catalogue row, so the same
+// plan, defaults and confirmation apply.
+func (m metaPageModel) openFieldsFor(c metasource.Candidate) metaPageModel {
+	m.cand = c
 	m.plan, m.hidden, m.selected = nil, nil, nil
 	for _, ch := range metasource.Plan(m.current, m.cand) {
 		if ch.Field == metasource.FieldCover && m.cover == nil {
@@ -505,6 +546,8 @@ func (m metaPageModel) View() tea.View {
 				[][2]string{{"enter", ""}, {"esc", ""}})...)
 	}
 	switch m.stage {
+	case metaAI:
+		return screenView(m.width, m.height, "Fix metadata", subtitle, m.aiBody(), m.aiStatus(), m.aiKeys()...)
 	case metaInfo:
 		body := "  " + colorBold("File details") + "\n" + m.infoView.View()
 		if m.infoScrollable() {
@@ -521,18 +564,18 @@ func (m metaPageModel) View() tea.View {
 	case metaFailed:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.failedBody(), "",
 			m.keysFor(withHelpKey(
-				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"?", "keys"}, {"esc", "back"}},
-				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
-				[][2]string{{"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
+				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"a", "AI match"}, {"n", "rename"}, {"r", "retry"}, {"?", "keys"}, {"esc", "back"}},
+				[][2]string{{"e", "edit search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
+				[][2]string{{"e", "search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"r", "retry"}, {"esc", "back"}},
 				[][2]string{{"e", ""}, {"s", ""}, {"n", "rename"}, {"r", ""}, {"esc", ""}},
 				[][2]string{{"e", ""}, {"s", ""}, {"n", ""}, {"r", ""}, {"esc", ""}})...)...)
 	case metaCandidates:
 		return screenView(m.width, m.height, "Fix metadata", subtitle, m.sideNarrow().candidatesBody(), m.sourceNote(),
 			m.keysFor(withHelpKey(
-				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"?", "keys"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "edit search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
-				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI match"}, {"n", "rename"}, {"?", "keys"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "review fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "edit search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"esc", "back"}},
+				[][2]string{{"↑/↓", "choose"}, {"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"a", "AI"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"enter", "fields"}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"enter", ""}, {"e", "search"}, {"s", "sources"}, {"n", "rename"}, {"esc", "back"}},
 				[][2]string{{"↑/↓", ""}, {"enter", ""}, {"e", ""}, {"s", ""}, {"n", ""}, {"esc", ""}},
@@ -587,6 +630,9 @@ func (m metaPageModel) keysFor(tiers ...[][2]string) []keys.Binding {
 		cells := 0
 		for _, kd := range tier {
 			if kd[0] == "s" && len(m.sources) == 0 {
+				continue
+			}
+			if kd[0] == "a" && m.ai == nil {
 				continue
 			}
 			if len(out) > 0 {

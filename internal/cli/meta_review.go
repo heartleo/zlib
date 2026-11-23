@@ -38,6 +38,8 @@ func (m metaPageModel) metaStepInfo() (int, string) {
 		return 2, "Choose a match"
 	case metaFailed:
 		return 2, "No match"
+	case metaAI:
+		return 2, "AI match"
 	default:
 		return 3, "Review changes"
 	}
@@ -303,6 +305,9 @@ func (m metaPageModel) metaHelpRows() [][2]string {
 	if len(m.sources) == 0 || m.lookupFor == nil {
 		skip["s"] = true
 	}
+	if m.ai == nil && (m.helpStage == metaCandidates || m.helpStage == metaFailed) {
+		skip["a"] = true // on the fields page `a` is "use the match for every field"
+	}
 	var rows [][2]string
 	switch m.helpStage {
 	case metaPrepare:
@@ -312,9 +317,11 @@ func (m metaPageModel) metaHelpRows() [][2]string {
 			{"n / f2", "rename the file"}, {"enter", "search"}}
 	case metaCandidates:
 		rows = [][2]string{{"↑/↓", "choose a match"}, {"pgup/pgdown", "move a page"}, {"enter", "review its fields"},
-			{"e", "edit the search"}, {"s", "change the sources"}, {"n / f2", "rename the file"}}
+			{"e", "edit the search"}, {"s", "change the sources"}, {"a", "AI match: ask the model to compare editions (optional)"}, {"n / f2", "rename the file"}}
 	case metaFailed:
-		rows = [][2]string{{"e", "edit the search"}, {"s", "change the sources"}, {"r", "search again"}, {"n / f2", "rename the file"}}
+		rows = [][2]string{{"e", "edit the search"}, {"s", "change the sources"}, {"r", "search again"}, {"a", "AI match: ask the model to find it (optional)"}, {"n / f2", "rename the file"}}
+	case metaAI:
+		rows = aiHelpRows(m.aiState)
 	case metaFields:
 		rows = [][2]string{{"↑/↓", "move between fields"}, {"→ / l", "use the match's value for this field"},
 			{"space", "switch between the match's value and the file's"}, {"← / h", "keep the file's value (undo this field)"},
