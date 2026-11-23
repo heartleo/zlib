@@ -138,7 +138,7 @@ func newAIPage(ctx context.Context, width, height int) aiPageModel {
 		m.s = aimatch.Settings{}
 	}
 	input := textinput.New()
-	input.SetVirtualCursor(false)
+	input.SetVirtualCursor(true) // a visible, blinking cursor inside the box
 	input.Prompt = "> "
 	styles := input.Styles()
 	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(currentTheme.Accent)
@@ -193,6 +193,7 @@ func (m aiPageModel) update(msg tea.Msg) (aiPageModel, tea.Cmd) {
 		m.busy, m.cancel = false, nil
 		if msg.err != nil {
 			m.message = "Could not list models (" + safeText(msg.err.Error()) + "). Type a model name to use it."
+			m.suggestModel()
 			return m, nil
 		}
 		m.pickAll, m.message = msg.ids, ""
@@ -350,6 +351,7 @@ func (m aiPageModel) toModel() (aiPageModel, tea.Cmd) {
 	m = m.openPick()
 	if err := m.s.ValidateEndpoint(); err != nil {
 		m.message = safeText(err.Error()) + ". Type a model name to use it."
+		m.suggestModel()
 		return m, nil
 	}
 	return m.discover()
@@ -396,10 +398,13 @@ func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 	switch k {
 	case "esc", "ctrl+c":
 		return m.leaveEdit(), nil
-	case "ctrl+r":
-		if m.field == fieldKey {
-			m.input.SetValue("")
-			m.resetKey, m.message = true, "Key removal selected; Enter saves"
+	case "ctrl+r": // one key empties the box, for the key and the address alike
+		m.input.SetValue("")
+		switch m.field {
+		case fieldKey:
+			m.resetKey, m.message = true, "Cleared: Enter removes the saved key, or paste a new one"
+		default:
+			m.message = "Cleared: type an address"
 		}
 		return m, nil
 	case "enter":
@@ -407,6 +412,10 @@ func (m aiPageModel) editKey(msg tea.KeyPressMsg, k string) (aiPageModel, tea.Cm
 		switch m.field {
 		case fieldURL:
 			v = strings.TrimRight(v, "/")
+			if v == "" {
+				m.message = "A base URL is required: type one, or press Esc to cancel"
+				return m, nil
+			}
 			if err := aimatch.ValidateBaseURL(v); err != nil {
 				m.message = err.Error()
 				return m, nil
@@ -468,14 +477,27 @@ func (m aiPageModel) current() string {
 	return ""
 }
 
-// currentIndex is where the cursor starts: on the current choice.
+// currentIndex is where the cursor starts: on the current choice, or for the
+// model on the suggested default when none is set.
 func (m aiPageModel) currentIndex() int {
+	want := m.current()
+	if want == "" && m.field == fieldModel {
+		want = aimatch.DefaultModel
+	}
 	for i, v := range m.pickAll {
-		if v == m.current() && v != "" {
+		if v == want && v != "" {
 			return i
 		}
 	}
 	return 0
+}
+
+// suggestModel puts the default model in the filter box when no model is set
+// and the list cannot show it, so Enter takes it.
+func (m *aiPageModel) suggestModel() {
+	if m.s.Model == "" && m.field == fieldModel {
+		m.input.SetValue(aimatch.DefaultModel)
+	}
 }
 
 // pickRows are the rows the filter leaves, the current one marked, then a row
@@ -595,6 +617,17 @@ func (m aiPageModel) status() string {
 	return "Not configured: AI Match is off"
 }
 
+// focusedBox draws the input with the focus on it: a rounded box in the accent
+// colour around the text and its cursor. A terminal too short for the extra
+// rows gets the bare input, whose prompt is accent coloured too.
+func (m aiPageModel) focusedBox(w, h int) string {
+	if h < 14 || w < 12 {
+		return m.input.View()
+	}
+	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(currentTheme.Accent).
+		Width(max(1, min(w, 62)-2)).Render(m.input.View())
+}
+
 // stepTitle is the title of a setup step: where it is and what it asks.
 func (m aiPageModel) stepTitle(what string) string {
 	if label := m.stepLabel(); label != "" {
@@ -623,20 +656,20 @@ func (m aiPageModel) view() tea.View {
 				help = append(help, "A local endpoint needs no key: Enter on an empty box skips it.")
 			}
 		}
-		lines := []string{m.input.View(), ""}
+		lines := []string{m.focusedBox(w, h), ""}
 		for _, l := range help {
 			lines = append(lines, muted.Render(ansi.Truncate(l, max(1, w-2), "…")))
 		}
-		controls := []keys.Binding{uiKey("enter", "next"), uiKey("esc", "stop")}
+		controls := []keys.Binding{uiKey("enter", "next"), uiKey("ctrl+r", "clear"), uiKey("esc", "stop")}
 		if !m.wizard {
-			controls = []keys.Binding{uiKey("enter", "save"), uiKey("esc", "cancel")}
+			controls = []keys.Binding{uiKey("enter", "save"), uiKey("ctrl+r", "clear"), uiKey("esc", "cancel")}
 		}
 		return settingsCompactView(w, h, m.stepTitle(what), "", lines, m.message, controls)
 	case aiPick:
 		labels, _ := m.pickRows()
 		name := map[aiField]string{fieldProtocol: "Protocol", fieldModel: "Model"}[m.field]
-		lines := []string{m.input.View(), ""}
-		visible := max(1, h-10)
+		lines := []string{m.focusedBox(w, h), ""}
+		visible := max(1, h-12)
 		start := max(0, m.pickCursor-visible+1)
 		for i := start; i < min(len(labels), start+visible); i++ {
 			lines = append(lines, styledListRow(safeText(labels[i]), i == m.pickCursor, w, currentTheme))

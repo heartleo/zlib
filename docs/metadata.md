@@ -494,7 +494,8 @@ supported, and any endpoint that speaks one of them works. What it holds:
 - **API key**, shown masked everywhere and kept in `ai.json` in the config
   directory, readable only by you. It is never written to a log or an error.
 - **Model**: listed from the endpoint when it offers a model list, with a
-  filter; a name you type is used as it is.
+  filter; a name you type is used as it is. The setup suggests
+  `deepseek-v4.1-flash` until you choose one.
 - **Web search**: lets the model search the web for bibliographic evidence. It
   works only where the endpoint supports it (the Responses API with its web
   search tool for OpenAI-compatible endpoints, the web search tool for

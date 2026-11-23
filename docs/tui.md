@@ -327,7 +327,12 @@ nothing while a search or a write runs:
   (masked, empty editor; skipped for a local endpoint), then the model (a
   filterable list from the endpoint that starts on the current one, a typed name
   offered as `Use "…"`), and it ends by testing the connection. Esc pauses the
-  setup and keeps what was saved. Afterwards the page is seven rows (protocol,
+  setup and keeps what was saved. The text box has the focus: a framed box in
+  the accent colour with a visible cursor (the frame is dropped on a short
+  terminal), and Ctrl+R empties it, for the base URL and the key alike (for the
+  key, Enter then removes the saved one). With no model set the list starts on
+  `deepseek-v4.1-flash`, and the box is prefilled with it when the endpoint has
+  no model list. Afterwards the page is seven rows (protocol,
   base URL, API key, model, web search, test, remove); changing the key, model
   or web search tests again by itself, and a new base URL or protocol drops the
   key and model and runs the setup again. Every edit saves at once and the saved

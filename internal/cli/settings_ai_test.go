@@ -427,3 +427,86 @@ func indexOfKey(keys []string, key string) int {
 	}
 	return -1
 }
+
+func TestAICtrlRClearsTheBaseURLAndTheKeyInOneKey(t *testing.T) {
+	srv := aiServer(t)
+	m := aiPageFor(t, configured(srv))
+	// Base URL: the box empties, and an empty address is not saved.
+	m.cursor = int(actURL)
+	m = aiPress(t, m, "enter")
+	if m.input.Value() == "" {
+		t.Fatal("the editor should open on the current address")
+	}
+	m, _ = aiStep(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	if m.input.Value() != "" || m.mode != aiEdit {
+		t.Fatalf("value=%q mode=%v", m.input.Value(), m.mode)
+	}
+	m = aiPress(t, m, "enter")
+	if m.mode != aiEdit || !strings.Contains(m.message, "required") || m.s.BaseURL == "" {
+		t.Fatalf("an empty address was accepted: mode=%v message=%q url=%q", m.mode, m.message, m.s.BaseURL)
+	}
+	m = aiPress(t, m, "esc")
+	// API key: Ctrl+R then Enter removes it at once.
+	m.cursor = int(actKey)
+	m = aiPress(t, m, "enter")
+	m = aiType(m, "typed")
+	m, _ = aiStep(m, tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	if m.input.Value() != "" {
+		t.Fatalf("the key box was not emptied: %q", m.input.Value())
+	}
+	if !strings.Contains(ansi.Strip(m.view().Content), "ctrl+r clear") {
+		t.Fatalf("the footer does not offer the clear key:\n%s", ansi.Strip(m.view().Content))
+	}
+}
+
+func TestAIEditorShowsAFocusedBoxAndAVisibleCursor(t *testing.T) {
+	m := aiPageFor(t, configured(aiServer(t)))
+	m.cursor = int(actKey)
+	m = aiPress(t, m, "enter")
+	if !m.input.VirtualCursor() || !m.input.Focused() {
+		t.Fatalf("virtual cursor=%v focused=%v", m.input.VirtualCursor(), m.input.Focused())
+	}
+	if screen := ansi.Strip(m.view().Content); !strings.Contains(screen, "╭") || !strings.Contains(screen, "> ") {
+		t.Fatalf("no framed input:\n%s", screen)
+	}
+	// A short terminal drops the frame but keeps the input.
+	m.height = 10
+	if screen := ansi.Strip(m.view().Content); strings.Contains(screen, "╭") || !strings.Contains(screen, "> ") {
+		t.Fatalf("compact view:\n%s", screen)
+	}
+}
+
+func TestAIDefaultModelIsSuggestedWhenNoneIsSet(t *testing.T) {
+	// Without a model the page opens the setup; the protocol and address are
+	// kept (same protocol), so two Enters reach the model step.
+	toModelStep := func(base string) aiPageModel {
+		m := aiPageFor(t, aimatch.Settings{Protocol: aimatch.ProtocolOpenAI, BaseURL: base + "/v1", APIKey: aiKeyForTest})
+		m = aiPress(t, m, "enter", "enter")
+		if m.mode != aiPick || m.field != fieldModel {
+			t.Fatalf("not on the model step: mode=%v field=%v", m.mode, m.field)
+		}
+		return m
+	}
+
+	// Listed: the cursor starts on it, and Enter takes it.
+	srv := aiServer(t, "aaa", aimatch.DefaultModel, "zzz")
+	m := toModelStep(srv.URL)
+	_, values := m.pickRows()
+	if values[m.pickCursor] != aimatch.DefaultModel {
+		t.Fatalf("cursor on %q, want %q", values[m.pickCursor], aimatch.DefaultModel)
+	}
+	if m = aiPress(t, m, "enter"); m.s.Model != aimatch.DefaultModel {
+		t.Fatalf("model = %q", m.s.Model)
+	}
+
+	// No model list at all: the box is prefilled, so Enter takes it as well.
+	bad := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(bad.Close)
+	m = toModelStep(bad.URL)
+	if m.input.Value() != aimatch.DefaultModel {
+		t.Fatalf("the default model is not suggested: value=%q message=%q", m.input.Value(), m.message)
+	}
+	if m = aiPress(t, m, "enter"); m.s.Model != aimatch.DefaultModel {
+		t.Fatalf("model = %q", m.s.Model)
+	}
+}

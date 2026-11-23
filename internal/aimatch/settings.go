@@ -91,6 +91,9 @@ func (s Settings) String() string {
 
 func (s Settings) GoString() string { return s.String() }
 
+// DefaultModel is the model the setup suggests when none is chosen yet.
+const DefaultModel = "deepseek-v4.1-flash"
+
 // KeyOptional reports whether the endpoint needs no API key: a local server.
 func (s Settings) KeyOptional() bool { return isLoopbackURL(s.BaseURL) }
 
