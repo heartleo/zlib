@@ -200,6 +200,9 @@ func (c *Client) eapiRequest(ctx context.Context, method, path string, values ur
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	req.Header.Set("Accept", "application/json")
+	// Search rejects requests without a client source ("Access denied"),
+	// credentials or not; the other endpoints do not check it.
+	req.Header.Set("source", "android")
 	req.Header.Set("User-Agent", defaultUserAgent)
 	cookies := c.cookieSnapshot()
 	if userID := cookies["remix_userid"]; userID != "" {
