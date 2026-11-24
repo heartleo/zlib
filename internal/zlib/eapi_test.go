@@ -37,6 +37,33 @@ func TestLoginEAPISavesRemixCredentials(t *testing.T) {
 	}
 }
 
+func TestSearchEAPIIdentifiesClientSource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path != eapiSearchPath || r.Method != http.MethodPost {
+			t.Errorf("request = %s %s, want POST %s", r.Method, r.URL.Path, eapiSearchPath)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.Header.Get("source") != "android" {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(w, `{"success":0,"error":"Access denied"}`)
+			return
+		}
+		fmt.Fprint(w, `{"success":1,"books":[],"pagination":{"current":1,"total_pages":0}}`)
+	}))
+	defer server.Close()
+	c := NewClient(WithDomain(server.URL))
+	c.SetCookies(map[string]string{"remix_userid": "1", "remix_userkey": "FAKE-KEY"})
+	result, err := c.SearchContext(t.Context(), "fixture nonexistent title", 1, 3, nil)
+	if err != nil {
+		t.Fatalf("SearchContext() error = %v, want a successful empty result", err)
+	}
+	if len(result.Books) != 0 || result.Page != 1 || result.TotalPages != 0 {
+		t.Errorf("SearchContext() = %+v, want empty books on page 1", result)
+	}
+}
+
 // EAPI answers with application/json, so a book whose title or a query that
 // mentions the vendor must not be mistaken for a DiamWall block page.
 func TestSearchEAPIAllowsDiamWallInJSONPayload(t *testing.T) {
