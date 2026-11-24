@@ -139,6 +139,13 @@ fail".
 
 ## Stability
 
+Every EAPI request carries a `source: android` header, as the mobile client
+does. Live measurement: without a `source` header, `POST /eapi/book/search`
+answers HTTP 400 `{"success":0,"error":"Access denied"}`, with or without
+credentials, while profile and catalogue endpoints succeed. With the header
+(`android` or `ios`) the same request succeeds. A search regression test covers
+it.
+
 The EAPI has no public, stable, officially authorized contract. The endpoint
 definitions follow the mobile endpoints documented in
 [baroxyton/zlibrary-eapi-documentation](https://github.com/baroxyton/zlibrary-eapi-documentation)
