@@ -141,3 +141,30 @@ func TestCookieMapIsOnlyTouchedUnderItsLock(t *testing.T) {
 		}
 	}
 }
+
+// A full-screen page that builds its own tea.View skips the theme background and
+// foreground, which left a light theme unreadable on a dark terminal on every
+// screen but the theme picker. screenView and fullScreenView in tui_layout.go are
+// the one place views are made; update_progress.go is the inline progress line
+// that must not paint the terminal.
+func TestViewsAreOnlyBuiltByTheLayoutHelpers(t *testing.T) {
+	allowed := map[string]bool{"cli/tui_layout.go": true, "cli/update_progress.go": true}
+	for path, f := range goFiles(t) {
+		if !strings.HasPrefix(path, "cli/") || allowed[path] {
+			continue
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.CallExpr:
+				if isSelector(n.Fun, "tea", "NewView") {
+					t.Errorf("%s: tea.NewView skips the theme background. Return screenView(...) or fullScreenView(...) from tui_layout.go", path)
+				}
+			case *ast.CompositeLit:
+				if isSelector(n.Type, "tea", "View") {
+					t.Errorf("%s: a tea.View literal skips the theme background. Return screenView(...) or fullScreenView(...) from tui_layout.go", path)
+				}
+			}
+			return true
+		})
+	}
+}
