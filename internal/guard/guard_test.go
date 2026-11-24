@@ -168,3 +168,26 @@ func TestViewsAreOnlyBuiltByTheLayoutHelpers(t *testing.T) {
 		})
 	}
 }
+
+// The catalogue, AI, file and WeRead packages talk to third parties, so they
+// must have no way to reach the Z-Library session: they import neither the
+// Z-Library client nor the session store. internal/cli hands them what they need
+// (a proxy, a key the user typed for that service) and nothing else.
+func TestThirdPartyPackagesCannotSeeTheSession(t *testing.T) {
+	forbidden := []string{"github.com/heartleo/zlib/internal/zlib", "github.com/heartleo/zlib/internal/config"}
+	for path, f := range goFiles(t) {
+		switch {
+		case strings.HasPrefix(path, "metasource/"), strings.HasPrefix(path, "aimatch/"),
+			strings.HasPrefix(path, "ebookmeta/"), strings.HasPrefix(path, "weread/"):
+		default:
+			continue
+		}
+		for _, imp := range f.Imports {
+			for _, bad := range forbidden {
+				if strings.Trim(imp.Path.Value, `"`) == bad {
+					t.Errorf("%s imports %s, which holds the Z-Library session. Pass the value this package needs in as an argument or option from internal/cli", path, bad)
+				}
+			}
+		}
+	}
+}
