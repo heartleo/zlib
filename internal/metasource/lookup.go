@@ -101,7 +101,7 @@ func Lookup(ctx context.Context, sources []Source, q Query, opt Options) (Result
 		own := make([]Candidate, len(a.cands))
 		for j, c := range a.cands {
 			c.Sources = []string{name}
-			own[j] = c
+			own[j] = cleanCandidate(c)
 		}
 		for _, c := range rankAndMerge(q, own, opt.MinScore, opt.MaxResults) {
 			rows = append(rows, sourceRow{c, i})
