@@ -10,16 +10,20 @@ import (
 // favorites, recommended and most-popular --json used to print the bare
 // numeric ID, which `zlib download` rejects; every JSON book list must carry
 // the id:hash reference.
-func TestDownloadableBooksUseIDHash(t *testing.T) {
-	books := downloadableBooks([]zlib.Book{
+func TestBookListJSONCarriesDownloadableIDs(t *testing.T) {
+	data, err := json.Marshal(downloadableBooks([]zlib.Book{
 		{ID: "123", Hash: "abc"},
 		{ID: "456"},
-	})
-	if books[0].ID != "123:abc" {
-		t.Fatalf("ID = %q, want 123:abc", books[0].ID)
+	}))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if books[1].ID != "456" {
-		t.Fatalf("book without a hash changed to %q", books[1].ID)
+	var got []struct{ ID string }
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got[0].ID != "123:abc" || got[1].ID != "456" {
+		t.Errorf("ids = %q and %q, want 123:abc and 456 (no hash, nothing to add): %s", got[0].ID, got[1].ID, data)
 	}
 	// Agents treat non-array output as a failure, so an empty page must not
 	// encode as null.
