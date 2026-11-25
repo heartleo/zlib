@@ -182,12 +182,15 @@ func updateCommand(method updateMethod) (string, []string) {
 	}
 }
 
-// isHomebrewKeg reports whether path is inside a zlib-cli keg, or the keg of
-// the zlib formula it replaced (homebrew/core's zlib is a library with no zlib
+// isHomebrewKeg reports whether path is inside a Homebrew install of zlib: the
+// zlib-cli cask (Caskroom), the zlib-cli formula it replaced, or the keg of the
+// zlib formula before that (homebrew/core's zlib is a library with no zlib
 // executable, so that directory cannot hold another program).
 func isHomebrewKeg(path string) bool {
 	p := strings.ToLower(strings.ReplaceAll(path, `\`, "/"))
-	return strings.Contains(p, "/cellar/zlib-cli/") || strings.Contains(p, "/cellar/zlib/")
+	return strings.Contains(p, "/caskroom/zlib-cli/") ||
+		strings.Contains(p, "/cellar/zlib-cli/") ||
+		strings.Contains(p, "/cellar/zlib/")
 }
 
 // isOldFormulaKeg reports whether path is inside the keg of the retired zlib

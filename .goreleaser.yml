@@ -59,27 +59,29 @@ checksum:
   extra_files:
     - glob: dist/mcpb/*.mcpb
 
-brews:
+homebrew_casks:
   # Named zlib-cli because homebrew/core already ships a zlib formula; the
   # installed binary stays zlib.
   - name: zlib-cli
     ids:
       - zlib
+    binaries:
+      - zlib
+    homepage: "https://github.com/heartleo/zlib"
+    description: "A CLI for Z-Library"
+    # Prereleases never reach the tap.
+    skip_upload: auto
+    hooks:
+      post:
+        # The binaries are not notarized; without this macOS quarantines them.
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/zlib"], must_succeed: false
+          end
     repository:
       owner: heartleo
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: "https://github.com/heartleo/zlib"
-    description: "A CLI for Z-Library"
-    license: "MIT"
-    caveats: |
-      The Homebrew formula is now zlib-cli. For future installations, use:
-        brew install heartleo/tap/zlib-cli
-      The executable is still named zlib.
-    install: |
-      bin.install "zlib"
-    test: |
-      system "#{bin}/zlib", "--version"
 
 winget:
   - name: zlib

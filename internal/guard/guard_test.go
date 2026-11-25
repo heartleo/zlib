@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -309,5 +310,45 @@ func TestNarrowingCheckerCatchesTheOriginalMistake(t *testing.T) {
 	good := `func f(s string) uint16 { n, _ := strconv.ParseInt(s, 10, 64); if n < 0 || n > 65535 { return 0 }; return uint16(n) }`
 	if got := check(good); len(got) != 0 {
 		t.Fatalf("a range-checked conversion was reported: %v", got)
+	}
+}
+
+// The Homebrew package name is written in four places that nothing else ties
+// together: the release config that publishes it, the command `zlib update` runs,
+// the path it recognises as a Homebrew install, and the install command in the
+// docs. Renaming it in one place left updates and installs pointing at a package
+// that no longer existed.
+func TestHomebrewPackageNameAgreesEverywhere(t *testing.T) {
+	read := func(path string) string {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	one := func(file, pattern string) string {
+		m := regexp.MustCompile(pattern).FindStringSubmatch(read(file))
+		if m == nil {
+			t.Fatalf("%s: no match for %s. If the package is configured differently now, update this test with it", file, pattern)
+		}
+		return m[1]
+	}
+	name := one("../../.goreleaser.yml", `(?s)homebrew_casks:.*?- name: (\S+)`)
+
+	if got := one("../cli/update.go", `"upgrade", "heartleo/tap/([\w-]+)"`); got != name {
+		t.Errorf("cli/update.go upgrades heartleo/tap/%s, but .goreleaser.yml publishes %s. Use the published name in updateCommand", got, name)
+	}
+	if !strings.Contains(read("../cli/update.go"), "/caskroom/"+name+"/") {
+		t.Errorf("cli/update.go does not recognise /caskroom/%s/ as a Homebrew install. Add it to isHomebrewKeg", name)
+	}
+	docs := read("../../docs/installation.md")
+	installs := regexp.MustCompile(`brew install heartleo/tap/([\w-]+)`).FindAllStringSubmatch(docs, -1)
+	if len(installs) == 0 {
+		t.Fatal("docs/installation.md has no brew install command")
+	}
+	for _, m := range installs {
+		if m[1] != name {
+			t.Errorf("docs/installation.md installs heartleo/tap/%s, but .goreleaser.yml publishes %s. Fix the command in the docs", m[1], name)
+		}
 	}
 }

@@ -55,6 +55,9 @@ func TestUpdateMethodCommands(t *testing.T) {
 		"/opt/homebrew/Cellar/zlib-cli/0.0.14/bin/zlib",
 		"/usr/local/Cellar/zlib-cli/0.0.14/bin/zlib",
 		"/opt/homebrew/Cellar/zlib/0.0.13/bin/zlib", // installed before the rename
+		"/opt/homebrew/Caskroom/zlib-cli/0.0.15/zlib",
+		"/usr/local/Caskroom/zlib-cli/0.0.15/zlib",
+		"/opt/linuxbrew/Caskroom/zlib-cli/0.0.15/zlib",
 	} {
 		if got := detectUpdateMethod(t.Context(), path); got != updateBrew {
 			t.Fatalf("brew path %q detected as %s", path, got)

@@ -144,6 +144,7 @@ The checks in `internal/guard` run with `go test ./...` and so in `make check`:
 | `TestGitignoreAnchorsTheBinary` | An unanchored `zlib` ignore also hides `plugins/zlib/` |
 | `TestCookieMapIsOnlyTouchedUnderItsLock` | Reading the shared cookie map without its lock races |
 | `TestViewsAreOnlyBuiltByTheLayoutHelpers` | A screen that builds its own view skips the theme background |
+| `TestHomebrewPackageNameAgreesEverywhere` | Renaming the Homebrew package in the release config but not in `zlib update` or the install docs points users at a package that no longer exists |
 | `TestParsedNumbersAreRangeCheckedBeforeNarrowing` | A number parsed from a file or server and converted to a narrower integer without a range check is truncated silently |
 | `TestThirdPartyPackagesCannotSeeTheSession` | A catalogue, AI or WeRead package that imports the client or session store can leak a credential |
 

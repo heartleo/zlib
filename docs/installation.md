@@ -13,8 +13,9 @@ macOS / Linux:
 brew install heartleo/tap/zlib-cli
 ```
 
-The formula is named `zlib-cli` because Homebrew's own `zlib` library already
-uses the name `zlib`; the command it installs is still `zlib`.
+The package is named `zlib-cli` because Homebrew's own `zlib` library already
+uses the name `zlib`; the command it installs is still `zlib`. It is a Homebrew
+cask, which GoReleaser generates from the release archives.
 
 Homebrew does not move an installation of the earlier `heartleo/tap/zlib`
 formula to the new name, and `brew upgrade` never updates it. Replace it once.
@@ -26,10 +27,15 @@ brew list zlib | grep -q bin/zlib && brew uninstall zlib
 brew install heartleo/tap/zlib-cli
 ```
 
-Maintainers: keep GoReleaser's formula name set to `zlib-cli`, and do not add a
-`formula_renames.json` that maps `zlib` to `zlib-cli` to `heartleo/homebrew-tap`.
-Homebrew would treat a Homebrew-installed `zlib` library as the old name and
-fail to install or upgrade `zlib-cli` next to it.
+Maintainers: keep GoReleaser's `homebrew_casks` name set to `zlib-cli`, and do
+not add a `formula_renames.json` or `tap_migrations.json` entry that maps `zlib`
+to `zlib-cli` in `heartleo/homebrew-tap`. Homebrew would treat a
+Homebrew-installed `zlib` library as the old name and fail to install or upgrade
+`zlib-cli` next to it. Moving users of the old `zlib-cli` formula to the cask is
+a separate step in the tap: delete `zlib-cli.rb` from the tap root once the first
+cask release is published. Homebrew reads `tap_migrations.json` as an old name
+mapped to a tap or to a full `tap/name`, so check any entry there on macOS
+before relying on it.
 
 Windows (PowerShell):
 
