@@ -112,32 +112,8 @@ func TestDownloadRetriesTransientGatewayError(t *testing.T) {
 	}
 }
 
-func TestDownloadGivesUpAfterMaxAttempts(t *testing.T) {
-	setRetryBackoff(t, time.Millisecond)
-	wantRequests := DefaultDownloadRetries + 1
-	server, requests := downloadServer(t, wantRequests, http.StatusServiceUnavailable)
-
-	_, err := loggedInClient().Download(server.URL+"/dl", t.TempDir(), nil)
-	if !errors.Is(err, ErrDownloadFailed) {
-		t.Fatalf("Download() error = %v, want ErrDownloadFailed", err)
-	}
-	if got := int(requests.Load()); got != wantRequests {
-		t.Errorf("requests = %d, want %d", got, wantRequests)
-	}
-}
-
-func TestDownloadDoesNotRetryPermanentStatus(t *testing.T) {
-	setRetryBackoff(t, time.Millisecond)
-	server, requests := downloadServer(t, 1, http.StatusNotFound)
-
-	_, err := loggedInClient().Download(server.URL+"/dl", t.TempDir(), nil)
-	if !errors.Is(err, ErrDownloadFailed) {
-		t.Fatalf("Download() error = %v, want ErrDownloadFailed", err)
-	}
-	if got := requests.Load(); got != 1 {
-		t.Errorf("requests = %d, want 1", got)
-	}
-}
+// The retry budget and which statuses are final are checked against a model for
+// every server sequence in TestDownloadRetriesFollowTheModelForEverySequence.
 
 // setStallTimeout overrides the stall timeout for the duration of a test.
 func setStallTimeout(t *testing.T, d time.Duration) {

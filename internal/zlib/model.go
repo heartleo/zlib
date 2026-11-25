@@ -1,5 +1,20 @@
 package zlib
 
+import (
+	"encoding/json"
+	"strings"
+)
+
+// MarshalJSON prints the ID as the id:hash reference `zlib download` takes, so
+// no command that lists books can print a bare ID by forgetting a rewrite.
+func (b Book) MarshalJSON() ([]byte, error) {
+	type plain Book
+	if b.ID != "" && b.Hash != "" && !strings.Contains(b.ID, ":") {
+		b.ID += ":" + b.Hash
+	}
+	return json.Marshal(plain(b))
+}
+
 type Book struct {
 	ID          string   `json:"id"`
 	Hash        string   `json:"hash,omitempty"`

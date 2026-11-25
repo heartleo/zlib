@@ -98,6 +98,58 @@ Tag the squashed commit on `main` as described in
 release, then publish it. Publishing redeploys the site, which shows the
 latest published release version (`.github/workflows/pages.yml`).
 
+## Preventing repeat mistakes
+
+A mistake that happened twice gets a mechanism, not a paragraph in a document.
+Pick the first rung that works:
+
+1. **Architecture.** Make the wrong thing unreachable: one place builds the
+   value, one package owns the dependency, the type cannot hold the bad state.
+   Examples: `Book` marshals its own `id:hash`, so no command can print a bare
+   ID; `metasource.Lookup` cleans every candidate, so no source can forget.
+2. **Types.** Let the compiler refuse it.
+3. **A check whose error names the fix.** The architecture tests in
+   `internal/guard` are the model: each message says what to call or add, not
+   only what is wrong (`Return screenView(...) from tui_layout.go`). A check that
+   only says "forbidden" gets worked around.
+4. **A test.** Last, because a test only catches the cases someone thought of.
+
+Rules for every such check:
+
+- **Prove it before trusting it.** Revert or re-introduce the real past mistake
+  and watch the check fail, then restore. Put what you did in the pull request.
+  A check that never failed has not been shown to check anything.
+- **One pull request per mechanism**, so each can be reviewed and reverted
+  alone.
+- **Concurrency, retries and state machines get a model**, not examples: write
+  the rule as a plain function, run every input sequence against the real code
+  and compare. A model finds the cases nobody listed; the retry model found an
+  error that was not wrapped as documented.
+- **Test behavior, not wiring.** Prefer a real server, a real file or the real
+  command over asserting that a helper was called. Replace a test that pins how
+  something works with one that checks what must stay true. Keep every test that
+  guards security or legal behavior, even when it looks like it pins an
+  implementation: redirect credential stripping, terminal-control cleaning,
+  path confinement, credential handling and the privacy checks.
+- **Comments say why, never what.** Delete a comment that restates the code.
+  When a comment states a constraint ("never", "always", "cannot"), turn the
+  constraint into a check and let the comment shrink to its reason.
+
+The checks in `internal/guard` run with `go test ./...` and so in `make check`:
+
+| Check | Mistake it prevents |
+| --- | --- |
+| `TestEveryHTTPClientDecidesRedirects` | A client that follows redirects forwards credentials to another host |
+| `TestOnlyExecuteExits` | An `os.Exit` outside `cli.Execute` skips cleanup and the exit-code table |
+| `TestGitignoreAnchorsTheBinary` | An unanchored `zlib` ignore also hides `plugins/zlib/` |
+| `TestCookieMapIsOnlyTouchedUnderItsLock` | Reading the shared cookie map without its lock races |
+| `TestViewsAreOnlyBuiltByTheLayoutHelpers` | A screen that builds its own view skips the theme background |
+| `TestParsedNumbersAreRangeCheckedBeforeNarrowing` | A number parsed from a file or server and converted to a narrower integer without a range check is truncated silently |
+| `TestThirdPartyPackagesCannotSeeTheSession` | A catalogue, AI or WeRead package that imports the client or session store can leak a credential |
+
+To exempt a case, add it to the allowlist in the test with the reason, in the
+same pull request that needs it.
+
 ## Pre-commit checks
 
 Security scanning and cross-platform testing are mandatory before every
