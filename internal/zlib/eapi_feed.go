@@ -11,7 +11,6 @@ const (
 	mostPopularBooksPath = "/eapi/book/most-popular"
 )
 
-// RecommendedBooks returns the account's recommended books.
 func (c *Client) RecommendedBooks() ([]Book, error) {
 	return c.RecommendedBooksContext(context.Background())
 }

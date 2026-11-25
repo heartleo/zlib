@@ -68,7 +68,6 @@ type ImportResult struct {
 	AlreadyExisted bool `json:"already_existed"`
 }
 
-// ImportStage is a step of an import.
 type ImportStage int
 
 const (
@@ -80,7 +79,6 @@ const (
 	StageProcess
 )
 
-// ImportProgress reports where an import is.
 type ImportProgress struct {
 	Stage ImportStage
 	// Sent counts bytes uploaded; Total is the file size in every stage.
