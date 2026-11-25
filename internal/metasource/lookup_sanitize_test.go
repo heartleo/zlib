@@ -138,6 +138,11 @@ func TestCleanStringsReachesMapsPointersArraysAndInterfaces(t *testing.T) {
 			t.Errorf("map key %q keeps control text", k)
 		}
 	}
+	for i, s := range h.Array {
+		if unsafeRunes(s) {
+			t.Errorf("array element %d keeps control text: %q", i, s)
+		}
+	}
 	if unsafeRunes(*h.Ptr) || unsafeRunes(h.Iface.(string)) {
 		t.Errorf("pointer %q or interface %q keeps control text", *h.Ptr, h.Iface)
 	}
