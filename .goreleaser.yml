@@ -76,7 +76,7 @@ homebrew_casks:
         # The binaries are not notarized; without this macOS quarantines them.
         install_steps: |
           on_macos do
-            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/zlib"], must_succeed: false
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/zlib"]
           end
     repository:
       owner: heartleo
