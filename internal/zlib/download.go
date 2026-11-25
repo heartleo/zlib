@@ -198,7 +198,7 @@ func (c *Client) openDownload(ctx context.Context, client *http.Client, rawURL s
 			if ctx.Err() != nil {
 				return nil, err
 			}
-			lastErr = err
+			lastErr = fmt.Errorf("%w: %w", ErrDownloadFailed, err)
 			continue
 		}
 		if !isRetryableStatus(resp.StatusCode) {
