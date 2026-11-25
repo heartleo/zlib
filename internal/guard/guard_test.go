@@ -191,3 +191,112 @@ func TestThirdPartyPackagesCannotSeeTheSession(t *testing.T) {
 		}
 	}
 }
+
+var (
+	narrowTypes = map[string]bool{"int8": true, "int16": true, "int32": true, "uint8": true, "uint16": true, "uint32": true}
+	parseFuncs  = map[string]bool{"ParseInt": true, "ParseUint": true, "Atoi": true}
+)
+
+// narrowingWithoutBounds reports each conversion of a parsed number to a type that
+// cannot hold every value of the parse, in a function that never compares the
+// number with a bound. A value read from a file or a server is then truncated
+// silently: PDF integers and WeRead sizes were converted this way. The fix is a
+// range check before the conversion, or parsing with the target bit size so an
+// out-of-range value is an error.
+func narrowingWithoutBounds(fset *token.FileSet, f *ast.File) []string {
+	var out []string
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		parsed := map[string]bool{}
+		compared := map[string]bool{}
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.AssignStmt:
+				if len(n.Rhs) == 1 && len(n.Lhs) >= 1 {
+					if call, ok := n.Rhs[0].(*ast.CallExpr); ok && isParse(call) {
+						if id, ok := n.Lhs[0].(*ast.Ident); ok && id.Name != "_" {
+							parsed[id.Name] = true
+						}
+					}
+				}
+			case *ast.BinaryExpr:
+				switch n.Op {
+				case token.LSS, token.GTR, token.LEQ, token.GEQ:
+					for _, side := range []ast.Expr{n.X, n.Y} {
+						ast.Inspect(side, func(m ast.Node) bool {
+							if id, ok := m.(*ast.Ident); ok {
+								compared[id.Name] = true
+							}
+							return true
+						})
+					}
+				}
+			}
+			return true
+		})
+		ast.Inspect(fn.Body, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) != 1 {
+				return true
+			}
+			id, ok := call.Fun.(*ast.Ident)
+			if !ok || !narrowTypes[id.Name] {
+				return true
+			}
+			ast.Inspect(call.Args[0], func(m ast.Node) bool {
+				if v, ok := m.(*ast.Ident); ok && parsed[v.Name] && !compared[v.Name] {
+					out = append(out, fset.Position(call.Pos()).String()+": "+id.Name+"("+v.Name+") truncates a parsed number with no range check. Compare "+v.Name+" with its bounds first, or parse with the target bit size so an out-of-range value is an error")
+				}
+				return true
+			})
+			return true
+		})
+	}
+	return out
+}
+
+func isParse(call *ast.CallExpr) bool {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == "strconv" && parseFuncs[sel.Sel.Name]
+}
+
+func TestParsedNumbersAreRangeCheckedBeforeNarrowing(t *testing.T) {
+	fset := token.NewFileSet()
+	for path := range goFiles(t) {
+		f, err := parser.ParseFile(fset, filepath.Join("..", path), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, msg := range narrowingWithoutBounds(fset, f) {
+			t.Error(msg)
+		}
+	}
+}
+
+// The checker is shown against the mistake it exists for: a 64-bit parse
+// converted straight to a 16-bit field.
+func TestNarrowingCheckerCatchesTheOriginalMistake(t *testing.T) {
+	check := func(src string) []string {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, "x.go", "package p\nimport \"strconv\"\n"+src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return narrowingWithoutBounds(fset, f)
+	}
+	bad := `func f(s string) uint16 { n, _ := strconv.ParseInt(s, 10, 64); return uint16(n) }`
+	if got := check(bad); len(got) != 1 {
+		t.Fatalf("the unchecked conversion was not reported: %v", got)
+	}
+	good := `func f(s string) uint16 { n, _ := strconv.ParseInt(s, 10, 64); if n < 0 || n > 65535 { return 0 }; return uint16(n) }`
+	if got := check(good); len(got) != 0 {
+		t.Fatalf("a range-checked conversion was reported: %v", got)
+	}
+}
