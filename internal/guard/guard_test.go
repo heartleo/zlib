@@ -117,3 +117,77 @@ func TestGitignoreAnchorsTheBinary(t *testing.T) {
 		t.Error(".gitignore has no /zlib entry for the built binary")
 	}
 }
+
+// FetchBookDetails runs requests on several goroutines, so the cookie map is
+// shared. cookiesMu guards it, and the only code allowed to touch the map is the
+// three functions that take the lock; everything else reads cookieSnapshot().
+func TestCookieMapIsOnlyTouchedUnderItsLock(t *testing.T) {
+	allowed := map[string]bool{"Logout": true, "cookieSnapshot": true, "SetCookies": true}
+	for path, f := range goFiles(t) {
+		if !strings.HasPrefix(path, "zlib/") {
+			continue
+		}
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Body == nil || allowed[fn.Name.Name] {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if sel, ok := n.(*ast.SelectorExpr); ok && sel.Sel.Name == "cookies" {
+					t.Errorf("%s: %s reads Client.cookies without cookiesMu. Call c.cookieSnapshot() to read it or c.SetCookies() to replace it", path, fn.Name.Name)
+				}
+				return true
+			})
+		}
+	}
+}
+
+// A full-screen page that builds its own tea.View skips the theme background and
+// foreground, which left a light theme unreadable on a dark terminal on every
+// screen but the theme picker. screenView and fullScreenView in tui_layout.go are
+// the one place views are made; update_progress.go is the inline progress line
+// that must not paint the terminal.
+func TestViewsAreOnlyBuiltByTheLayoutHelpers(t *testing.T) {
+	allowed := map[string]bool{"cli/tui_layout.go": true, "cli/update_progress.go": true}
+	for path, f := range goFiles(t) {
+		if !strings.HasPrefix(path, "cli/") || allowed[path] {
+			continue
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.CallExpr:
+				if isSelector(n.Fun, "tea", "NewView") {
+					t.Errorf("%s: tea.NewView skips the theme background. Return screenView(...) or fullScreenView(...) from tui_layout.go", path)
+				}
+			case *ast.CompositeLit:
+				if isSelector(n.Type, "tea", "View") {
+					t.Errorf("%s: a tea.View literal skips the theme background. Return screenView(...) or fullScreenView(...) from tui_layout.go", path)
+				}
+			}
+			return true
+		})
+	}
+}
+
+// The catalogue, AI, file and WeRead packages talk to third parties, so they
+// must have no way to reach the Z-Library session: they import neither the
+// Z-Library client nor the session store. internal/cli hands them what they need
+// (a proxy, a key the user typed for that service) and nothing else.
+func TestThirdPartyPackagesCannotSeeTheSession(t *testing.T) {
+	forbidden := []string{"github.com/heartleo/zlib/internal/zlib", "github.com/heartleo/zlib/internal/config"}
+	for path, f := range goFiles(t) {
+		switch {
+		case strings.HasPrefix(path, "metasource/"), strings.HasPrefix(path, "aimatch/"),
+			strings.HasPrefix(path, "ebookmeta/"), strings.HasPrefix(path, "weread/"):
+		default:
+			continue
+		}
+		for _, imp := range f.Imports {
+			for _, bad := range forbidden {
+				if strings.Trim(imp.Path.Value, `"`) == bad {
+					t.Errorf("%s imports %s, which holds the Z-Library session. Pass the value this package needs in as an argument or option from internal/cli", path, bad)
+				}
+			}
+		}
+	}
+}
