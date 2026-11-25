@@ -85,10 +85,10 @@ func TestEveryHTTPClientDecidesRedirects(t *testing.T) {
 // as removing a .part file and bypasses the code table.
 func TestOnlyExecuteExits(t *testing.T) {
 	for path, f := range goFiles(t) {
-		if path == "cli/root.go" {
-			continue
-		}
 		ast.Inspect(f, func(n ast.Node) bool {
+			if fn, ok := n.(*ast.FuncDecl); ok && path == "cli/root.go" && fn.Recv == nil && fn.Name.Name == "Execute" {
+				return false
+			}
 			if call, ok := n.(*ast.CallExpr); ok && (isSelector(call.Fun, "os", "Exit") || isSelector(call.Fun, "log", "Fatal") || isSelector(call.Fun, "log", "Fatalf")) {
 				t.Errorf("%s: exits the process directly. Return the error from RunE and let cli.Execute pick the exit code", path)
 			}
@@ -198,8 +198,8 @@ var (
 )
 
 // narrowingWithoutBounds reports each conversion of a parsed number to a type that
-// cannot hold every value of the parse, in a function that never compares the
-// number with a bound. A value read from a file or a server is then truncated
+// cannot hold every value of the parse, in a function that does not compare the
+// number with both a lower and an upper bound. A value read from a file or a server is then truncated
 // silently: PDF integers and WeRead sizes were converted this way. The fix is a
 // range check before the conversion, or parsing with the target bit size so an
 // out-of-range value is an error.
@@ -211,7 +211,7 @@ func narrowingWithoutBounds(fset *token.FileSet, f *ast.File) []string {
 			continue
 		}
 		parsed := map[string]bool{}
-		compared := map[string]bool{}
+		lessThan, greaterThan := map[string]bool{}, map[string]bool{}
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.AssignStmt:
@@ -225,10 +225,17 @@ func narrowingWithoutBounds(fset *token.FileSet, f *ast.File) []string {
 			case *ast.BinaryExpr:
 				switch n.Op {
 				case token.LSS, token.GTR, token.LEQ, token.GEQ:
-					for _, side := range []ast.Expr{n.X, n.Y} {
+					// x < c and c > x both say "x is below something".
+					leftIsLess := n.Op == token.LSS || n.Op == token.LEQ
+					for i, side := range []ast.Expr{n.X, n.Y} {
+						below := leftIsLess == (i == 0)
 						ast.Inspect(side, func(m ast.Node) bool {
 							if id, ok := m.(*ast.Ident); ok {
-								compared[id.Name] = true
+								if below {
+									lessThan[id.Name] = true
+								} else {
+									greaterThan[id.Name] = true
+								}
 							}
 							return true
 						})
@@ -247,8 +254,8 @@ func narrowingWithoutBounds(fset *token.FileSet, f *ast.File) []string {
 				return true
 			}
 			ast.Inspect(call.Args[0], func(m ast.Node) bool {
-				if v, ok := m.(*ast.Ident); ok && parsed[v.Name] && !compared[v.Name] {
-					out = append(out, fset.Position(call.Pos()).String()+": "+id.Name+"("+v.Name+") truncates a parsed number with no range check. Compare "+v.Name+" with its bounds first, or parse with the target bit size so an out-of-range value is an error")
+				if v, ok := m.(*ast.Ident); ok && parsed[v.Name] && !(lessThan[v.Name] && greaterThan[v.Name]) {
+					out = append(out, fset.Position(call.Pos()).String()+": "+id.Name+"("+v.Name+") truncates a parsed number without a lower and an upper bound. Compare "+v.Name+" with both bounds first, or parse with the target bit size so an out-of-range value is an error")
 				}
 				return true
 			})
@@ -294,6 +301,10 @@ func TestNarrowingCheckerCatchesTheOriginalMistake(t *testing.T) {
 	bad := `func f(s string) uint16 { n, _ := strconv.ParseInt(s, 10, 64); return uint16(n) }`
 	if got := check(bad); len(got) != 1 {
 		t.Fatalf("the unchecked conversion was not reported: %v", got)
+	}
+	oneSided := `func f(s string) uint8 { n, _ := strconv.Atoi(s); if n > 0 { return uint8(n) }; return 0 }`
+	if got := check(oneSided); len(got) != 1 {
+		t.Fatalf("a one-sided bound was accepted, but it still truncates everything above 255: %v", got)
 	}
 	good := `func f(s string) uint16 { n, _ := strconv.ParseInt(s, 10, 64); if n < 0 || n > 65535 { return 0 }; return uint16(n) }`
 	if got := check(good); len(got) != 0 {
