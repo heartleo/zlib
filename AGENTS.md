@@ -4,6 +4,14 @@ Instructions for AI coding agents working in this repository. Contribution
 rules and the mandatory pre-commit checks are in
 [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
+## Repeat mistakes
+
+When a check in `internal/guard` fails, its message names the fix: follow it
+rather than adding an exemption. When you find a mistake that has happened
+before, add a mechanism for it as described in
+[Preventing repeat mistakes](.github/CONTRIBUTING.md#preventing-repeat-mistakes),
+and show the check failing on the old mistake.
+
 ## Documentation privacy
 
 These rules apply to every file in the repository and to issue, PR and commit
