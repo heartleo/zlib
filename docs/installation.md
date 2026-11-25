@@ -27,15 +27,29 @@ brew list zlib | grep -q bin/zlib && brew uninstall zlib
 brew install heartleo/tap/zlib-cli
 ```
 
+Releases before the cask published `zlib-cli` as a formula. Homebrew does not
+move that copy to the cask: `brew upgrade heartleo/tap/zlib-cli` keeps treating
+the name as the formula, and once the formula is gone from the tap it fails with
+`Cask 'zlib-cli' is not installed`. If `brew list --formula zlib-cli` lists it,
+replace it once, formula first:
+
+```bash
+brew uninstall --formula zlib-cli
+brew install --cask heartleo/tap/zlib-cli
+```
+
+Installing the cask while the formula is still installed leaves the formula's
+`zlib` link in place and skips the cask's own.
+
 Maintainers: keep GoReleaser's `homebrew_casks` name set to `zlib-cli`, and do
 not add a `formula_renames.json` or `tap_migrations.json` entry that maps `zlib`
 to `zlib-cli` in `heartleo/homebrew-tap`. Homebrew would treat a
 Homebrew-installed `zlib` library as the old name and fail to install or upgrade
-`zlib-cli` next to it. Moving users of the old `zlib-cli` formula to the cask is
-a separate step in the tap: delete `zlib-cli.rb` from the tap root once the first
-cask release is published. Homebrew reads `tap_migrations.json` as an old name
-mapped to a tap or to a full `tap/name`, so check any entry there on macOS
-before relying on it.
+`zlib-cli` next to it. Delete `zlib-cli.rb` from the tap root once the first cask
+release is published; while both exist, formula installs never see the cask. A
+`tap_migrations.json` entry did not change `brew upgrade` in a test with a local
+tap, which does not cover `brew update`, where Homebrew applies migrations. It
+reads a value as a tap or a full `tap/name`.
 
 Windows (PowerShell):
 
