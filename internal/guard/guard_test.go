@@ -352,3 +352,75 @@ func TestHomebrewPackageNameAgreesEverywhere(t *testing.T) {
 		}
 	}
 }
+
+// Which commit titles reach the release notes, and under which heading, is
+// decided by regular expressions in .goreleaser.yml and described in
+// CONTRIBUTING.md. The two drifted once: a `build(plugin)!:` title was filtered
+// by the sentence but not by the pattern. The rules are replayed here with the
+// config's own expressions.
+func TestReleaseNotesFollowTheCommitRules(t *testing.T) {
+	config, err := os.ReadFile("../../.goreleaser.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	section := string(config)
+	section = section[strings.Index(section, "\nchangelog:"):]
+	section = section[:strings.Index(section, "\nrelease:")]
+
+	type group struct {
+		title string
+		re    *regexp.Regexp
+	}
+	var groups []group
+	for _, m := range regexp.MustCompile(`(?m)^\s*- title: (\w+)\n(?:\s*regexp: '([^']+)'\n)?`).FindAllStringSubmatch(section, -1) {
+		g := group{title: m[1]}
+		if m[2] != "" {
+			g.re = regexp.MustCompile(m[2])
+		}
+		groups = append(groups, g)
+	}
+	var excludes []*regexp.Regexp
+	filters := section[strings.Index(section, "exclude:"):]
+	for _, m := range regexp.MustCompile(`(?m)^\s*- '([^']+)'$`).FindAllStringSubmatch(filters, -1) {
+		excludes = append(excludes, regexp.MustCompile(m[1]))
+	}
+	if len(groups) < 5 || len(excludes) < 7 {
+		t.Fatalf("read %d groups and %d exclusions from .goreleaser.yml; the layout of the changelog section changed, update this test", len(groups), len(excludes))
+	}
+
+	classify := func(subject string) string {
+		for _, re := range excludes {
+			if re.MatchString(subject) {
+				return ""
+			}
+		}
+		for _, g := range groups {
+			if g.re == nil || g.re.MatchString(subject) {
+				return g.title
+			}
+		}
+		return ""
+	}
+	for subject, want := range map[string]string{
+		"feat: add x": "Features", "feat(meta)!: break x": "Features",
+		"fix(download): x": "Fixes", "perf: x": "Performance", "build(release): x": "Build",
+		"build(plugin): bump version to 1.2.3": "", "build(plugin)!: x": "",
+		"docs: x": "", "test(guard): x": "", "ci: x": "", "chore: x": "", "refactor: x": "",
+		`Revert "feat: x"`: "Others", "Merge branch 'x'": "",
+	} {
+		if got := classify(subject); got != want {
+			t.Errorf("%q lands under %q in the release notes, want %q. Fix the pattern in .goreleaser.yml or the rule in CONTRIBUTING.md", subject, got, want)
+		}
+	}
+
+	docs, err := os.ReadFile("../../.github/CONTRIBUTING.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Join(strings.Fields(string(docs)), " ")
+	for _, claim := range []string{"Features, Fixes, Performance and Build", "`docs`, `test`, `ci`, `chore` and `refactor`", "`build(plugin)`"} {
+		if !strings.Contains(text, claim) {
+			t.Errorf("CONTRIBUTING.md no longer says %q about the release notes. Keep it in step with the changelog section of .goreleaser.yml", claim)
+		}
+	}
+}

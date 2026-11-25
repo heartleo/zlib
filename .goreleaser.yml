@@ -96,6 +96,7 @@ winget:
       - ebook
       - terminal
       - cli
+    skip_upload: auto
     repository:
       owner: heartleo
       name: winget-pkgs
@@ -108,9 +109,12 @@ winget:
           branch: master
 
 changelog:
+  # The GitHub API resolves each commit's author, which `git` cannot, and keeps
+  # the groups and filters below (`github-native` ignores them).
+  use: github
   sort: asc
-  # Sections for readers, a line per change without the commit hash.
-  format: "{{ .Message }}"
+  # Sections for readers, a line per change with the author's login.
+  format: "{{ .Message }} (@{{ .AuthorUsername }})"
   groups:
     - title: Features
       regexp: '^feat(\(.+\))?!?:'
@@ -143,6 +147,25 @@ changelog:
 release:
   draft: true
   replace_existing_draft: true
+  # A tag such as v1.0.0-rc.1 is published as a prerelease.
+  prerelease: auto
   extra_files:
     - glob: dist/mcpb/*.mcpb
+  header: |
+    ## zlib {{ .Tag }}
+  footer: |
+    ## Install
+
+    See the [installation guide](https://github.com/heartleo/zlib/blob/main/docs/installation.md),
+    or run `zlib update` from an existing install.
+
+    ## Verify
+
+    Check an archive against `checksums.txt`, or verify its signed build provenance:
+
+    ```
+    gh attestation verify <file> --repo heartleo/zlib
+    ```
+
+    **Full changelog**: https://github.com/heartleo/zlib/compare/{{ .PreviousTag }}...{{ .Tag }}
 

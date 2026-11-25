@@ -55,6 +55,11 @@ Some formats are owned by other tools, so the rule does not apply to them.
 3. Download one archive and run `zlib version`. It must print
    `zlib version vX.Y.Z`.
 
+The release is created as a draft, so review the generated notes (grouped by
+commit type, with the install and verification footer) and publish it by hand.
+A tag with a prerelease suffix, such as `vX.Y.Z-rc.1`, is marked as a
+prerelease and is not pushed to the Homebrew tap or winget-pkgs.
+
 Release builds are reproducible: `-trimpath`, and a build date and file time
 taken from the tagged commit, so rebuilding a tag gives byte-identical binaries
 for a given Go release.
