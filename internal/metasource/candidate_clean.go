@@ -16,15 +16,49 @@ func cleanCandidate(c Candidate) Candidate {
 	return c
 }
 
+// cleanStrings cleans, in place, every string reachable from v through structs,
+// slices, arrays, pointers, interfaces and maps (keys and values). v must be
+// addressable. A struct field named Description keeps its line breaks.
 func cleanStrings(v reflect.Value) {
 	switch v.Kind() {
 	case reflect.String:
 		if v.CanSet() {
 			v.SetString(ebookmeta.CleanLine(v.String()))
 		}
-	case reflect.Slice:
+	case reflect.Slice, reflect.Array:
 		for i := range v.Len() {
 			cleanStrings(v.Index(i))
+		}
+	case reflect.Pointer:
+		if !v.IsNil() {
+			cleanStrings(v.Elem())
+		}
+	case reflect.Interface:
+		if v.IsNil() || !v.CanSet() {
+			return
+		}
+		// The value inside an interface is not addressable: clean a copy and put it back.
+		inner := reflect.New(v.Elem().Type()).Elem()
+		inner.Set(v.Elem())
+		cleanStrings(inner)
+		v.Set(inner)
+	case reflect.Map:
+		if v.IsNil() {
+			return
+		}
+		cleaned := reflect.MakeMapWithSize(v.Type(), v.Len())
+		iter := v.MapRange()
+		for iter.Next() {
+			key := reflect.New(v.Type().Key()).Elem()
+			key.Set(iter.Key())
+			cleanStrings(key)
+			val := reflect.New(v.Type().Elem()).Elem()
+			val.Set(iter.Value())
+			cleanStrings(val)
+			cleaned.SetMapIndex(key, val)
+		}
+		if v.CanSet() {
+			v.Set(cleaned)
 		}
 	case reflect.Struct:
 		for i := range v.NumField() {

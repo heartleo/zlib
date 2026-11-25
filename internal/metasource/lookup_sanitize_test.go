@@ -94,3 +94,59 @@ func TestLookupCleansEveryTextFieldOfEverySource(t *testing.T) {
 		}
 	}
 }
+
+// cleanStrings must reach text however a field holds it. Candidate has none of
+// these shapes today; the walk is what keeps a future field from being missed.
+func TestCleanStringsReachesMapsPointersArraysAndInterfaces(t *testing.T) {
+	type holder struct {
+		Map     map[string]string
+		KeyMap  map[string]int
+		Ptr     *string
+		Array   [2]string
+		Iface   any
+		Nested  struct{ Inner []map[string]*string }
+		private string
+	}
+	hostile := hostileText()
+	ptr, nested := hostile, hostile
+	h := holder{
+		Map:    map[string]string{hostile: hostile},
+		KeyMap: map[string]int{hostile: 1},
+		Ptr:    &ptr,
+		Array:  [2]string{hostile, hostile},
+		Iface:  hostile,
+	}
+	h.Nested.Inner = []map[string]*string{{hostile: &nested}}
+	h.private = hostile
+
+	cleanStrings(reflect.ValueOf(&h).Elem())
+
+	got := map[string]string{}
+	collectStrings(reflect.ValueOf(&h).Elem(), "holder", got)
+	for path, s := range got {
+		if unsafeRunes(s) {
+			t.Errorf("%s keeps control text: %q", path, s)
+		}
+	}
+	for k, v := range h.Map {
+		if unsafeRunes(k) || unsafeRunes(v) {
+			t.Errorf("map entry %q: %q keeps control text", k, v)
+		}
+	}
+	for k := range h.KeyMap {
+		if unsafeRunes(k) {
+			t.Errorf("map key %q keeps control text", k)
+		}
+	}
+	if unsafeRunes(*h.Ptr) || unsafeRunes(h.Iface.(string)) {
+		t.Errorf("pointer %q or interface %q keeps control text", *h.Ptr, h.Iface)
+	}
+	for k, p := range h.Nested.Inner[0] {
+		if unsafeRunes(k) || unsafeRunes(*p) {
+			t.Errorf("nested entry %q: %q keeps control text", k, *p)
+		}
+	}
+	if h.private != hostile {
+		t.Error("an unexported field is not ours to change")
+	}
+}
