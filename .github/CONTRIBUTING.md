@@ -149,6 +149,12 @@ The checks in `internal/guard` run with `go test ./...` and so in `make check`:
 | `TestParsedNumbersAreRangeCheckedBeforeNarrowing` | A number parsed from a file or server and converted to a narrower integer without a range check is truncated silently |
 | `TestThirdPartyPackagesCannotSeeTheSession` | A catalogue, AI or WeRead package that imports the client or session store can leak a credential |
 
+Rules about the CI and release workflows are checked by
+`scripts/release-workflow.test.mjs`, which `node --test scripts/*.test.mjs` runs:
+pull requests validate the GoReleaser config with the version that publishes, a
+running release is never cancelled, and the release timeout covers the build
+after the `ci-ok` wait.
+
 To exempt a case, add it to the allowlist in the test with the reason, in the
 same pull request that needs it.
 

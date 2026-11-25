@@ -72,6 +72,15 @@ jobs:
       - name: Test scripts
         run: node --test scripts/*.test.mjs
 
+      # Fails on a deprecated or invalid option, so a GoReleaser change that
+      # breaks the release shows up in the pull request, not on the tag.
+      - name: Check GoReleaser config
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+
   build:
     needs: changes
     if: needs.changes.outputs.go == 'true'

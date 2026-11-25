@@ -9,9 +9,18 @@ on:
 # job lists everything it needs and the workflow grants nothing by default.
 permissions: {}
 
+# One release per tag, and a running one is never cancelled: stopping
+# GoReleaser halfway leaves a partial draft and unpublished package manifests.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # The ci-ok gate waits up to 15 minutes, then the build, tests and
+    # publishing run.
+    timeout-minutes: 45
     permissions:
       contents: write
       # The release-commit gate reads ci-ok's check run.
