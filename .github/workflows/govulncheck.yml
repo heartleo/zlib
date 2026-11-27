@@ -20,7 +20,7 @@ jobs:
 
       # setup-go installs exactly the go line of go.mod, which is also the
       # toolchain releases are built with.
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: go.mod
 
